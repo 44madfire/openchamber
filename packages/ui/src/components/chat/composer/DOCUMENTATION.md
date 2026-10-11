@@ -460,7 +460,12 @@ and the send path reading the same grammar.
   selection has to be the update that follows the focus.
 - `submit/buildOutgoingMessage.ts` flattens queued messages, the composer text,
   context drafts and linked references into OpenCode's one-primary-plus-parts
-  shape. The oldest queued message becomes primary. **Every attached context
+  shape. Every text the user typed, the queued messages oldest first and then
+  the composer text, joins the primary text with a blank line between them,
+  and their files join the primary attachments: OpenCode 2.x delivers each
+  additional part as a synthetic message the timeline does not show, so a
+  typed message sent as a part would reach the model and vanish from the chat
+  (#4746). **Every attached context
   item (inline comments, terminal selections, browser annotations, PR context,
   each linked issue, PR or guest item) becomes its own synthetic text part carrying structured
   metadata** built by `lib/messages/contextParts.ts`; the timeline reads that
