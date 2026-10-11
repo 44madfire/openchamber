@@ -6,7 +6,7 @@
 //
 // A creation runs in the background: the request comes back at once with the space's id, and the
 // steps are announced as `openchamber:space-progress` events on the host's hub, so the group in
-// the sidebar can say what is happening now (DESIGN.md, journey step 2). A creation that fails
+// the sidebar can say what is happening now (journey step 2). A creation that fails
 // after the containers exist removes them again, and its failure stays listed until the user
 // dismisses it, so an error is never silent.
 //
@@ -18,7 +18,7 @@
 // the same way, read from the host's OpenCode now and at every start, and the space gets a row
 // that only names the method (decision 13).
 //
-// Repair, since 5d-2 (DESIGN.md, journey step 8 and decision 10): restart OpenCode inside, and
+// Repair, since 5d-2 (journey step 8 and decision 10): restart OpenCode inside, and
 // restart the container with a fresh token for the server inside. A space whose gatekeeper is gone
 // is listed as such, because no restart brings it back.
 //
@@ -27,7 +27,7 @@
 // that stopped that way as such, and stops the gatekeeper it finds running beside a stopped space,
 // which is what an idle stop leaves while OpenChamber is closed.
 //
-// Setup commands, since 5d-4 (DESIGN.md, "Code in and out"): the project's worktree setup commands
+// Setup commands, since 5d-4 (see "Setup commands" in DOCUMENTATION.md): the project's worktree setup commands
 // run inside the space once its code arrived, in the background, and again when the user asks.
 //
 // The chat archive, since 5e-2 (decision 9, journey step 7): a delete takes the space's chats to
@@ -305,7 +305,7 @@ export function createSpaceJourney({
       pending.delete(entry.id);
       progress(entry, 'ready');
       onSpacesChanged();
-      // In the background, while the agent can already start (DESIGN.md, journey step 2).
+      // In the background, while the agent can already start (journey step 2).
       if (setupCommands.length > 0) setup.start(entry.id, { projectPath: arrived.spacePath, commands: setupCommands });
       sendHistoryInBackground({ repository: projectDirectory, spaceId: entry.id, spacePath: arrived.spacePath, base: arrived.base });
     } catch (error) {
@@ -543,7 +543,7 @@ export function createSpaceJourney({
 
   /**
    * Which grants of the record a running gatekeeper holds now, read from the gatekeeper itself:
-   * after a machine restart it holds none, and the space "needs access" (DESIGN.md, Gatekeeper).
+   * after a machine restart it holds none, and the space "needs access" (see "The gatekeeper" in DOCUMENTATION.md).
    * A gatekeeper that cannot be asked leaves the answer unknown, never "granted".
    */
   const readAccess = async (space, grants) => {
@@ -562,8 +562,8 @@ export function createSpaceJourney({
 
   /**
    * What is broken in a damaged space, for the group's status line: `gatekeeper_gone` when its
-   * gatekeeper container no longer exists, which no start makes again (STAGES.md, "Things stage 2
-   * leaves"), and `repairable` for the rest, a gatekeeper that stopped while the space runs among
+   * gatekeeper container no longer exists, which no start makes again (see "Lifecycle" in
+   * DOCUMENTATION.md), and `repairable` for the rest, a gatekeeper that stopped while the space runs among
    * them, which the next start brings back. The place's list names the gatekeeper as missing in
    * both cases; its verification tells them apart, and is asked only for a space that is damaged
    * that way. A verification that cannot answer leaves it `repairable`, so the user is offered
@@ -721,7 +721,7 @@ export function createSpaceJourney({
 
   /**
    * Restarts the container of a running space, the second of the repair actions, and gives the
-   * server inside a fresh token on the way (DESIGN.md, "Dispatcher, sessions, events"): the new
+   * server inside a fresh token on the way (see "Dispatcher" in DOCUMENTATION.md): the new
    * token is written while the space runs, and the server reads it when it starts again. The
    * token is not a secret from the agent, so one that cannot be written is logged and the restart
    * goes on; the dispatcher reads the token again when the server inside refuses the old one.

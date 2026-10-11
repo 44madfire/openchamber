@@ -694,7 +694,7 @@ let isExternalOpenCode = false;
 let exitOnShutdown = true;
 let uiAuthController = null;
 // The isolated-spaces host: the place, the manager and the dispatcher. Null while the feature's
-// switch is off, and then nothing of the feature runs, see docs/isolated-spaces/DESIGN.md.
+// switch is off, and then nothing of the feature runs (decision 19 in the module's DOCUMENTATION.md).
 let spacesHost = null;
 let activeTunnelController = null;
 let globalWatcherStartPromise = null;
@@ -2084,7 +2084,7 @@ async function main(options = {}) {
   const sayTTSCapability = detectSayTtsCapability(process);
 
   // The chats of deleted spaces, imported into the host's OpenCode and kept read-only there
-  // (DESIGN.md, decision 9). It reads a folder of the data directory and runs nothing else, so it
+  // (decision 9). It reads a folder of the data directory and runs nothing else, so it
   // exists with the switch on or off: an archived chat must stay read-only either way.
   const hostOpenCodeClient = () => createOpenCodeClient({
     baseUrl: buildOpenCodeUrl('/', '').replace(/\/$/, ''),
@@ -2615,7 +2615,7 @@ async function main(options = {}) {
   relayReconcileTimer.unref?.();
 
   // The server inside an isolated space stops itself after the user's idle hours, and the space's
-  // container with it (DESIGN.md, decision 11). Only a space's environment names the setting's
+  // container with it (decision 11). Only a space's environment names the setting's
   // file, so this never runs anywhere else. The exit code tells the host why it stopped.
   const spaceIdleStopFile = process.env.OPENCHAMBER_SPACE_IDLE_STOP_FILE;
   if (spaceIdleStopFile) {

@@ -59,7 +59,7 @@ type MobileProjectEditSurfaceProps = {
 
 /**
  * The project's isolated spaces on the phone, where the desktop has the spaces page of the project
- * menu (DESIGN.md, user journey step 9): the same rows, whose actions open the space's sheet. A
+ * menu (journey step 9): the same rows, whose actions open the space's sheet. A
  * space is made from the new-session picker, so there is no create button here.
  */
 const MobileProjectSpaces: React.FC<{ projectPath: string }> = ({ projectPath }) => {

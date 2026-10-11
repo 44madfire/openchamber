@@ -1,4 +1,4 @@
-// A space's state and its repair (DESIGN.md, user journey step 8): what the group's status line
+// A space's state and its repair (journey step 8): what the group's status line
 // says about a space that is stopped, broken or not answering, which actions its menu offers, and
 // the actions themselves, from soft to hard: start, restart OpenCode, restart the container, stop,
 // delete. What the host lists is the authority; this window only adds the action it has under way

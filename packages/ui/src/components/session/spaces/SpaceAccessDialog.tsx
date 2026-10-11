@@ -1,5 +1,5 @@
 /**
- * The grant dialog of an isolated space (DESIGN.md, user journey step 4): model keys per provider,
+ * The grant dialog of an isolated space (journey step 4): model keys per provider,
  * the domains the space may reach, and the attempts its gatekeeper refused, each opened from here.
  * Every grant goes through the host at once; nothing is saved at the end. A grant cannot be taken
  * back (decision 4), so opened domains show without a remove button.

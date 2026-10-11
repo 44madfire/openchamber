@@ -1,5 +1,5 @@
 /**
- * The create dialog of an isolated space (DESIGN.md, user journey step 1): its name, where it
+ * The create dialog of an isolated space (journey step 1): its name, where it
  * runs, what code it starts from, its network, and model access given up front. Opened from the
  * new-session draft picker, the one entry point; never mounted in VS Code (decision 16).
  *

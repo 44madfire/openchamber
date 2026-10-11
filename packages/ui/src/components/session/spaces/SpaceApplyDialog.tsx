@@ -1,5 +1,5 @@
 /**
- * The apply dialog of an isolated space (DESIGN.md, decisions 7 and 8, user journey step 6): what
+ * The apply dialog of an isolated space (decisions 7 and 8, user journey step 6): what
  * the agent changed, as a branch named after the space or as uncommitted changes, and "delete the
  * space afterwards", on unless an agent still works there. Opened from the group's "⋯" menu, the
  * phone's sheet, the session header and the delete confirmation.

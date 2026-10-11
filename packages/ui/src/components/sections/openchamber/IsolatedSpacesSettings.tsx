@@ -135,7 +135,7 @@ type TurnOffNotice = { kind: 'stops'; count: number } | { kind: 'unknown' };
  * released, see `lib/spaces/release.ts`.
  */
 /**
- * The spaces whose project is no longer registered here (DESIGN.md, user journey step 9, and
+ * The spaces whose project is no longer registered here (journey step 9, and
  * decision 12): removed from OpenChamber or added again under another path, so no project menu
  * leads to them. Listed only when there are any, with the folder each was made for and the same
  * actions as a space's group. A read that fails lists nothing here rather than saying there are

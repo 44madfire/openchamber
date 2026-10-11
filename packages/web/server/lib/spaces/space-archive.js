@@ -1,4 +1,4 @@
-// The chat archive of a deleted space (DESIGN.md, decision 9 and journey step 7), built in 5e-2.
+// The chat archive of a deleted space (decision 9 and journey step 7), built in 5e-2.
 //
 // Before a space goes, its chats are taken out and imported into the host's OpenCode at a
 // directory of the archive's own, stamped archived, so they show on the Archive page and nowhere

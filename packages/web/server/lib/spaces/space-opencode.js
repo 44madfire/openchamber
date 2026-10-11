@@ -1,5 +1,5 @@
 // The one place that knows OpenCode's own formats inside a space, so an OpenCode format change is
-// a one-file edit (DESIGN.md, "Parts"). Today: the provider configuration that sends a provider's
+// a one-file edit (see "Design" in DOCUMENTATION.md). Today: the provider configuration that sends a provider's
 // model calls through the gatekeeper's window, since 5e-2 a chat taken out of a space for the
 // host's archive, and since stage 7 the login row that puts OpenCode inside into its ChatGPT mode
 // while the real token stays in the gatekeeper.

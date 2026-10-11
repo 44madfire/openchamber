@@ -10,7 +10,7 @@ import { spacesOfProject, useSpacesJourneyRead } from '@/lib/spaces/spaces-store
 import { useProjectsStore } from '@/stores/useProjectsStore';
 import { useUIStore } from '@/stores/useUIStore';
 
-// Full-page list of one project's isolated spaces (DESIGN.md, user journey step 9), opened from
+// Full-page list of one project's isolated spaces (journey step 9), opened from
 // the project menu in the sidebar, beside its worktrees. Mounted by the main layout only while the
 // feature's switch is on, and never in VS Code (decision 16). Each row is the space as its group
 // in the sidebar shows it, with the same actions; "New isolated space" opens the create dialog of

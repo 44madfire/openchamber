@@ -1,6 +1,5 @@
 /**
- * The status line under an isolated space's group in the sidebar: while it is being made (DESIGN.md,
- * user journey step 2) the step the host announced, the model access this window is giving, a
+ * The status line under an isolated space's group in the sidebar: while it is being made (journey step 2) the step the host announced, the model access this window is giving, a
  * failed creation with the way to remove it, or access that could not be given; once it runs, what
  * access it lacks (step 4), read from the gatekeeper through the journey list, with the way to the
  * grant dialog. Since 5d-2 (step 8) it also says when a space is stopped, broken or not answering,
