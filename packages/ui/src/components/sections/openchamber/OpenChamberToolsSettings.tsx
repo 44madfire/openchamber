@@ -173,7 +173,7 @@ export const OpenChamberToolsSettings: React.FC = () => {
 
           {/* Only with the tool: without it there is no move to decide about. */}
           {agentControlToolEnabled ? (
-            <div className={cn('pb-3 pr-4', TOOL_ROW_TEXT_INSET_CLASS)}>
+            <div className={cn('pb-3 pe-4', TOOL_ROW_TEXT_INSET_CLASS)}>
               <SettingsCheckboxRow
                 settingsItem="sessions.agent-worktree-move"
                 checked={agentWorktreeMoveWithoutAsking}
