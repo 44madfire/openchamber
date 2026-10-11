@@ -117,7 +117,12 @@ export interface TurnGroupingContext {
     activityOwnerMessageId?: string;
     isFirstAssistantInTurn: boolean;
     isLastAssistantInTurn: boolean;
-    hasEarlierAssistantText?: boolean;
+    /**
+     * Text the turn's earlier assistant messages wrote, one entry per text
+     * part, in order. Set on the last assistant message only, so the turn
+     * footer can copy and save the whole reply.
+     */
+    earlierAssistantText?: string[];
     isLatestTurn: boolean;
     summaryBody?: string;
     activityParts?: TurnActivityRecord[];

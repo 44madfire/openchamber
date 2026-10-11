@@ -274,6 +274,12 @@ const areRelevantActivitySegmentsEqual = (
   }
 };
 
+const areStringListsEqual = (left: string[] | undefined, right: string[] | undefined): boolean => {
+  if (left === right) return true;
+  if (!left || !right || left.length !== right.length) return false;
+  return left.every((value, index) => value === right[index]);
+};
+
 export const areRelevantTurnGroupingContextsEqual = (
   left: TurnGroupingContext | undefined,
   right: TurnGroupingContext | undefined,
@@ -294,7 +300,7 @@ export const areRelevantTurnGroupingContextsEqual = (
 
   if (left.turnId !== right.turnId) return false;
   if (left.isFirstAssistantInTurn !== right.isFirstAssistantInTurn) return false;
-  if (left.hasEarlierAssistantText !== right.hasEarlierAssistantText) return false;
+  if (!areStringListsEqual(left.earlierAssistantText, right.earlierAssistantText)) return false;
   if (left.isLastAssistantInTurn !== right.isLastAssistantInTurn) return false;
   if (left.isLatestTurn !== right.isLatestTurn) return false;
   if (left.isWorking !== right.isWorking) return false;

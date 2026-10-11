@@ -30,7 +30,7 @@ import type { Session } from '@/lib/opencode/model';
 import { getMultiRunIdentity } from '@/lib/multirun/identity';
 import { openParallelComposer } from '@/lib/multirun/openParallelComposer';
 import { AskOtherModelsDialog } from '@/components/multirun/AskOtherModelsDialog';
-import { flattenAssistantTextParts, suggestPlanTitleFromText } from '@/lib/messages/messageText';
+import { assistantTextSegments, flattenAssistantTextParts, suggestPlanTitleFromText } from '@/lib/messages/messageText';
 import { MULTIRUN_EXECUTION_FORK_PROMPT_META_TEXT } from '@/lib/messages/executionMeta';
 import { useMessageTTS } from '@/hooks/useMessageTTS';
 import { MobileOverlayPanel } from '@/components/ui/MobileOverlayPanel';
@@ -68,7 +68,7 @@ import { useAgentColors } from '@/hooks/useAgentColors';
 import { isCapacitorMobileApp } from '@/apps/mobileNativeChrome';
 import { shareFileFromNativeApp } from '@/lib/nativeFileShare';
 import { WorktreeRequiresGitRepositoryError } from '@/lib/worktrees/worktreeCreate';
-import { cloneMessageImageExportSource } from './imageExport';
+import { buildTurnImageExportSource, cloneMessageImageExportSource } from './imageExport';
 
 
 const CONTAIN_LAYOUT_STYLE = { contain: 'layout' as const, transform: 'translateZ(0)' };
@@ -257,6 +257,8 @@ interface MessageBodyProps {
     shouldShowHeader?: boolean;
     hasTextContent?: boolean;
     onCopyMessage?: () => void | boolean | Promise<void | boolean>;
+    /** Copies the whole turn's reply; the turn footer uses it instead of `onCopyMessage`. */
+    onCopyTurn?: () => Promise<boolean>;
     copiedMessage?: boolean;
     /** Copies a link to this message; absent where the surface has no message links. */
     onCopyLink?: () => void;
@@ -1157,6 +1159,7 @@ const AssistantMessageBody = React.memo(({
     allowAnimation: _allowAnimation,
     hasTextContent = false,
     onCopyMessage,
+    onCopyTurn,
     onCopyLink,
     showReasoningTraces = false,
     turnGroupingContext,
@@ -1658,6 +1661,31 @@ const AssistantMessageBody = React.memo(({
         [messageId, t, vscodeApi]
     );
 
+    // The turn footer saves the whole reply: the text the turn's earlier steps
+    // wrote, then every text part of this message. A reply of one text part
+    // keeps the copy of what the chat rendered.
+    const earlierAssistantText = turnGroupingContext?.earlierAssistantText;
+    const shareTurnAsImage = React.useCallback(
+        async (requestedSourceElement?: HTMLElement | null) => {
+            const segments = [...(earlierAssistantText ?? []), ...assistantTextSegments(assistantTextParts)];
+            if (segments.length <= 1) {
+                await shareMessageAsImage(requestedSourceElement);
+                return;
+            }
+            const syntaxStyle = messageContentRef.current?.querySelector('[data-markdown-content]')?.getAttribute('style') ?? null;
+            let turnSource: HTMLElement;
+            try {
+                turnSource = await buildTurnImageExportSource(segments, syntaxStyle);
+            } catch (error) {
+                console.error('Failed to generate image:', error);
+                toast.error(t('chat.messageBody.toast.generateImageFailed'));
+                return;
+            }
+            await shareMessageAsImage(turnSource);
+        },
+        [assistantTextParts, earlierAssistantText, shareMessageAsImage, t]
+    );
+
     const activityPartsForTurn = React.useMemo(() => {
         const all = turnGroupingContext?.activityParts;
         if (!isSortedRenderMode || !all) {
@@ -1746,18 +1774,19 @@ const AssistantMessageBody = React.memo(({
 
     // The turn footer appends its own buttons (fork, multi-run) after this
     // group, so extension actions are rendered there separately, last.
+    const onCopyFooter = onCopyTurn ?? onCopyMessage;
     const footerMessageActionButtons = React.useMemo(() => (
         <AssistantMessageActionButtons
             hasCopyableText={hasCopyableText}
             isTouchContext={isTouchContext}
-            onCopyMessage={onCopyMessage}
+            onCopyMessage={onCopyFooter}
             onCopyLink={onCopyLink}
-            onShareImage={shareMessageAsImage}
+            onShareImage={shareTurnAsImage}
             ttsText={assistantPlanText}
             ttsReadingKey={messageId}
             reviewTransferAction={reviewTransferAction}
         />
-    ), [assistantPlanText, hasCopyableText, isTouchContext, messageId, onCopyLink, onCopyMessage, reviewTransferAction, shareMessageAsImage]);
+    ), [assistantPlanText, hasCopyableText, isTouchContext, messageId, onCopyFooter, onCopyLink, reviewTransferAction, shareTurnAsImage]);
 
     const renderJustificationActions = React.useCallback((activity: NonNullable<TurnGroupingContext['activityParts']>[number]) => {
         if (!showSplitAssistantMessageActions || !isSortedRenderMode) {
@@ -1918,7 +1947,7 @@ const AssistantMessageBody = React.memo(({
                     i += 1;
                     continue;
                 }
-                if (isFinalLiveAnswer && !hasRenderedAnswerText && (rendered.length > 0 || activityRendered.length > 0 || hasEarlierVisibleActivity || turnGroupingContext?.hasEarlierAssistantText)) {
+                if (isFinalLiveAnswer && !hasRenderedAnswerText && (rendered.length > 0 || activityRendered.length > 0 || hasEarlierVisibleActivity || turnGroupingContext?.earlierAssistantText)) {
                     rendered.push(
                         <div
                             key={`final-answer-divider-${messageId}`}
@@ -2156,7 +2185,7 @@ const AssistantMessageBody = React.memo(({
 
     const footerSheetActions = React.useMemo(() => {
         const actions: Array<{ id: string; label: string; icon: React.ReactNode; disabled?: boolean; onSelect: () => void }> = [];
-        if (onCopyMessage) {
+        if (onCopyFooter) {
             actions.push({
                 id: 'copy',
                 label: t('chat.messageBody.actions.copyAnswer'),
@@ -2166,7 +2195,7 @@ const AssistantMessageBody = React.memo(({
                 // nowhere to land — say it with a toast instead.
                 onSelect: () => {
                     void (async () => {
-                        const copied = await onCopyMessage();
+                        const copied = await onCopyFooter();
                         if (copied !== false) toast.success(t('chat.messageBody.toast.copied'));
                     })();
                 },
@@ -2195,7 +2224,7 @@ const AssistantMessageBody = React.memo(({
                 label: t('chat.messageBody.actions.saveAsImage'),
                 icon: <Icon name="image-download" className="h-3.5 w-3.5" />,
                 disabled: !hasCopyableText,
-                onSelect: () => { void shareMessageAsImage(); },
+                onSelect: () => { void shareTurnAsImage(); },
             });
         }
         if (!isMiniChatSurface && showMessageTTSButtons && hasCopyableText) {
@@ -2250,7 +2279,7 @@ const AssistantMessageBody = React.memo(({
             }
         }
         return actions;
-    }, [assistantPlanText, canUseProjectPlanActions, contextPinPending, contextPinned, currentProjectRef, extraActions, handleForkClick, handleForkFromHere, handleSaveAsPlanClick, hasCopyableText, isFooterTTSPlaying, isMiniChatSurface, isReviewSessionView, onCopyLink, onCopyMessage, onToggleContextPin, playFooterTTS, reviewTransferAction, shareMessageAsImage, showMessageTTSButtons, stopFooterTTS, t]);
+    }, [assistantPlanText, canUseProjectPlanActions, contextPinPending, contextPinned, currentProjectRef, extraActions, handleForkClick, handleForkFromHere, handleSaveAsPlanClick, hasCopyableText, isFooterTTSPlaying, isMiniChatSurface, isReviewSessionView, onCopyFooter, onCopyLink, onToggleContextPin, playFooterTTS, reviewTransferAction, shareTurnAsImage, showMessageTTSButtons, stopFooterTTS, t]);
 
     const finalTurnActionButtons = (
         <>

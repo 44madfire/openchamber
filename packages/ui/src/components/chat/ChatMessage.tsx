@@ -93,6 +93,17 @@ function useStickyDisplayValue<T>(value: T | null | undefined): T | null | undef
     return value ?? stickyValue;
 }
 
+// Assistant text goes to the clipboard as Markdown with its rendered HTML,
+// or as the plain text the reader sees when the user asked for that.
+const copyAssistantText = async (text: string) => {
+    const { renderMarkdownSync } = await import('./markdown/markdownCore');
+    const html = renderMarkdownSync(text);
+    const plainText = useUIStore.getState().copyMessagesAsPlainText
+        ? (await import('./markdown/selectionMarkdown')).renderedMarkdownHtmlToPlainText(html, document)
+        : undefined;
+    return copyMarkdownToClipboard(text, html, { plainText });
+};
+
 const getMessageInfoProp = (info: unknown, key: string): unknown => {
     if (typeof info === 'object' && info !== null) {
         return (info as Record<string, unknown>)[key];
@@ -614,17 +625,16 @@ const ChatMessage: React.FC<ChatMessageProps> = ({
 
     const hasTextContent = messageTextContent.length > 0;
 
+    // The turn footer copies the whole reply: what the earlier steps of the
+    // turn wrote before their tool calls, then this message.
+    const earlierAssistantText = isUser ? undefined : turnGroupingContext?.earlierAssistantText;
+
     const handleCopyMessage = React.useCallback(async () => {
         let result;
         if (isUser) {
             result = await copyTextToClipboard(messageTextContent);
         } else {
-            const { renderMarkdownSync } = await import('./markdown/markdownCore');
-            const html = renderMarkdownSync(messageTextContent);
-            const plainText = useUIStore.getState().copyMessagesAsPlainText
-                ? (await import('./markdown/selectionMarkdown')).renderedMarkdownHtmlToPlainText(html, document)
-                : undefined;
-            result = await copyMarkdownToClipboard(messageTextContent, html, { plainText });
+            result = await copyAssistantText(messageTextContent);
         }
         if (!result.ok) {
             return false;
@@ -635,6 +645,12 @@ const ChatMessage: React.FC<ChatMessageProps> = ({
         }
         return true;
     }, [isUser, messageTextContent]);
+
+    const handleCopyTurn = React.useCallback(async () => {
+        const turnText = [...(earlierAssistantText ?? []), messageTextContent].filter((text) => text.length > 0).join('\n\n');
+        const result = await copyAssistantText(turnText);
+        return result.ok;
+    }, [earlierAssistantText, messageTextContent]);
 
     const handleRevert = React.useCallback(() => {
         if (!sessionId || !message.info.id) return;
@@ -903,6 +919,7 @@ const ChatMessage: React.FC<ChatMessageProps> = ({
                                 shouldShowHeader={shouldShowHeader}
                                 hasTextContent={hasTextContent}
                                 onCopyMessage={handleCopyMessage}
+                                onCopyTurn={earlierAssistantText ? handleCopyTurn : undefined}
                                 onCopyLink={handleCopyLink}
                                 copiedMessage={copiedMessage}
                                 showReasoningTraces={showReasoningTraces}

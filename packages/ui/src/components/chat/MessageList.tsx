@@ -5,7 +5,7 @@ import ChatMessage from './ChatMessage';
 import { TimelineNotice } from './message/TimelineNotice';
 import { useRunningSubagentRuns, withRunningSubagentRuns } from './lib/runningSubagentRuns';
 import { isSkippedTimelineMessage, isBackgroundReportEntry, isTimelineNoticeRole, isTurnOpeningNotice } from './lib/timelineRoles';
-import { filterVisibleParts, isEmptyTextPart } from './message/partUtils';
+import { earlierAssistantText } from './lib/turns/earlierAssistantText';
 import { areOptionalRenderRelevantMessagesEqual, areRelevantTurnGroupingContextsEqual, areRenderRelevantMessagesEqual } from './message/renderCompare';
 import TurnItem from './components/TurnItem';
 import { LiveTurnActivity } from './components/LiveTurnActivity';
@@ -349,6 +349,11 @@ const TurnBlock = React.memo(({
         return firstAssistant ? [firstAssistant] : [];
     }, [chatRenderMode, streamingAssistantMessageId, turn.assistantMessages]);
 
+    const turnEarlierAssistantText = React.useMemo(
+        () => earlierAssistantText(visibleAssistantMessages),
+        [visibleAssistantMessages]
+    );
+
     const completedAssistantMessages = React.useMemo(() => {
         if (chatRenderMode !== 'sorted') {
             return turn.assistantMessages;
@@ -487,9 +492,7 @@ const TurnBlock = React.memo(({
                     activityOwnerMessageId,
                     isFirstAssistantInTurn: isFirstAssistant,
                     isLastAssistantInTurn: isLastAssistant,
-                    hasEarlierAssistantText: chatRenderMode === 'live' && isLastAssistant && visibleAssistantMessages.some((assistant, index) => (
-                        index < assistantIndex && filterVisibleParts(assistant.parts).some((part) => part.type === 'text' && !isEmptyTextPart(part))
-                    )),
+                    earlierAssistantText: isLastAssistant && turnEarlierAssistantText.length > 0 ? turnEarlierAssistantText : undefined,
                     isLatestTurn: isLastTurn,
                     isWorking: isLastTurn && sessionIsWorking && (
                         chatRenderMode === 'sorted'
@@ -550,6 +553,7 @@ const TurnBlock = React.memo(({
             reviewTransferDirection,
             visibleAssistantMessages,
             visibleAssistantIds,
+            turnEarlierAssistantText,
             visibleActivitySegments,
             activityOwnerMessageId,
             shouldAnimateUserMessage,

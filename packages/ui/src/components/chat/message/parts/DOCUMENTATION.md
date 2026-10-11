@@ -89,6 +89,18 @@ its logical gutter, allowing adjacent Arabic and English items. Inline code
 and code widgets have explicit LTR attributes so they do not choose the
 containing item's direction. Direction changes preserve source and copy text.
 
+### Turn footer copy and image
+
+The footer under a turn's last assistant message copies and saves the whole
+reply: the text parts of every assistant message in the turn, in order, with
+tool output and reasoning left out. `MessageList` hands the earlier text to the
+last message as `earlierAssistantText`; per-message and per-justification copy
+buttons keep copying only their own text. Earlier messages may be folded or not
+mounted, and in sorted mode part of the last message sits in Activity, so a
+reply of more than one text part is drawn by `buildTurnImageExportSource` from
+Markdown with the chat's classes and `decorateMarkdown`. A reply of one text
+part keeps the copy of what the chat rendered.
+
 ### Optional live history disclosure
 
 Activity Default is shared by the settings UI in both render modes. In live
