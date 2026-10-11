@@ -284,9 +284,9 @@ export const isSpaceStopped = (spaceId: string): boolean => isStoppedEntry(useSp
 /**
  * Whether a space's group offers Delete and nothing else: its making failed, here or in a host
  * that quit before the code arrived, or its container is gone. A new session there would open
- * in an empty folder or fail, so the group's "Start a session" stays hidden.
+ * in an empty folder or fail, so the group offers none.
  */
-export const spaceTakesNoNewSession = (entry: SpaceEntry | undefined): boolean => entry?.state === 'failed' || entry?.state === 'missing';
+const spaceTakesNoNewSession = (entry: SpaceEntry | undefined): boolean => entry?.state === 'failed' || entry?.state === 'missing';
 
 export const useSpaceTakesNoNewSession = (spaceId: string | null | undefined): boolean =>
   useSpacesStore((state) => spaceId != null && spaceTakesNoNewSession(state.journey?.get(spaceId)));
