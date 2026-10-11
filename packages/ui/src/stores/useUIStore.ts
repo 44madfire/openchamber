@@ -1113,6 +1113,8 @@ interface UIStore {
   agentNotifyToolEnabled: boolean;
   /** Whether OpenChamber's agent tools sit behind OpenCode's Code Mode instead of being direct tools. */
   agentToolsCodeMode: boolean;
+  /** Whether an agent moves its session into a new worktree on a busy branch without asking first. */
+  agentWorktreeMoveWithoutAsking: boolean;
   /** The isolated-spaces switch as saved; the server applies it at its next start. */
   isolatedSpacesEnabled: boolean;
   /** The permission mode the server writes onto each new top-level session. */
@@ -1371,6 +1373,7 @@ interface UIStore {
   setAgentMemoryToolEnabled: (value: boolean) => void;
   setAgentNotifyToolEnabled: (value: boolean) => void;
   setAgentToolsCodeMode: (value: boolean) => void;
+  setAgentWorktreeMoveWithoutAsking: (value: boolean) => void;
   setIsolatedSpacesEnabled: (value: boolean) => void;
   setPermissionDefaultMode: (value: PermissionMode) => void;
   setAgentMemoryFeatureAvailable: (value: boolean) => void;
@@ -1582,6 +1585,7 @@ export const useUIStore = create<UIStore>()(
         agentMemoryToolEnabled: false,
         agentNotifyToolEnabled: false,
         agentToolsCodeMode: false,
+        agentWorktreeMoveWithoutAsking: false,
         isolatedSpacesEnabled: false,
         permissionDefaultMode: 'ask',
         agentMemoryFeatureAvailable: false,
@@ -3134,6 +3138,9 @@ export const useUIStore = create<UIStore>()(
         setAgentToolsCodeMode: (value) => {
           set({ agentToolsCodeMode: value });
         },
+        setAgentWorktreeMoveWithoutAsking: (value) => {
+          set({ agentWorktreeMoveWithoutAsking: value });
+        },
         setAgentMemoryFeatureAvailable: (value) => {
           set({ agentMemoryFeatureAvailable: value });
         },
@@ -3645,6 +3652,7 @@ export const useUIStore = create<UIStore>()(
           agentMemoryToolEnabled: state.agentMemoryToolEnabled,
           agentNotifyToolEnabled: state.agentNotifyToolEnabled,
           agentToolsCodeMode: state.agentToolsCodeMode,
+          agentWorktreeMoveWithoutAsking: state.agentWorktreeMoveWithoutAsking,
           isolatedSpacesEnabled: state.isolatedSpacesEnabled,
           permissionDefaultMode: state.permissionDefaultMode,
           agentMemoryViewedAt: state.agentMemoryViewedAt,

@@ -745,6 +745,15 @@ const SETTINGS_SEARCH_ITEMS: readonly SettingsSearchItem[] = [
     isAvailable: (ctx) => !ctx.isVSCode,
   },
   {
+    id: 'sessions.agent-worktree-move',
+    page: 'general',
+    titleKey: 'settings.openchamber.tools.field.agentWorktreeMove',
+    descriptionKey: 'settings.openchamber.tools.field.agentWorktreeMoveInfo',
+    keywords: ['agent', 'worktree', 'branch', 'move', 'session', 'ask', 'pull request'],
+    // Rendered only under a switched-on control tool.
+    isAvailable: (ctx) => !ctx.isVSCode && useUIStore.getState().agentControlToolEnabled,
+  },
+  {
     id: 'sessions.agent-web-tool',
     page: 'general',
     titleKey: 'settings.openchamber.tools.field.agentWebTool',

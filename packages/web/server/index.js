@@ -1021,6 +1021,10 @@ const sessionKnowledgeRuntime = createSessionKnowledgeRuntime({
     const settings = await readSettingsFromDiskMigrated().catch(() => null);
     return settings?.agentControlToolEnabled !== false;
   },
+  isWorktreeMoveWithoutAsking: async () => {
+    const settings = await readSettingsFromDiskMigrated().catch(() => null);
+    return settings?.agentWorktreeMoveWithoutAsking === true;
+  },
   readSessionMetadata: readStoredSessionMetadata,
   // Pins and the delivered-signature cursor are read from and written to
   // OpenChamber's own store; nothing here talks to OpenCode any more.

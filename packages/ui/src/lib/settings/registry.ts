@@ -293,6 +293,7 @@ export const SETTINGS_REGISTRY = {
   browserProvider: field({ scope: 'instance', parse: parseNonEmptyString, ui: uiStore('browserProvider', (v) => useUIStore.getState().setBrowserProvider(v)) }),
   agentNotifyToolEnabled: field({ scope: 'instance', parse: parseBoolean, ui: uiStore('agentNotifyToolEnabled', (v) => useUIStore.getState().setAgentNotifyToolEnabled(v)) }),
   agentToolsCodeMode: field({ scope: 'instance', parse: parseBoolean, ui: uiStore('agentToolsCodeMode', (v) => useUIStore.getState().setAgentToolsCodeMode(v)) }),
+  agentWorktreeMoveWithoutAsking: field({ scope: 'instance', parse: parseBoolean, ui: uiStore('agentWorktreeMoveWithoutAsking', (v) => useUIStore.getState().setAgentWorktreeMoveWithoutAsking(v)) }),
   agentMemoryToolEnabled: field({ scope: 'instance', parse: parseBoolean, ui: uiStore('agentMemoryToolEnabled', (v) => useUIStore.getState().setAgentMemoryToolEnabled(v)) }),
   // The isolated-spaces switch. The server reads it once at start; a change takes effect at the
   // next start, which the settings row says. Never shown in VS Code (decision 16 of the design).

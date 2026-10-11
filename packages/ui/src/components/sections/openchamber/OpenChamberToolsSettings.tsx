@@ -90,11 +90,20 @@ export const OpenChamberToolsSettings: React.FC = () => {
   const setAgentNotifyToolEnabled = useUIStore((state) => state.setAgentNotifyToolEnabled);
   const agentToolsCodeMode = useUIStore((state) => state.agentToolsCodeMode);
   const setAgentToolsCodeMode = useUIStore((state) => state.setAgentToolsCodeMode);
+  const agentWorktreeMoveWithoutAsking = useUIStore((state) => state.agentWorktreeMoveWithoutAsking);
+  const setAgentWorktreeMoveWithoutAsking = useUIStore((state) => state.setAgentWorktreeMoveWithoutAsking);
 
   const handleAgentControlToolChange = React.useCallback((enabled: boolean) => {
     setAgentControlToolEnabled(enabled);
     void updateDesktopSettings({ agentControlToolEnabled: enabled });
   }, [setAgentControlToolEnabled]);
+
+  // Read into the tool's description by the server, which rewrites the plugin
+  // the running OpenCode watches; the agent reads the new rule on its next turn.
+  const handleAgentWorktreeMoveChange = React.useCallback((enabled: boolean) => {
+    setAgentWorktreeMoveWithoutAsking(enabled);
+    void updateDesktopSettings({ agentWorktreeMoveWithoutAsking: enabled });
+  }, [setAgentWorktreeMoveWithoutAsking]);
 
   const handleAgentWebToolChange = React.useCallback((enabled: boolean) => {
     setAgentWebToolEnabled(enabled);
@@ -149,16 +158,33 @@ export const OpenChamberToolsSettings: React.FC = () => {
   return (
     <SettingsSection title={t('settings.openchamber.tools.title')}>
       <div className="max-w-[44rem] divide-y divide-[var(--interactive-border)] rounded-xl border border-[var(--interactive-border)] bg-[var(--surface-elevated)]">
-        <ToolRow
-          icon="node-tree"
-          settingsItem="sessions.agent-control-tool"
-          checked={agentControlToolEnabled}
-          onChange={handleAgentControlToolChange}
-          title={t('settings.openchamber.tools.field.agentControlTool')}
-          summary={t('settings.openchamber.tools.field.agentControlToolSummary')}
-          info={t('settings.openchamber.tools.field.agentControlToolInfo')}
-          ariaLabel={t('settings.openchamber.tools.field.agentControlToolAria')}
-        />
+        {/* One group, so no divider separates the control tool from its own setting. */}
+        <div>
+          <ToolRow
+            icon="node-tree"
+            settingsItem="sessions.agent-control-tool"
+            checked={agentControlToolEnabled}
+            onChange={handleAgentControlToolChange}
+            title={t('settings.openchamber.tools.field.agentControlTool')}
+            summary={t('settings.openchamber.tools.field.agentControlToolSummary')}
+            info={t('settings.openchamber.tools.field.agentControlToolInfo')}
+            ariaLabel={t('settings.openchamber.tools.field.agentControlToolAria')}
+          />
+
+          {/* Only with the tool: without it there is no move to decide about. */}
+          {agentControlToolEnabled ? (
+            <div className={cn('pb-3 pr-4', TOOL_ROW_TEXT_INSET_CLASS)}>
+              <SettingsCheckboxRow
+                settingsItem="sessions.agent-worktree-move"
+                checked={agentWorktreeMoveWithoutAsking}
+                onChange={handleAgentWorktreeMoveChange}
+                label={t('settings.openchamber.tools.field.agentWorktreeMove')}
+                ariaLabel={t('settings.openchamber.tools.field.agentWorktreeMoveAria')}
+                info={t('settings.openchamber.tools.field.agentWorktreeMoveInfo')}
+              />
+            </div>
+          ) : null}
+        </div>
 
         {/* One group, so no divider separates the web tool from its own setting. */}
         <div>

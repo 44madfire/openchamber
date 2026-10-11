@@ -71,6 +71,18 @@ other.
   server without that pipeline answers 501 and never makes a plain branch
   worktree instead; a provider or transfer refusal keeps its status and
   message, and no session is created.
+- `session.moveToWorktree` moves a session into a new worktree of its
+  repository and is the session service's `moveToWorktree`
+  (`../openchamber-sessions/worktree-move.js`). The session defaults to the
+  caller, the source directory to where that session lives (the global
+  session list, else the call's directory), `worktree` names the folder and
+  is required, `branch` and `startRef` are optional. The worktree is made by
+  the same `createWorktree` pipeline as `session.create`, waits for the same
+  bootstrap, then the checkout's uncommitted changes travel in one git stash
+  applied by hash, and the session is moved last through OpenCode's
+  `session.move`. A failure after the worktree exists removes it again and
+  puts the changes back; when restoring fails too, the error names the stash
+  so nothing is lost. A 409 means the changes did not apply on the start ref.
 - Default agents resolve from the owning project before global settings and
   OpenCode defaults. Directory-based requests identify the project before
   creating a worktree; existing linked worktrees resolve through Git's primary
