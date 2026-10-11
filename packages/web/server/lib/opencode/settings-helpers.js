@@ -4,6 +4,7 @@ import { createRequire } from 'node:module';
 import { isAgentMemoryFeatureAvailable } from '../agent-memory/feature-flag.js';
 import { isPermissionMode } from '../permission-auto-accept/modes.js';
 import { idleStopSchema } from '../spaces/idle-stop.js';
+import { sshHostSchema } from '../spaces/places/ssh-host.js';
 
 // Generated from packages/ui/src/lib/settings/registry.ts by
 // `bun run settings-registry:generate`; `registry.test.ts` fails when stale.
@@ -741,6 +742,9 @@ export const createSettingsHelpers = (dependencies) => {
     if (idleStopSchema.safeParse(candidate.isolatedSpacesIdleStop).success) {
       result.isolatedSpacesIdleStop = { ...candidate.isolatedSpacesIdleStop };
     }
+    // The machine of the Docker over SSH place; the empty string takes that place away.
+    const sshHost = sshHostSchema.safeParse(candidate.isolatedSpacesSshHost);
+    if (sshHost.success) result.isolatedSpacesSshHost = sshHost.data;
     if (typeof candidate.openCodeUpdateToastDismissedVersion === 'string') {
       const version = candidate.openCodeUpdateToastDismissedVersion.trim();
       result.openCodeUpdateToastDismissedVersion = version.slice(0, VERSION_STRING_MAX_LENGTH);

@@ -304,6 +304,10 @@ export const SETTINGS_REGISTRY = {
     scope: 'instance',
     parse: fromSchema(z.object({ enabled: z.boolean(), hours: z.number().int().min(1).max(168) }).strict()),
   }),
+  // The machine of the Docker over SSH place of isolated spaces, `[user@]host[:port]` as the
+  // user's own `ssh` takes it; the empty string means no such place. The server reads it when
+  // the feature comes up. No settings screen writes it yet.
+  isolatedSpacesSshHost: field({ scope: 'instance', parse: parseTrimmedStringUpTo(320) }),
   // Server-owned: it says whether this build has the feature at all.
   agentMemoryFeatureAvailable: field({
     scope: 'instance',

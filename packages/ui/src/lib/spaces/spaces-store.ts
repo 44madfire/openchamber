@@ -277,7 +277,7 @@ export const getSpaceMark = (spaceId: string): SpaceMark | null => useSpacesStor
  * nothing. False for a host directory, for a space the list does not know, and for one being
  * made, so an unknown state never silences a poll.
  */
-const isStoppedEntry = (entry: SpaceEntry | undefined): boolean => entry?.state === 'exited' || entry?.state === 'missing';
+const isStoppedEntry = (entry: SpaceEntry | undefined): boolean => entry?.state === 'exited' || entry?.state === 'missing' || entry?.state === 'unreachable';
 
 export const isSpaceStopped = (spaceId: string): boolean => isStoppedEntry(useSpacesStore.getState().journey?.get(spaceId));
 

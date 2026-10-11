@@ -76,6 +76,17 @@ describe('settings helpers', () => {
     expect(helpers.sanitizeSettingsUpdate({ gitlabClientId: 42 })).toEqual({});
   });
 
+  it('keeps the machine of the Docker over SSH place as an SSH destination, and takes it away with an empty string', () => {
+    const helpers = createTestHelpers();
+    expect(helpers.sanitizeSettingsUpdate({ isolatedSpacesSshHost: ' debian-box ' })).toEqual({ isolatedSpacesSshHost: 'debian-box' });
+    expect(helpers.sanitizeSettingsUpdate({ isolatedSpacesSshHost: 'me@box.local:2222' })).toEqual({ isolatedSpacesSshHost: 'me@box.local:2222' });
+    expect(helpers.sanitizeSettingsUpdate({ isolatedSpacesSshHost: '' })).toEqual({ isolatedSpacesSshHost: '' });
+    // Anything `ssh` would read as an option or a command is not a destination.
+    for (const bad of ['-oProxyCommand=evil', 'box -p 22', 'box;rm', 'ssh://box', 42]) {
+      expect(helpers.sanitizeSettingsUpdate({ isolatedSpacesSshHost: bad }), String(bad)).toEqual({});
+    }
+  });
+
   it('forgets the last directory when asked with an empty string', () => {
     // Removing the last project sends this. A kept last directory would be
     // turned back into a project on the next read and warmed at every start.
@@ -825,7 +836,7 @@ describe('settings registry gate', () => {
     desktopLanAccessEnabled: true, desktopKeepAwakeEnabled: true, desktopMinimizeToTrayEnabled: true, desktopMacMenuBarEnabled: true, desktopLinuxNativeFrame: true, sidebarShowChatsSection: false,
     desktopUiPassword: 'secret', githubClientId: 'client', githubScopes: 'repo', gitlabClientId: 'gitlab-client', skillCatalogs: [{ id: 'c', label: 'C', source: 'https://x' }],
     defaultGitIdentityId: 'global', permissionAutoAccept: { sessions: { s: true }, revision: 1 }, permissionDefaultMode: 'safety', messageSearchEnabled: true, messageSearchReasoningEnabled: true,
-    agentControlToolEnabled: true, agentWebToolEnabled: true, browserProvider: 'builtin', agentMemoryToolEnabled: true, agentNotifyToolEnabled: true, agentToolsCodeMode: true, agentWorktreeMoveWithoutAsking: true, isolatedSpacesEnabled: true, isolatedSpacesIdleStop: { enabled: true, hours: 4 }, openCodeUpdateToastDismissedVersion: '1.0.0',
+    agentControlToolEnabled: true, agentWebToolEnabled: true, browserProvider: 'builtin', agentMemoryToolEnabled: true, agentNotifyToolEnabled: true, agentToolsCodeMode: true, agentWorktreeMoveWithoutAsking: true, isolatedSpacesEnabled: true, isolatedSpacesIdleStop: { enabled: true, hours: 4 }, isolatedSpacesSshHost: 'me@box.local:2222', openCodeUpdateToastDismissedVersion: '1.0.0',
     autoDeleteEnabled: true, autoDeleteAfterDays: 30, sessionRetentionOnlyArchived: false, sessionRetentionAction: 'archive', mergedWorktreeCleanupEnabled: true, terminalShell: 'zsh', terminalLoginShells: ['zsh'],
     openInAppId: 'vscode', dictationEnabled: true, sttProvider: 'local', sttServerUrl: 'http://localhost:8001/v1', sttModel: 'm', sttLocalModel: 'm', sttLanguage: 'en',
     tunnelProvider: 'cloudflare', tunnelMode: 'quick', tunnelBootstrapTtlMs: 600000, tunnelSessionTtlMs: 86400000, managedLocalTunnelConfigPath: '/tmp/x',

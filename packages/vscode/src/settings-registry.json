@@ -177,6 +177,9 @@
     "isolatedSpacesIdleStop": {
       "scope": "instance"
     },
+    "isolatedSpacesSshHost": {
+      "scope": "instance"
+    },
     "agentMemoryFeatureAvailable": {
       "scope": "instance",
       "computed": true
