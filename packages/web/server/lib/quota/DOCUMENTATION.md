@@ -49,7 +49,7 @@ asked, `/api/quota/providers` answers 500 instead of an empty list.
 | `zhipuai-coding-plan` | Zhipu AI Coding Plan | `providers/zhipuai-coding-plan.js` | `zhipuai-coding-plan`, `zhipuai`, `zhipu`; falls back to `provider.<alias>.options.apiKey` in opencode.json, resolving `{file:...}` (including `~/`) and `{env:...}` with `resolveConfigApiKey` (`utils/auth.js`) |
 | `minimax-coding-plan` | MiniMax Coding Plan (minimax.io) | `providers/minimax-coding-plan.js` / `providers/minimax-shared.js` | `minimax-coding-plan` |
 | `minimax-cn-coding-plan` | MiniMax Coding Plan (minimaxi.com) | `providers/minimax-cn-coding-plan.js` / `providers/minimax-shared.js` | `minimax-cn-coding-plan` |
-| `ollama-cloud` | Ollama Cloud | `providers/ollama-cloud.js` | Manual cookie pasted into Settings (`aid=...; __Secure-session=...` from `ollama.com`), stored under `~/.config/openchamber/quota/` |
+| `ollama-cloud` | Ollama Cloud | `providers/ollama-cloud.js` | `ollama-cloud` / `ollamacloud` API key from OpenCode's credential store |
 | `wafer` | Wafer.ai | `providers/wafer.js` | `wafer`, `wafer-ai`, `wafer_ai`, `wafer.ai` |
 | `opencode-go` | OpenCode Go | `providers/opencode-go.js` | API key on the `opencode-go` integration or, without one, on the shared `opencode` integration; or an OpenCode Console OAuth sign-in on `opencode` |
 | `neuralwatt` | NeuralWatt | `providers/neuralwatt.js` | `neuralwatt` (API key under `key` or `token`) |
@@ -69,7 +69,7 @@ All providers should return results via shared helpers to preserve API shape:
 Provider modules must export `providerId`, `providerName`, `aliases`, `isConfigured(auth?)`, and `fetchQuota()`.
 `fetchQuota()` should return a quota result with `usage.windows` keyed by window name (for example `5h`, `7d`, `daily`) and optional provider-specific `usage.models` data.
 
-exe.dev, Ollama Cloud, Cursor, and ZenMux credentials are explicitly managed through Settings. exe.dev usage uses a separately generated HTTPS API token restricted to `billing credits usage` and aggregates every `exe-*` model provider into one monthly credit window. Generate the token with `ssh exe.dev "ssh-key generate-api-key --label=openchamber --exp=30d --cmds='billing credits usage'"`. ZenMux usage uses an optional Platform API key pasted on the Usage page; the OpenCode chat key is never used, and a missing Platform API key means ZenMux quota is not fetched. The server validates managed credentials before atomic `0600` writes and never returns secrets through its API. OpenChamber never scans browser cookie stores or automatically reads Cursor storage; Cursor import is an explicit one-time user action and never modifies Cursor's database.
+exe.dev, Cursor, and ZenMux credentials are explicitly managed through Settings. exe.dev usage uses a separately generated HTTPS API token restricted to `billing credits usage` and aggregates every `exe-*` model provider into one monthly credit window. Generate the token with `ssh exe.dev "ssh-key generate-api-key --label=openchamber --exp=30d --cmds='billing credits usage'"`. ZenMux usage uses an optional Platform API key pasted on the Usage page; the OpenCode chat key is never used, and a missing Platform API key means ZenMux quota is not fetched. The server validates managed credentials before atomic `0600` writes and never returns secrets through its API. OpenChamber never scans browser cookie stores or automatically reads Cursor storage; Cursor import is an explicit one-time user action and never modifies Cursor's database.
 
 Command Code usage resolves account scope through `GET /alpha/whoami`, then reads server-backed credit balances and five-hour/weekly limits from `GET /alpha/billing/credits?orgId=...`. Personal accounts return `org: null` and use `/alpha/billing/credits` without an `orgId`; organization accounts include their organization id. Web/Electron and VS Code read the standard `command-code` OpenCode auth entry (including OAuth `access`) or `COMMAND_CODE_API_KEY`; credentials remain in the owning runtime and are never returned to shared UI.
 
@@ -187,9 +187,29 @@ Many Kimi users hold a pay-as-you-go Moonshot platform key (prepaid vouchers, no
 
 Both `packages/web/server/lib/quota/providers/kimi.js` and `packages/vscode/src/quotaProviders.ts` (`fetchKimiQuota`) must stay in sync — the VS Code extension duplicates this parsing logic rather than importing it.
 
-## Ollama Cloud settings-page shapes
+## Ollama Cloud balance semantics
 
-Ollama Cloud authentication uses two cookies (`aid` and `__Secure-session`) pasted together as one single-line Cookie header value. Ollama serves two different `/settings` page shapes and `parseOllamaSettingsHtml` supports both: session/weekly/premium-interaction windows (percent-based plans) and a `monthly` window derived from "Monthly usage: $X of $Y used" (cost-based plans) with a symmetric `$X / $Y` money `valueLabel` that reads correctly in both used/remaining display modes. The "Extra usage" credits block is surfaced as a balance-only `credits_balance` window with a plain money `valueLabel` when present, matching the DeepSeek credits treatment ("Credits Balance" in the UI); a $0 balance is omitted instead of showing an empty credits row. Keep `packages/web/server/lib/quota/providers/ollama-cloud.js` and `packages/vscode/src/quotaProviders.ts` (`parseOllamaSettingsHtml`) in sync. The VS Code extension duplicates this parsing logic rather than importing it.
+`GET https://ollama.com/api/balance` (documented at
+https://docs.ollama.com/api/balance, bearer `ollama-cloud` key from OpenCode's
+credential store) carries two documented `included` shapes. A credits plan
+reports the month's pool: `included.allowance_usd` and `included.balance_usd`
+give the `monthly` window at `(allowance - balance) / allowance`, clamped to
+100, resetting at `included.period.until`; a pool without a positive allowance
+yields no window rather than a guessed percentage. A legacy plan reports
+`included.session` and `included.weekly`, each a `remaining_percent` with a
+`resets_at`, mapped to the `session` and `weekly` windows at
+`100 - remaining_percent`. Whichever shape the account serves is rendered.
+`purchased.balance_usd` is a `purchased_credits` money row shown only while
+positive. `POST /api/me` gives the plan tier, read best-effort as `planLabel`; a
+failure drops the label, never the reading. `/api/usage` is usage analytics with
+no allowance, so it is not the quota source; the obsolete
+`quota/ollama-cloud.json` is deleted on the first readable-key refresh. Keep
+`providers/ollama-cloud.js` and `packages/vscode/src/quotaProviders.ts`
+(`fetchOllamaCloudQuota`) in sync.
+
+The balance endpoint allows 10 requests per minute per user, shared across keys
+and devices, with `Retry-After` on a 429. A refresh makes two calls here now
+(balance and plan tier) on top of the other providers'.
 
 ## GitHub Copilot quota semantics
 

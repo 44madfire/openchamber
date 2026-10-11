@@ -1213,7 +1213,7 @@ const handleLocalApiRequest = async (input: RequestInfo | URL, url: URL, init: R
     }
   }
 
-  const quotaCredentialMatch = pathname.match(/^\/api\/quota\/credentials\/(exe-dev|ollama-cloud|cursor|zenmux)(?:\/(validate|import))?$/);
+  const quotaCredentialMatch = pathname.match(/^\/api\/quota\/credentials\/(exe-dev|cursor|zenmux)(?:\/(validate|import))?$/);
   if (quotaCredentialMatch) {
     try {
       const body = method === 'PUT' ? await extractJsonBody(input, init, method) : undefined;
