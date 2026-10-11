@@ -7,7 +7,7 @@
 
 import { failureOfError } from '@/components/session/spaces/spaceFailureText';
 import { refreshSpaceArchives } from './space-archives';
-import { refreshGlobalSessions } from '@/stores/useGlobalSessionsStore';
+import { refreshGlobalSessions, useGlobalSessionsStore } from '@/stores/useGlobalSessionsStore';
 import {
   SpacesRequestError,
   removeSpace,
@@ -142,22 +142,51 @@ export const runSpaceAction = async (spaceId: string, action: SpaceAction, optio
     after.openDeleteDialog(spaceId, unsaved);
     return;
   }
-  after.noteAction(spaceId, failure ? { kind: 'failed', action, failure } : null);
-  if (!failure && action === 'remove') {
+  if (failure) {
+    after.noteAction(spaceId, { kind: 'failed', action, failure });
+    // The action's outcome stands on its own: a list that cannot be read now is read at the next turn.
+    await refreshSpacesJourney().catch(() => {});
+    return;
+  }
+  if (action === 'remove') {
     await forgetRemovedSpace(spaceId);
     return;
   }
-  if (!failure && action !== 'stop' && action !== 'setup') after.noteReachable(spaceId);
-  // The action's outcome stands on its own: a list that cannot be read now is read at the next turn.
-  await refreshSpacesJourney().catch(() => {});
+  if (action !== 'stop' && action !== 'setup') after.noteReachable(spaceId);
+  // The line keeps saying what is under way until the lists say what the action did: the journey
+  // list, which a start just moved to "running", and for a start or a restart the session list
+  // too, whose mark the host sets stale when the space did not answer during its own restart,
+  // and sets again when the host reads the space for that list. Shown as they came, the lists
+  // of before showed "stopped" with its Start, or "not answering" with its restart, for a moment
+  // after an action that had gone through.
+  await Promise.all([
+    refreshSpacesJourney().catch(() => {}),
+    action === 'start' || action === 'restart' || action === 'restart_opencode' ? readSessionListAfterAction() : Promise.resolve(),
+  ]);
+  if (generation !== spacesRuntimeGeneration()) return;
+  useSpacesStore.getState().noteAction(spaceId, null);
+};
+
+/**
+ * The session list read after an action answered. A load already under way when the action
+ * answered may carry the marks of a read the host made during the restart, so it is let finish
+ * first and the list is read once more; the common case is one load.
+ */
+const readSessionListAfterAction = async (): Promise<void> => {
+  if (useGlobalSessionsStore.getState().status === 'loading') await refreshGlobalSessions().then(() => {}, () => {});
+  await refreshGlobalSessions().then(() => {}, () => {});
 };
 
 /**
  * What this window drops once the host removed a space, by a delete or after an apply: its
- * dialogs, then the host's lists read again.
+ * dialogs, then the host's lists read again. The group says "deleting" meanwhile: until the
+ * session list's mark goes, the host's own view of the space, a container that is gone, read as
+ * "not answering" with a restart to offer.
  */
 export const forgetRemovedSpace = async (spaceId: string): Promise<void> => {
   const store = useSpacesStore.getState();
+  const generation = spacesRuntimeGeneration();
+  store.noteAction(spaceId, { kind: 'running', action: 'remove' });
   store.noteCreationAccess(spaceId, null);
   if (store.accessDialog?.spaceId === spaceId) store.closeAccessDialog();
   if (store.actionsSheet === spaceId) store.closeActionsSheet();
@@ -169,4 +198,5 @@ export const forgetRemovedSpace = async (spaceId: string): Promise<void> => {
   // drops only in its next complete list; without asking for it now, a space the user just
   // deleted stayed in the sidebar for about forty seconds, measured.
   await refreshGlobalSessions().then(() => {}, () => {});
+  if (generation === spacesRuntimeGeneration()) useSpacesStore.getState().noteAction(spaceId, null);
 };

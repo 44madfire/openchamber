@@ -6,7 +6,7 @@ import os from 'node:os';
 import path from 'node:path';
 
 import express from 'express';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { Readable } from 'node:stream';
 
@@ -157,12 +157,17 @@ const until = async (check, timeoutMs = 3_000) => {
 const startSpaceServer = async ({ sessions, status = {} }) => {
   const { createUiAuth } = await import('../ui-auth/ui-auth.js');
   const auth = createUiAuth({ password: TOKEN, readSettingsFromDiskMigrated: async () => ({}) });
-  const state = { eventStreams: [], sessions, listRequests: 0 };
+  // `heldLists`, when set, holds every first-page list request until the test releases it with 'ok' or 'fail'.
+  const state = { eventStreams: [], sessions, listRequests: 0, heldLists: null };
   const app = express();
   app.post('/auth/session', express.json(), auth.handleSessionCreate);
   app.use('/api', auth.requireAuth);
-  app.get('/api/session', (req, res) => {
+  app.get('/api/session', async (req, res) => {
     state.listRequests += 1;
+    if (state.heldLists && !req.query.cursor) {
+      const outcome = await new Promise((release) => state.heldLists.push(release));
+      if (outcome === 'fail') return res.status(500).end();
+    }
     const start = Number.parseInt(req.query.cursor ?? '0', 10);
     const page = state.sessions.slice(start, start + 2);
     res.json({ data: page, cursor: { next: start + 2 < state.sessions.length ? String(start + 2) : undefined } });
@@ -254,6 +259,25 @@ describe('createSpacesHost: sessions and events', () => {
     expect(stale.data.map((item) => item.id)).toEqual(['host-1', 'a1', 'a2', 'a3', 'b1']);
     expect(stale.spaces).toEqual([first_mark, other_mark('stale', 1)]);
     expect(logs.join('\n')).toContain(`the session list of space ${OTHER} did not come`);
+
+    // A read that failed is not served for two seconds as the last good one would be. Two merges
+    // overlap, as the sidebar's reload and an action's own read do: the first space answers the
+    // earlier one, and the later one fails as a read during a restart does; the merge right after
+    // asks the space again at once rather than serving the stale mark for the TTL.
+    await host.manager.startSpace({ placeId: 'fake', spaceId: OTHER });
+    await sleep(2_100);
+    first.state.heldLists = [];
+    const earlier = host.mergeSessionList(hostList);
+    const later = host.mergeSessionList(hostList);
+    await vi.waitFor(() => expect(first.state.heldLists.length).toBe(2));
+    first.state.heldLists[0]('ok');
+    await earlier;
+    first.state.heldLists[1]('fail');
+    first.state.heldLists = null;
+    expect((await later).spaces[0].state).toBe('stale');
+    const readsBefore = first.state.listRequests;
+    expect((await host.mergeSessionList(hostList)).spaces[0].state).toBe('complete');
+    expect(first.state.listRequests).toBeGreaterThan(readsBefore);
 
     // Back, and empty: an empty answer is an answer.
     await host.manager.startSpace({ placeId: 'fake', spaceId: OTHER });

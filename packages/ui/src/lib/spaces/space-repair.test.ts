@@ -119,13 +119,22 @@ describe('the actions of a space', () => {
       useGlobalSessionsStore.setState({ loadSessions: originalLoadSessions });
     });
 
-    test('restarts, reads the list again, and marks the space reachable once the server inside is ready', async () => {
+    test('restarts, marks the space reachable once the server inside is ready, and stays "restarting" until both lists are read again', async () => {
       useSpacesStore.getState().applyMarks([mark('stale')]);
+      // The session list's own load, held: its mark is what the host sets stale during a restart.
+      let releaseList: () => void = () => undefined;
+      const listHeld = new Promise<void>((resolve) => { releaseList = resolve; });
+      useGlobalSessionsStore.setState({ loadSessions: () => listHeld.then(() => ({ activeSessions: [], archivedSessions: [] })) });
       host((path) => (path.endsWith('/restart') ? new Response(JSON.stringify(entry()), { status: 200 }) : listAnswer([entry()])));
       const run = runSpaceAction(ID, 'restart');
       expect(useSpacesStore.getState().actions.get(ID)).toEqual({ kind: 'running', action: 'restart' });
-      await run;
+      await new Promise((resolve) => setTimeout(resolve, 30));
       expect(requests).toEqual([`POST /api/openchamber/spaces/${ID}/restart`, 'GET /api/openchamber/spaces']);
+      // The restart went through and the journey list came back; the line still says "restarting".
+      expect(useSpacesStore.getState().journey?.get(ID)?.state).toBe('running');
+      expect(useSpacesStore.getState().actions.get(ID)).toEqual({ kind: 'running', action: 'restart' });
+      releaseList();
+      await run;
       expect(useSpacesStore.getState().actions.has(ID)).toBe(false);
       expect(useSpacesStore.getState().spaces.get(ID)?.state).toBe('complete');
     });

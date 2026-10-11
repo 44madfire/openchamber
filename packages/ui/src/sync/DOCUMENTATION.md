@@ -392,10 +392,16 @@ journey entry (`state`, `damage`), the mark, and the one action this window has
 under way or saw fail on the space, which `spaces-store.ts` keeps per space and
 clears on a runtime switch. After a start or restart that went through it marks
 the space reachable, because the host answers those only once the server inside
-is ready, and it reads the journey list again whatever the outcome. After a
-removal that went through it also reloads the global session list: the mark of
-the removed space goes only with the host's next complete list, and until then
-the sidebar kept an empty group for the space, about forty seconds measured.
+is ready, and it reads the journey list again whatever the outcome; the action
+stays the line's word until that read lands, and for a start or a restart until
+the global session list is read again too, because its mark is what the host
+set stale when the space did not answer during its own restart. Shown as they
+came, the lists of before said "stopped" with a Start at the end of a start, or
+"not answering" with a restart after a restart, for about two seconds. After a
+removal that went through it also reloads the global session list, saying
+"deleting" meanwhile: the mark of the removed space goes only with the host's
+next complete list, and until then the sidebar kept an empty group for the
+space, about forty seconds measured.
 A deleted space's chats are on the Archive page under the archive's own
 directory, so what this browser cached for the space's directory is a lie
 from then on: a store seeded from it listed the chat under the project and

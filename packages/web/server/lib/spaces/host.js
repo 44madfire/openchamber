@@ -344,6 +344,10 @@ export function createSpacesHost({
       } catch (error) {
         logger.warn?.(`[spaces] the session list of space ${spaceId} did not come: ${error?.code ?? error?.message ?? error}`);
         index.markUnreachable(spaceId);
+        // The next merge asks the space again whatever the last good read's age: a space that
+        // did not answer during its own restart is otherwise listed as not answering until the
+        // read's time runs out, after the restart has long gone through.
+        listReadAt.delete(spaceId);
       }
     }));
     // In the place's order, so the merged list reads the same from one call to the next.
