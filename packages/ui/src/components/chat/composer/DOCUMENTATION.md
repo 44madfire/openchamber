@@ -156,8 +156,10 @@ updates it.
 ## Floating composer
 
 In a normal session view the composer slot is an absolute layer over the
-bottom of the transcript (`ChatContainer`), and the input box is glass
-(`oc-glass-composer`). The draft screen and the expanded editor keep the slot
+bottom of the transcript (`ChatContainer`), and the input box is an opaque
+surface (`oc-surface-floating`): it is always on screen over the moving
+transcript, and a blur there was redrawn on every streamed frame (see the rule
+in `design-system.css`). The draft screen and the expanded editor keep the slot
 in flow. A `ResizeObserver` on the slot publishes its height as
 `--chat-composer-inset` and the timeline's tail spacer height as
 `--chat-composer-tail-inset`, written onto the elements that read them (the
@@ -188,10 +190,10 @@ cut in half by its top edge. That inset applies only while a reply streams
 and the view follows it (`data-live-tail` on the chat column, set by
 `ChatContainer` from the timeline's `isFollowingProgrammatically`: no
 scroll-to-bottom pill and no reader gesture); at rest and while the reader scrolls history the rows slide
-under the composer's glass, which is what makes the composer read as
+under the composer, which is what makes the composer read as
 floating. There the end fade is longer instead (`--scroll-shadow-end-size`):
 it starts just above the box and runs to the scroller's bottom edge, so rows
-under the glass and beside a box narrower than the transcript (wide layout)
+under the box and beside a box narrower than the transcript (wide layout)
 thin out gradually instead of running into the window's edge.
 The variable is written straight to the DOM, so composer growth never
 re-renders the timeline: the list's own footer observer extends the content
@@ -199,12 +201,11 @@ and the scroll hook's pinned-end observer keeps a reader on the end. The
 mobile keyboard choreography is unchanged: the form inside the slot is still
 the keyboard mover and the column shrinks around it at settle.
 
-Glass does not nest: a `backdrop-filter` element is a backdrop root, so a
-glass child only blurs its parent's content. Popups therefore anchor to the
-wrapper outside the box, and the dictation overlay (`.oc-dictation-overlay`)
-never stacks glass on glass: a CSS rule in `design-system.css` hides the
-composer's own contents while it is up, leaving the box as the single glass
-surface on desktop and the overlay itself on mobile. On desktop the footer's
+The box clips its contents, so popups anchor to the wrapper outside it. The
+dictation overlay (`.oc-dictation-overlay`) never shows the composer's own
+contents through it: a CSS rule in `design-system.css` hides them while it is
+up, leaving the box as the single surface on desktop and the overlay itself on
+mobile. On desktop the footer's
 dictation reports its state and the box carries `data-dictating`; the
 elements between the box and the overlay carry `data-dictation-chain`, so the
 rule only targets their other children. A `:has()` over the box was
@@ -223,14 +224,14 @@ so a streaming turn's `session.updated` events do not re-render the composer.
 A glass surface never carries its own shadow: the shadow sits on a wrapper
 (or the glass moves to an inner layer). Chromium grows a backdrop-filter
 layer by the shadow's blur, and that band painted a flat grey strip over
-whatever was stacked above: the status pill, the floating panels.
-This holds for the box, the mobile pill, the floating
-panels, the context-chip preview and the mobile dictation overlay.
+whatever was stacked above. This holds for the floating panels and the
+context-chip preview. The box, the mobile pill and the dictation overlay are
+opaque and keep their shadow on a wrapper all the same.
 
 Context chips (review comments, quotes, annotations, terminal selections, PR
 context) sit in the attachment row inside the box, shaped like file and linked
 reference chips. Their preview cannot open inside the box, which clips its
-contents and is a backdrop root, so `ComposerContextChips` portals it into a
+contents, so `ComposerContextChips` portals it into a
 positioned host outside the box: the autocomplete wrapper on desktop, the
 dictation host on mobile. The preview opens above that host, and its scrollable
 content is capped by the space between the host and the chat column's top edge,
@@ -717,7 +718,7 @@ none of them is verifiable outside a real device.** Change them only against
 hardware.
 
 `state/mobileComposerMorph.ts` plays the pill ↔ composer swap as a FLIP morph
-in the native iOS shell only. The swap commits synchronously (`flushSync`); the glass box
+in the native iOS shell only. The swap commits synchronously (`flushSync`); the box
 (`data-composer-box`) is then frozen at its old height and animated to the
 new one (WAAPI) with its rows anchored to the bottom edge, so the footer and
 model/agent rows stay where the pill's rows were; the prompt

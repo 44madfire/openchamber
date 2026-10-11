@@ -3832,7 +3832,7 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({
     ) : null;
     // Pending context (review comments, quotes, terminal selections) sits in
     // the attachment row like any attachment; its preview opens above the
-    // composer, outside the clipping glass box.
+    // composer, outside the clipping box.
     const contextChips = hasDrafts ? (
         <ComposerContextChips
             draftTarget={inlineDraftTarget}
@@ -4191,9 +4191,7 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({
                 ) : (
                 <>
                 {/* The autocomplete popups anchor to this wrapper, not to the
-                    glass box: a backdrop-filter ancestor is a backdrop root,
-                    so a glass popup inside the box would only blur the box's
-                    own contents and read as a flat tint over the transcript. */}
+                    box, which clips its contents. */}
                 <div
                     ref={isMobile ? undefined : setContextPreviewHost}
                     className={cn('relative', isComposerExpanded && 'flex flex-1 min-h-0 flex-col')}
@@ -4213,10 +4211,8 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({
                         onAgentSelect={handleAgentSelect}
                         onClose={closeAutocomplete}
                     />
-                {/* The lift shadow lives on this wrapper, away from the glass
-                    box's backdrop-filter: on the same element Chromium grows
-                    the glass layer by the shadow's blur, and that band painted
-                    a flat grey strip over the bottom of the goal row above. */}
+                {/* The lift shadow lives on this wrapper, apart from the
+                    box. */}
                 <div
                     className={cn(
                         'flex flex-col',
@@ -4230,8 +4226,9 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({
                         "flex flex-col relative overflow-visible",
                         isComposerExpanded && 'flex-1 min-h-0',
                         "border border-border/80",
-                        // The box floats over the transcript, so it is glass.
-                        'oc-glass-composer',
+                        // Opaque: always on screen over the moving transcript
+                        // (see .oc-surface-floating in design-system.css).
+                        'oc-surface-floating',
                         isDragging && "ring-2 ring-primary ring-offset-2"
                     )}
                     style={{ borderRadius: chatInputRadius }}
