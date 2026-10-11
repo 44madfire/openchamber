@@ -296,7 +296,7 @@ export const stripCredentialQuery = (url) => {
  * runtime's labels, the place's `connect`, and the token read back over `exec`. `now` and
  * `logger` are injectable for the tests.
  */
-export function createSpaceDispatcher({ transport, now = Date.now, logger = console }) {
+export function createSpaceDispatcher({ transport, now = Date.now, logger = console, freeSocketTimeoutMs = FREE_SOCKET_TIMEOUT_MS }) {
   const agents = new Map();
   const tokens = new Map();
   const sessions = new Map();
@@ -325,7 +325,7 @@ export function createSpaceDispatcher({ transport, now = Date.now, logger = cons
   const agentFor = (spaceId) => {
     let agent = agents.get(spaceId);
     if (!agent) {
-      agent = new http.Agent({ keepAlive: true, maxSockets: MAX_SOCKETS_PER_SPACE, timeout: FREE_SOCKET_TIMEOUT_MS });
+      agent = new http.Agent({ keepAlive: true, maxSockets: MAX_SOCKETS_PER_SPACE, timeout: freeSocketTimeoutMs });
       agent.createConnection = (_options, callback) => {
         transport.connect(spaceId).then((stream) => callback(null, stream), (error) => callback(error));
       };
@@ -419,7 +419,17 @@ export function createSpaceDispatcher({ transport, now = Date.now, logger = cons
         headers: { ...headers, host: `${SPACE_SERVER_HOST}:${SPACE_SERVER_PORT}`, cookie, 'accept-encoding': 'identity' },
         ...(timeoutMs > 0 ? { timeout: timeoutMs } : {}),
       });
-      request.on('timeout', () => request.destroy(new SpaceError('space_unreachable', 'The server inside the space did not answer in time')));
+      // The pool's idle timeout is for free streams. Node hands it to a request that sets none of
+      // its own, and the request's timeout listener would then end a live answer after that
+      // long a silence: the event stream of a space whose OpenCode is restarting was cut every
+      // four seconds that way, and the group said "not answering" at each cut. A request with
+      // no timeout of its own keeps its stream for as long as the server inside holds it; the
+      // pool's timeout returns once the stream is free again.
+      if (timeoutMs > 0) {
+        request.on('timeout', () => request.destroy(new SpaceError('space_unreachable', 'The server inside the space did not answer in time')));
+      } else {
+        request.setTimeout(0);
+      }
       request.on('response', resolve);
       request.on('error', reject);
       // A body is sent whole and only once; a renewed session sends it again from this string.
