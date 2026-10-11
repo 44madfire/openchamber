@@ -33,6 +33,7 @@ import {
 import { refreshSpacesJourney, useSpacesJourneyRead } from '@/lib/spaces/spaces-store';
 import { useUIStore } from '@/stores/useUIStore';
 import { SettingsControlGroup } from '../shared/SettingsSection';
+import { IMAGE_SETTLE_REFRESH_MS, nextDiskReadDelay } from './spacePlacesDisk';
 
 // Decimal units, as Docker and the Mac's own disk tools count; only the number is localised.
 const SIZE_UNITS = ['B', 'KB', 'MB', 'GB', 'TB'] as const;
@@ -140,9 +141,6 @@ const CleanUpOutcome: React.FC<{ outcome: SpaceCleanUp }> = ({ outcome }) => {
   );
 };
 
-/** How often the disk is read again while the host downloads the image. */
-const IMAGE_PULL_REFRESH_MS = 3_000;
-
 /** The "Download image" button: asking the host to start, or a start the host refused. */
 type DownloadState = { kind: 'idle' } | { kind: 'starting' } | { kind: 'failed'; error: Error };
 
@@ -171,28 +169,34 @@ const PlaceDisk: React.FC<{ placeId: string }> = ({ placeId }) => {
   // found under way. A read that fails ends the poll and shows as the disk's own failure, so a
   // host that went away does not leave the spinner turning.
   const [download, setDownload] = React.useState<DownloadState>({ kind: 'idle' });
-  const pulling = disk.kind === 'read' && disk.value.imagePulling;
+  // The reads after a download ended, while the image has no size yet; a download starts them over.
+  const settleReads = React.useRef(0);
   React.useEffect(() => {
-    if (!pulling) return;
+    if (disk.kind !== 'read') return;
+    const delay = nextDiskReadDelay(disk.value, settleReads.current);
+    if (delay === null) return;
     const controller = new AbortController();
-    let timer: ReturnType<typeof setTimeout> | null = null;
-    const readAgain = () => {
-      timer = setTimeout(() => {
-        readSpaceDisk(placeId, controller.signal).then(
-          (value) => {
-            if (controller.signal.aborted) return;
-            replaceDisk(value);
-            if (value.imagePulling) readAgain();
-          },
-          (error: Error) => { if (!controller.signal.aborted) failDisk(error); },
-        );
-      }, IMAGE_PULL_REFRESH_MS);
-    };
-    readAgain();
-    return () => { controller.abort(); if (timer) clearTimeout(timer); };
-  }, [failDisk, placeId, pulling, replaceDisk]);
+    // Each answer replaces the disk and schedules the read after it, until the rule says stop.
+    const timer = setTimeout(() => {
+      readSpaceDisk(placeId, controller.signal).then(
+        (value) => {
+          if (controller.signal.aborted) return;
+          // The reads of the settle phase are the one-second ones; the three-second read that
+          // first sees the download ended is not one of them.
+          if (value.imagePulling) settleReads.current = 0;
+          else if (value.imageBytes === 0 && delay === IMAGE_SETTLE_REFRESH_MS) settleReads.current += 1;
+          replaceDisk(value);
+        },
+        (error: Error) => { if (!controller.signal.aborted) failDisk(error); },
+      );
+    }, delay);
+    return () => { controller.abort(); clearTimeout(timer); };
+  }, [disk, failDisk, placeId, replaceDisk]);
   const downloadImage = async () => {
     setDownload({ kind: 'starting' });
+    // What the last clean-up freed is about the disk before this download; one still running keeps its state.
+    setCleanUp((current) => (current.kind === 'done' || current.kind === 'failed' ? { kind: 'idle' } : current));
+    settleReads.current = 0;
     try {
       replaceDisk(await pullSpaceImage(placeId));
       setDownload({ kind: 'idle' });
