@@ -1,18 +1,15 @@
 import React from 'react';
 import { SettingsCheckboxRow, SettingsSection } from '@/components/sections/shared/SettingsSection';
-import { JevAccessNote } from '@/components/sections/classification/JevAccessNote';
 import { useI18n } from '@/lib/i18n';
-import { isVSCodeRuntime } from '@/lib/desktop';
 import { useUIStore } from '@/stores/useUIStore';
 
 /**
  * "In work": the sidebar block, the Track / Done actions, and sessions going
- * in on a sent message. Jev only hints that work looks done; it runs on the
- * OpenChamber server, so VS Code shows no note about it.
+ * in on a sent message. Jev decides nothing here (it only hints that work
+ * looks done, which the section's info explains), so no Jev access note.
  */
 export const SessionWorkSettings: React.FC = () => {
   const { t } = useI18n();
-  const isVSCode = React.useMemo(() => isVSCodeRuntime(), []);
   const enabled = useUIStore((state) => state.sessionWorkEnabled);
   const setEnabled = useUIStore((state) => state.setSessionWorkEnabled);
 
@@ -29,7 +26,6 @@ export const SessionWorkSettings: React.FC = () => {
         label={t('settings.openchamber.sessionWork.field.enabled')}
         ariaLabel={t('settings.openchamber.sessionWork.field.enabled')}
       />
-      {!isVSCode && enabled ? <JevAccessNote /> : null}
     </SettingsSection>
   );
 };
