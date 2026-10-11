@@ -504,6 +504,27 @@
   backdrop-filter: blur(4px);
 }
 
+/* Chromium partial-redraw workaround for glass over glass. When a layer
+   leaves the screen (a tooltip closes), Chromium's damage tracker walks the
+   blurred surfaces once, back to front, growing the redrawn rect by each one
+   it touches (cc/trees/damage_tracker.cc). A menu over the composer grows it
+   only after the composer was already passed, so part of the composer's glass
+   keeps a stale blur: a flat rectangle across the menu and tooltip that also
+   hides the menu's shadow. This blurred layer under everything is the first
+   surface of that walk and covers the viewport, so any removal grows the
+   redraw to the whole frame. Other frames keep redrawing in parts. It blurs
+   only the page background, so it is invisible. */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background-color: rgb(0 0 0 / 0.004);
+  -webkit-backdrop-filter: blur(1px);
+  backdrop-filter: blur(1px);
+}
+
 /* The recap hint floats in the band above the composer; a panel docked
    there (queue, suggestion, BTW) would push it up over the transcript, so it
    hides while any panel is mounted. See ComposerFloatingPanel. */
@@ -535,6 +556,11 @@
   .oc-glass-backdrop {
     -webkit-backdrop-filter: none;
     backdrop-filter: none;
+  }
+
+  /* Without glass there is nothing to repaint stale. */
+  body::before {
+    content: none;
   }
 
   .oc-glass-popover,
