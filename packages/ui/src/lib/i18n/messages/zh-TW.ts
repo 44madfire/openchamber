@@ -2468,8 +2468,6 @@ export const dict: Record<I18nKey, string> = {
   'chat.messageBody.actions.pinContext': '釘選到內容脈絡（壓縮後仍保留）',
   'chat.messageBody.actions.unpinContext': '從內容脈絡取消釘選（壓縮後不再保留）',
   'chat.messageBody.actions.contextPinFailed': '無法更新內容脈絡釘選狀態',
-  'chat.messageBody.actions.openPreviewAria': '開啟預覽',
-  'chat.messageBody.actions.openPreview': '開啟預覽',
   'chat.messageBody.actions.copyAnswer': '複製回答',
   'chat.messageBody.actions.moreActions': '更多操作',
   'chat.messageBody.toast.copied': '已複製到剪貼簿',

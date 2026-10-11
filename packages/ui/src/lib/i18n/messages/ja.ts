@@ -2489,8 +2489,6 @@ export const dict: Record<I18nKey, string> = {
   'chat.messageBody.actions.pinContext': 'コンテキストに固定（圧縮後も保持）',
   'chat.messageBody.actions.unpinContext': 'コンテキストから固定解除（圧縮後は保持されません）',
   'chat.messageBody.actions.contextPinFailed': 'コンテキストの固定を更新できませんでした',
-  'chat.messageBody.actions.openPreviewAria': 'プレビューを開く',
-  'chat.messageBody.actions.openPreview': 'プレビューを開く',
   'chat.messageBody.actions.copyAnswer': '回答をコピー',
   'chat.messageBody.actions.moreActions': 'その他の操作',
   'chat.messageBody.toast.copied': 'クリップボードにコピーしました',

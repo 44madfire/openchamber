@@ -2459,8 +2459,6 @@ export const dict: Record<I18nKey, string> = {
   'chat.messageBody.actions.pinContext': '固定到上下文（压缩后仍保留）',
   'chat.messageBody.actions.unpinContext': '从上下文取消固定（压缩后不再保留）',
   'chat.messageBody.actions.contextPinFailed': '无法更新上下文固定状态',
-  'chat.messageBody.actions.openPreviewAria': '打开预览',
-  'chat.messageBody.actions.openPreview': '打开预览',
   'chat.messageBody.actions.copyAnswer': '复制回答',
   'chat.messageBody.actions.moreActions': '更多操作',
   'chat.messageBody.toast.copied': '已复制到剪贴板',

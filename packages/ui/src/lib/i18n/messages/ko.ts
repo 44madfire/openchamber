@@ -1562,8 +1562,6 @@ export const dict: Record<I18nKey, string> = {
   'contextPanel.preview.console.filter.logs': '로그',
   'terminalView.preview.open': '미리보기',
   'terminalView.preview.openTitle': '미리보기 패널 열기',
-  'chat.messageBody.actions.openPreviewAria': '미리보기 열기',
-  'chat.messageBody.actions.openPreview': '미리보기 열기',
   'contextPanel.tab.closeTabAria': '{label} 탭 닫기',
   'contextPanel.tab.menu.close': '닫기',
   'contextPanel.tab.menu.closeOthers': '다른 탭 닫기',

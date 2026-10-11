@@ -2229,8 +2229,6 @@ export const dict = {
   'chat.messageBody.toast.linkCopied': 'Link kopiert',
   'chat.messageBody.toast.linkCopyFailed': 'Link konnte nicht kopiert werden',
   'chat.messageLink.notFound': 'Die verlinkte Nachricht ist nicht in dieser Sitzung',
-  'chat.messageBody.actions.openPreviewAria': 'Vorschau öffnen',
-  'chat.messageBody.actions.openPreview': 'Vorschau öffnen',
   'chat.messageBody.actions.copyAnswer': 'Antwort kopieren',
   'chat.messageBody.actions.moreActions': 'Weitere Aktionen',
   'chat.messageBody.toast.copied': 'In die Zwischenablage kopiert',

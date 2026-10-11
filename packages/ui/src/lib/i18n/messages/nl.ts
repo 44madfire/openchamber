@@ -2493,8 +2493,6 @@ export const dict = {
   'chat.messageBody.actions.pinContext': 'Vastzetten in context (overleeft compressie)',
   'chat.messageBody.actions.unpinContext': 'Vastzetting uit context halen (verdwijnt bij compressie)',
   'chat.messageBody.actions.contextPinFailed': 'Kan de contextvastzetting niet bijwerken',
-  'chat.messageBody.actions.openPreviewAria': 'Preview openen',
-  'chat.messageBody.actions.openPreview': 'Preview openen',
   'chat.messageBody.actions.copyAnswer': 'Antwoord kopiëren',
   'chat.messageBody.actions.moreActions': 'Meer acties',
   'chat.messageBody.toast.copied': 'Gekopieerd naar het klembord',

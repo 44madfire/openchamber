@@ -2459,8 +2459,6 @@ export const dict: Record<I18nKey, string> = {
   "chat.messageBody.actions.pinContext": "Fixar no contexto (permanece após a compactação)",
   "chat.messageBody.actions.unpinContext": "Desafixar do contexto (não permanece após a compactação)",
   "chat.messageBody.actions.contextPinFailed": "Não foi possível atualizar a fixação no contexto",
-  "chat.messageBody.actions.openPreviewAria": "Abrir visualização",
-  "chat.messageBody.actions.openPreview": "Abrir visualização",
   "chat.messageBody.actions.copyAnswer": "Copiar resposta",
   "chat.messageBody.actions.moreActions": "Mais ações",
   "chat.messageBody.toast.copied": "Copiado para a área de transferência",

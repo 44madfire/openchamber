@@ -2459,8 +2459,6 @@ export const dict: Record<I18nKey, string> = {
   "chat.messageBody.actions.pinContext": "Прикріпити в контексті (збережеться після стиснення)",
   "chat.messageBody.actions.unpinContext": "Відкріпити від контексту (не збережеться після стиснення)",
   "chat.messageBody.actions.contextPinFailed": "Не вдалося оновити закріплення в контексті",
-  "chat.messageBody.actions.openPreviewAria": "Відкрити попередній перегляд",
-  "chat.messageBody.actions.openPreview": "Відкрити попередній перегляд",
   "chat.messageBody.actions.copyAnswer": "Скопіювати відповідь",
   "chat.messageBody.actions.moreActions": "Більше дій",
   "chat.messageBody.toast.copied": "Скопійовано в буфер обміну",

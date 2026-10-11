@@ -2327,8 +2327,6 @@ export const dict = {
   'chat.messageBody.actions.pinContext': 'Bağlama sabitle (sıkıştırmadan etkilenmez)',
   'chat.messageBody.actions.unpinContext': 'Bağlamdan sabitlemeyi kaldır (sıkıştırmadan sonra kalmaz)',
   'chat.messageBody.actions.contextPinFailed': 'Bağlam sabitlemesi güncellenemedi',
-  'chat.messageBody.actions.openPreviewAria': 'Önizlemeyi aç',
-  'chat.messageBody.actions.openPreview': 'Önizlemeyi aç',
   'chat.messageBody.actions.copyAnswer': 'Yanıtı kopyala',
   'chat.messageBody.actions.moreActions': 'Diğer işlemler',
   'chat.messageBody.toast.copied': 'Panoya kopyalandı',
