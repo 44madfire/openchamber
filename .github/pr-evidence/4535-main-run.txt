@@ -1,0 +1,185 @@
+# scripts/install.sh and openchamber update on main, run in a terminal (pseudo-tty)
+# scratch HOME per run, Node 26, local pnpm builds; a run still waiting after 150-200 s was killed
+
+=================== install.sh, pnpm 12 ===================
+
+  ╭───────────────────────────────────╮
+  │   OpenChamber Installer           │
+  │   Web interface for OpenCode      │
+  ╰───────────────────────────────────╯
+info  Checking Node.js...
+success  Node.js v26.10 found
+info  Detecting package manager...
+success  Using pnpm
+info  Installing OpenChamber...
+  Running: pnpm add -g @openchamber/web
+Packages are cloned from the content-addressable store to the virtual store.
+  Content-addressable store is at: ~/.cache/oc-4535/home-is-main-pnpm12/pnpm/store/v11
+  Virtual store is at:             pnpm/global/v11/7a83-18dd7aaad5855ed0-0/node_modules/.pnpm
+Ignored build scripts: msgpackr-extract@3.0.4, node-pty@1.2.0-beta.15.
+Run "pnpm approve-builds" to pick which dependencies should be allowed to run scripts.
+dependencies:
++ @openchamber/web 2.2.0
+Choose which packages to build (<space> to select, <enter> to confirm):
+> [ ] msgpackr-extract
+  [ ] node-pty
+--- still waiting for input after 150 s; killed
+
+=================== install.sh, pnpm 11 ===================
+
+  ╭───────────────────────────────────╮
+  │   OpenChamber Installer           │
+  │   Web interface for OpenCode      │
+  ╰───────────────────────────────────╯
+info  Checking Node.js...
+success  Node.js v26.10 found
+info  Detecting package manager...
+success  Using pnpm
+info  Installing OpenChamber...
+  Running: pnpm add -g @openchamber/web
+   ╭──────────────────────────────────────────╮
+   ╰──────────────────────────────────────────╯
+Packages: +188
+Packages are cloned from the content-addressable store to the virtual store.
+  Content-addressable store is at: ~/.cache/oc-4535/home-is-main-pnpm11/pnpm/store/v11
+  Virtual store is at:             pnpm/store/v11/links
+? Choose which packages to build (Press <space> to select, <a> to toggle all, <i
+> to invert selection)
+❯○ msgpackr-extract
+ ○ node-pty
+↑↓ navigate • space select • a all • i invert • ⏎ submit
+--- still waiting for input after 150 s; killed
+
+=================== install.sh, pnpm 10 ===================
+
+  ╭───────────────────────────────────╮
+  │   OpenChamber Installer           │
+  │   Web interface for OpenCode      │
+  ╰───────────────────────────────────╯
+info  Checking Node.js...
+success  Node.js v26.10 found
+info  Detecting package manager...
+success  Using pnpm
+info  Installing OpenChamber...
+  Running: pnpm add -g @openchamber/web
+   ╭──────────────────────────────────────────╮
+   ╰──────────────────────────────────────────╯
+Packages: +188
+~/.cache/oc-4535/home-is-main-pnpm10/pnpm/global/5:
++ @openchamber/web 2.2.0
+╭ Warning ─────────────────────────────────────────────────────────────────────╮
+│   Ignored build scripts: msgpackr-extract@3.0.4, node-pty@1.2.0-beta.15.     │
+│   Run "pnpm approve-builds -g" to pick which dependencies should be          │
+│   allowed to run scripts.                                                    │
+╰──────────────────────────────────────────────────────────────────────────────╯
+Done in 13.3s using pnpm v10.34.6
+  ░█▀█░█▀█░█▀▀░█▀█
+  ░█░█░█▀▀░█▀▀░█░█
+  ░▀▀▀░▀░░░▀▀▀░▀░▀
+  ░█▀▀░█░█░█▀█░█▄█░█▀▄░█▀▀░█▀▄
+  ░█░░░█▀█░█▀█░█░█░█▀▄░█▀▀░█▀▄
+  ░▀▀▀░▀░▀░▀░▀░▀░▀░▀▀░░▀▀▀░▀░▀
+success  OpenChamber installed successfully!
+  Get started:
+    openchamber              # Start server on port 3000
+    openchamber --help       # Show all options
+  Prerequisites:
+    Make sure OpenCode is running: opencode serve
+--- node-pty check in this HOME: output: "PTY_OK" exit: 0
+
+=================== install.sh, pnpm 10.3.0 ===================
+
+  ╭───────────────────────────────────╮
+  │   OpenChamber Installer           │
+  │   Web interface for OpenCode      │
+  ╰───────────────────────────────────╯
+info  Checking Node.js...
+success  Node.js v26.10 found
+info  Detecting package manager...
+success  Using pnpm
+info  Installing OpenChamber...
+  Running: pnpm add -g @openchamber/web
+   ╭───────────────────────────────────────────────────────────────────╮
+   ╰───────────────────────────────────────────────────────────────────╯
+Packages: +188
+~/.cache/oc-4535/home-is-main-p10.3.0/pnpm/global/5:
++ @openchamber/web 2.2.0
+╭ Warning ─────────────────────────────────────────────────────────────────────╮│                                                                              ││   Ignored build scripts: msgpackr-extract, node-pty.                         ││   Run "pnpm approve-builds" to pick which dependencies should be allowed     ││   to run scripts.                                                            ││                                                                              │╰──────────────────────────────────────────────────────────────────────────────╯
+Done in 9.9s
+  ░█▀█░█▀█░█▀▀░█▀█
+  ░█░█░█▀▀░█▀▀░█░█
+  ░▀▀▀░▀░░░▀▀▀░▀░▀
+  ░█▀▀░█░█░█▀█░█▄█░█▀▄░█▀▀░█▀▄
+  ░█░░░█▀█░█▀█░█░█░█▀▄░█▀▀░█▀▄
+  ░▀▀▀░▀░▀░▀░▀░▀░▀░▀▀░░▀▀▀░▀░▀
+success  OpenChamber installed successfully!
+  Get started:
+    openchamber              # Start server on port 3000
+    openchamber --help       # Show all options
+  Prerequisites:
+    Make sure OpenCode is running: opencode serve
+--- node-pty check in this HOME: output: "PTY_OK" exit: 0
+
+=================== install.sh, pnpm 9 ===================
+
+  ╭───────────────────────────────────╮
+  │   OpenChamber Installer           │
+  │   Web interface for OpenCode      │
+  ╰───────────────────────────────────╯
+info  Checking Node.js...
+success  Node.js v26.10 found
+info  Detecting package manager...
+success  Using pnpm
+info  Installing OpenChamber...
+  Running: pnpm add -g @openchamber/web
+   ╭───────────────────────────────────────────────────────────────────╮
+   ╰───────────────────────────────────────────────────────────────────╯
+Packages: +188
+.pnpm/node-pty@1.2.0-beta.15/node_modules/node-pty: Running install script, done in 310ms
+.pnpm/node-pty@1.2.0-beta.15/node_modules/node-pty: Running postinstall script, done in 171ms
+.pnpm/msgpackr-extract@3.0.4/node_modules/msgpackr-extract: Running install script, done in 1.3s
+~/.cache/oc-4535/home-is-main-pnpm9/pnpm/global/5:
++ @openchamber/web 2.2.0
+Done in 11.4s using pnpm v9.15.9
+  ░█▀█░█▀█░█▀▀░█▀█
+  ░█░█░█▀▀░█▀▀░█░█
+  ░▀▀▀░▀░░░▀▀▀░▀░▀
+  ░█▀▀░█░█░█▀█░█▄█░█▀▄░█▀▀░█▀▄
+  ░█░░░█▀█░█▀█░█░█░█▀▄░█▀▀░█▀▄
+  ░▀▀▀░▀░▀░▀░▀░▀░▀░▀▀░░▀▀▀░▀░▀
+success  OpenChamber installed successfully!
+  Get started:
+    openchamber              # Start server on port 3000
+    openchamber --help       # Show all options
+  Prerequisites:
+    Make sure OpenCode is running: opencode serve
+--- node-pty check in this HOME: output: "PTY_OK" exit: 0
+
+=================== openchamber update 2.1.1 -> 2.2.0, pnpm 12 ===================
+preinstalled: └── @openchamber/web@2.1.1
+Running: pnpm add -g @openchamber/web@2.2.0
+Packages are cloned from the content-addressable store to the virtual store.
+  Content-addressable store is at: ~/.cache/oc-4535/home-up-main-pnpm12/pnpm/store/v11
+  Virtual store is at:             pnpm/global/v11/16320-18dd7b1821dbe480-0/node_modules/.pnpm
+Ignored build scripts: msgpackr-extract@3.0.4, node-pty@1.2.0-beta.15.
+Run "pnpm approve-builds" to pick which dependencies should be allowed to run scripts.
+dependencies:
++ @openchamber/web 2.2.0
+Choose which packages to build (<space> to select, <enter> to confirm):
+> [ ] msgpackr-extract
+  [ ] node-pty
+--- still waiting for input after 200 s; killed
+
+=================== openchamber update 2.1.1 -> 2.2.0, pnpm 11 ===================
+preinstalled: └── @openchamber/web@2.1.1
+Running: pnpm add -g @openchamber/web@2.2.0
+Packages: +188
+Packages are cloned from the content-addressable store to the virtual store.
+  Content-addressable store is at: ~/.cache/oc-4535/home-up-main-pnpm11/pnpm/store/v11
+  Virtual store is at:             pnpm/store/v11/links
+? Choose which packages to build (Press <space> to select, <a> to toggle all, <i
+> to invert selection)
+❯○ msgpackr-extract
+ ○ node-pty
+↑↓ navigate • space select • a all • i invert • ⏎ submit
+--- still waiting for input after 200 s; killed

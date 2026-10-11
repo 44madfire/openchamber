@@ -689,6 +689,21 @@ function normalizeTargetVersion(value) {
   return /^\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?$/.test(normalized) ? normalized : null;
 }
 
+// Dependencies whose install scripts pnpm 10+ blocks until approved. pnpm 11+
+// stops a global install in a terminal to ask about them. Keep in sync with
+// scripts/install.sh and with the "Ignored build scripts" list a fresh
+// `pnpm add -g @openchamber/web` prints.
+const PNPM_BUILD_DEPENDENCIES = ['msgpackr-extract', 'node-pty'];
+// First pnpm release that accepts `--allow-build`; older ones reject it as an
+// unknown option, and pnpm 9 and older run build scripts without approval.
+const PNPM_ALLOW_BUILD_MIN_VERSION = '10.4.0';
+
+function getPnpmAllowBuildFlags(pmCommand) {
+  const version = normalizeTargetVersion(getCommandOutput(pmCommand, ['--version']));
+  if (!version || compareVersions(version, PNPM_ALLOW_BUILD_MIN_VERSION) < 0) return '';
+  return PNPM_BUILD_DEPENDENCIES.map((name) => ` --allow-build=${name}`).join('');
+}
+
 /**
  * Get the update command for the detected package manager.
  * When an exact target version is given, it is pinned in the spec instead of
@@ -702,10 +717,11 @@ export function getUpdateCommand(pm = detectPackageManager(), options = {}) {
     throw new Error(`Invalid target version for update: ${String(options.targetVersion)}`);
   }
   const versionSpec = targetVersion ? `@${targetVersion}` : '@latest';
-  const pmCommand = quoteCommand(resolvePackageManagerCommand(pm));
+  const resolvedCommand = resolvePackageManagerCommand(pm);
+  const pmCommand = quoteCommand(resolvedCommand);
   switch (pm) {
     case 'pnpm':
-      return `${pmCommand} add -g ${PACKAGE_NAME}${versionSpec}`;
+      return `${pmCommand} add -g${getPnpmAllowBuildFlags(resolvedCommand)} ${PACKAGE_NAME}${versionSpec}`;
     case 'yarn':
       return `${pmCommand} global add ${PACKAGE_NAME}${versionSpec}`;
     case 'bun':

@@ -435,6 +435,38 @@ describe('getUpdateCommand', () => {
     expect(getUpdateCommand('bun', { targetVersion: '1.25.0-beta.1' })).toContain('add -g @openchamber/web@1.25.0-beta.1');
   });
 
+  describe('pnpm build approvals', () => {
+    function stubPnpmVersion(stdout, status = 0) {
+      spawnSync.mockImplementation((command, args) => (
+        Array.isArray(args) && args[0] === '--version'
+          ? { status, stdout, stderr: '' }
+          : { status: 0, stdout: '', stderr: '' }
+      ));
+    }
+
+    afterEach(() => {
+      spawnSync.mockReset();
+    });
+
+    it('pre-approves the dependency builds on pnpm 10.4 and newer', () => {
+      for (const version of ['10.4.0', '10.34.6', '11.28.2', '12.11.2']) {
+        stubPnpmVersion(`${version}\n`);
+        expect(getUpdateCommand('pnpm', { targetVersion: '1.24.1' })).toBe(
+          'pnpm add -g --allow-build=msgpackr-extract --allow-build=node-pty @openchamber/web@1.24.1',
+        );
+      }
+    });
+
+    it('leaves the flag out where pnpm rejects it or the version is unknown', () => {
+      for (const version of ['9.15.9', '10.3.0', '']) {
+        stubPnpmVersion(`${version}\n`);
+        expect(getUpdateCommand('pnpm', { targetVersion: '1.24.1' })).toBe('pnpm add -g @openchamber/web@1.24.1');
+      }
+      stubPnpmVersion('', 1);
+      expect(getUpdateCommand('pnpm', { targetVersion: '1.24.1' })).toBe('pnpm add -g @openchamber/web@1.24.1');
+    });
+  });
+
   it('falls back to the latest dist-tag when no target version is given', () => {
     expect(getUpdateCommand('npm')).toBe('npm install -g @openchamber/web@latest');
   });
