@@ -598,6 +598,27 @@ Rules:
 11. Session-scoped ArrowUp and ArrowDown recall merges the visible transcript's user prompts (`useUserMessageHistory`) with the persisted input-history bucket for runtime + normalized directory + session identity. Revert markers hide prompts from the transcript source only; the persisted bucket still recalls them. Global scope reads the persisted runtime bucket alone.
 12. Part arrays preserve authoritative response/event order. Part IDs are identity keys and have the same rollover limitation; identity lookup/removal must not require a part array to be lexically ID-sorted.
 
+Pages the loader reads ask for finished tool results as shells
+(`lib/opencode/toolContentShells.ts`, server side
+`packages/web/server/lib/opencode/message-shells.js`): a completed or failed
+call keeps its status, time, input, metadata and error, and its result text is
+replaced by an `openchamberContentShell` marker in its metadata. The adapter
+sends the request header only to a server that lists
+`api.message-part-shells.v1` among its `/api/version` capabilities, learned
+once per runtime when the sync provider starts; an older server on another
+origin would refuse the unknown header at CORS preflight and fail the page.
+Rows that need the result (an expanded tool, an extension header that reads
+`{output}`) complete the message by id through `tool-content-completion.ts`;
+a failed or empty completion shows a retry, never an empty result. A page's
+shell never replaces a whole call the store already holds
+(`mergeMaterializedPart`), so a tail refresh cannot undo a completion or a
+live call. Every tool row opens on a click, so the client keeps no tool whole;
+file edits and subagent calls are never shelled by the server. Single-message reads are
+always whole, and so are calls arriving by the event stream, except `read` and
+`skill`: their rows open the file in the app and never show the result, so the
+reducer drops it the moment the call finishes (`withoutUnshownResult`), with
+the same marker.
+
 A successful local session creation publishes its session record and calls `SessionMessageLoader.initializeCreatedSession` before selection starts navigation loading. The create response establishes an empty transcript only if no transcript has arrived yet. Initialization supersedes an earlier unresolved history load, preserves any messages or metadata received before the create response, and uses the server-returned directory. Opening that new session needs no history read; forced recovery and later eviction still use normal fetching. Creation responses from a previous runtime cannot select or initialize a session in the current runtime.
 
 Initial loads use smaller requests on constrained VS Code/mobile surfaces and publish the cursor-extended ten-turn window described above. The mounted chat timeline requests one history batch when its pinned viewport is underfilled, when the user scrolls toward history, or when load older is pressed; mobile uses the explicit button. Timeline caches, pending work, prepend snapshots, and stale checks use runtime + directory + session identity so equal session IDs in different worktrees cannot share lifecycle state. Older pages are fetched through the same loader and merged with optimistic records before publication. The same chronology contract applies in the VS Code webview because it consumes this shared loader and sync store; the extension bridge must transport OpenCode records without introducing its own ID-based ordering.

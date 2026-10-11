@@ -2571,6 +2571,11 @@ export function SyncProvider(props: {
   const messageLoader = messageLoaderRef.current
   const messageLoaderDisposalTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   messageLoader.configure({ sdk: opencodeClient, runtimeKey })
+  // Asked while the rest of the bootstrap loads, so the first session page
+  // already arrives with its tool results shelled.
+  useEffect(() => {
+    opencodeClient.learnMessagePageShellsSupport()
+  }, [runtimeKey])
   const routingIndexRef = useRef<EventRoutingIndex | null>(null)
   if (!routingIndexRef.current) routingIndexRef.current = createEventRoutingIndex()
   const routingIndex = routingIndexRef.current
