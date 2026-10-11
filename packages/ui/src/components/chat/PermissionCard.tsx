@@ -281,7 +281,7 @@ export const PermissionRequestContent: React.FC<{ permission: PermissionRequest 
         {Object.keys(metadata).length > 0 && !summary.metadataExplained && !genericContent && !description && (
           <details className="group">
             <summary className="typography-meta flex cursor-pointer list-none items-center gap-1 text-muted-foreground hover:text-foreground [&::-webkit-details-marker]:hidden">
-              <Icon name="arrow-right-s" className="size-3.5 transition-transform group-open:rotate-90" />
+              <Icon name="arrow-right-s" className="size-3.5 transition-transform group-open:rotate-90 rtl:group-open:-rotate-90" />
               {t('chat.permissionCard.showDetails')}
             </summary>
             <ScrollableOverlay outerClassName="mt-1 max-h-32" className="p-0">
@@ -377,20 +377,20 @@ export const PermissionActions: React.FC<{
         <Button variant="ghost" size="xs" disabled={isResponding} onClick={() => onRespond('reject')} className="text-[var(--status-error)]">
           <Icon name="close" className="size-3.5" />
           {t('chat.permissionCard.deny')}
-          <kbd className="ml-1 hidden sm:inline typography-micro opacity-60">{formatShortcutForDisplay('alt+backspace')}</kbd>
+          <kbd className="ms-1 hidden sm:inline typography-micro opacity-60">{formatShortcutForDisplay('alt+backspace')}</kbd>
         </Button>
         <div className="min-w-0 flex-1" />
         {canSave ? (
           <Button variant="outline" size="xs" disabled={isResponding} onClick={() => onRespond('always')} title={always.full}>
             <Icon name="time" className="size-3.5" />
             <span className="max-w-[180px] truncate">{always.label}</span>
-            {!hasSave ? <kbd className="ml-1 hidden sm:inline typography-micro opacity-60">{formatShortcutForDisplay('alt+shift+enter')}</kbd> : null}
+            {!hasSave ? <kbd className="ms-1 hidden sm:inline typography-micro opacity-60">{formatShortcutForDisplay('alt+shift+enter')}</kbd> : null}
           </Button>
         ) : null}
         <Button size="xs" disabled={isResponding} onClick={() => onRespond('once')}>
           {isResponding ? <Icon name="loader-4" className="size-3.5 animate-spin" /> : <Icon name="check" className="size-3.5" />}
           {t('chat.permissionCard.allowOnce')}
-          <kbd className="ml-1 hidden sm:inline typography-micro opacity-60">{formatShortcutForDisplay('alt+enter')}</kbd>
+          <kbd className="ms-1 hidden sm:inline typography-micro opacity-60">{formatShortcutForDisplay('alt+enter')}</kbd>
         </Button>
       </div>
     );
@@ -416,7 +416,7 @@ export const PermissionActions: React.FC<{
       >
         <Icon name="check" className="h-3.5 w-3.5 sm:h-3 sm:w-3 flex-shrink-0" />
         {t('chat.permissionCard.allowOnce')}
-        <kbd className="ml-1 hidden sm:inline typography-micro opacity-60">{formatShortcutForDisplay('alt+enter')}</kbd>
+        <kbd className="ms-1 hidden sm:inline typography-micro opacity-60">{formatShortcutForDisplay('alt+enter')}</kbd>
       </button>
 
       {canSave ? (
@@ -430,7 +430,7 @@ export const PermissionActions: React.FC<{
         >
           <Icon name="time" className="h-3.5 w-3.5 sm:h-3 sm:w-3 flex-shrink-0" />
           <span className="truncate max-w-[180px]">{always.label}</span>
-          {!hasSave ? <kbd className="ml-1 hidden sm:inline typography-micro opacity-60">{formatShortcutForDisplay('alt+shift+enter')}</kbd> : null}
+          {!hasSave ? <kbd className="ms-1 hidden sm:inline typography-micro opacity-60">{formatShortcutForDisplay('alt+shift+enter')}</kbd> : null}
         </button>
       ) : null}
 
@@ -443,11 +443,11 @@ export const PermissionActions: React.FC<{
       >
         <Icon name="close" className="h-3.5 w-3.5 sm:h-3 sm:w-3 flex-shrink-0" />
         {t('chat.permissionCard.deny')}
-        <kbd className="ml-1 hidden sm:inline typography-micro opacity-60">{formatShortcutForDisplay('alt+backspace')}</kbd>
+        <kbd className="ms-1 hidden sm:inline typography-micro opacity-60">{formatShortcutForDisplay('alt+backspace')}</kbd>
       </button>
 
       {isResponding && (
-        <div className="flex justify-center w-full sm:w-auto sm:ml-auto py-1 sm:py-0 typography-meta text-muted-foreground">
+        <div className="flex justify-center w-full sm:w-auto sm:ms-auto py-1 sm:py-0 typography-meta text-muted-foreground">
           <div className="animate-spin h-3 w-3 border border-primary border-t-transparent rounded-full" />
         </div>
       )}

@@ -185,14 +185,13 @@ const renderReadFilePath = (displayPath: string, animate = true) => {
     const displayDir = hasAbsoluteRoot ? dir.slice(1) : dir;
 
     return (
-        <span className={cn('min-w-0 inline-flex max-w-full flex-1 items-baseline overflow-hidden', TOOL_ROW_DESCRIPTION_CLASS)} title={displayPath}>
+        <span dir="ltr" className={cn('min-w-0 inline-flex max-w-full flex-1 items-baseline overflow-hidden', TOOL_ROW_DESCRIPTION_CLASS)} title={displayPath}>
             {hasAbsoluteRoot ? <span className="flex-shrink-0" style={{ color: 'var(--tools-description)' }}>/</span> : null}
             <span
-                className="min-w-0 shrink truncate whitespace-nowrap"
+                className="oc-ui-start-align min-w-0 shrink truncate whitespace-nowrap"
                 style={{
                     color: 'var(--tools-description)',
                     direction: 'rtl',
-                    textAlign: 'left',
                     unicodeBidi: 'plaintext',
                 }}
             >
@@ -556,7 +555,7 @@ const StaticToolRowInner: React.FC<{
             // same 36px floor the [role="button"] expandable/reasoning rows get,
             // so static and expandable rows have identical rhythm.
             className={cn(
-                'oc-static-tool-row flex w-full items-center gap-x-1.5 pr-2 pl-px py-1.5 rounded-xl min-w-0'
+                'oc-static-tool-row flex w-full items-center gap-x-1.5 pe-2 ps-px py-1.5 rounded-xl min-w-0'
             )}
         >
             <div className="inline-flex h-5 items-center flex-shrink-0" style={{ color: 'var(--tools-icon)' }}>
@@ -581,7 +580,7 @@ const StaticToolRowInner: React.FC<{
                             event.stopPropagation();
                             handleFileClick(entry.path, entry.offset);
                         }}
-                        className={cn('inline-flex !min-h-0 items-center justify-start gap-1 min-w-0 flex-1 text-left hover:opacity-90', TOOL_ROW_DESCRIPTION_CLASS)}
+                        className={cn('inline-flex !min-h-0 items-center justify-start gap-1 min-w-0 flex-1 text-start hover:opacity-90', TOOL_ROW_DESCRIPTION_CLASS)}
                         style={{ color: 'var(--tools-description)' }}
                         title={entry.offset ? `${entry.displayPath}:${entry.offset}` : entry.displayPath}
                     >
@@ -633,7 +632,7 @@ const StaticToolRowInner: React.FC<{
                             event.stopPropagation();
                             handleFileClick(entry.path);
                         }}
-                        className={cn('!min-h-0 min-w-0 flex-1 truncate whitespace-nowrap text-left hover:opacity-90', TOOL_ROW_DESCRIPTION_CLASS)}
+                        className={cn('!min-h-0 min-w-0 flex-1 truncate whitespace-nowrap text-start hover:opacity-90', TOOL_ROW_DESCRIPTION_CLASS)}
                         style={{ color: 'var(--tools-description)' }}
                         title={entry.path}
                     >
@@ -833,7 +832,7 @@ const ProgressiveGroup: React.FC<ProgressiveGroupProps> = ({
             <div className="mt-1 mb-2">
                 <button
                     type="button"
-                    className="group/tool flex w-full flex-wrap items-center gap-x-2 gap-y-0.5 pr-2 pl-px py-1.5 rounded-xl text-left"
+                    className="group/tool flex w-full flex-wrap items-center gap-x-2 gap-y-0.5 pe-2 ps-px py-1.5 rounded-xl text-start"
                     onClick={onToggle}
                 >
                     <span className="inline-flex h-5 items-center flex-shrink-0" style={{ color: 'var(--tools-icon)' }}>
@@ -851,13 +850,13 @@ const ProgressiveGroup: React.FC<ProgressiveGroupProps> = ({
                     </span>
                 </button>
                 {shouldShowRowsContainer ? (
-                    <div className="relative ml-2 pl-3">
+                    <div className="relative ms-2 ps-3">
                         <BlockLine onToggle={onToggle} topOffset={1} />
                         {previewHiddenCount > 0 ? (
                             <button
                                 type="button"
                                 onClick={onToggle}
-                                className="typography-meta leading-4 px-2 py-1 text-muted-foreground/45 hover:text-muted-foreground/65 text-left"
+                                className="typography-meta leading-4 px-2 py-1 text-muted-foreground/45 hover:text-muted-foreground/65 text-start"
                             >
                                 +{previewHiddenCount} more...
                             </button>

@@ -59,7 +59,7 @@ import { getContextFileOpenFailureMessage, validateContextFileOpen } from '@/lib
 import { toAbsoluteFilePath } from '@/lib/path-utils';
 import { sessionEvents } from '@/lib/sessionEvents';
 import { findDiffScrollAnchor, getRestoredDiffScrollTop, type DiffScrollAnchor } from './diffScrollAnchor';
-import { useI18n } from '@/lib/i18n';
+import { isRightToLeft, useI18n } from '@/lib/i18n';
 import { useConfirmDialog } from '@/components/ui/confirm-dialog';
 import { changeRequestCopy } from '@/lib/source-control/changeRequestCopy';
 import type { SourceControlProvider } from '@/lib/api/types';
@@ -366,7 +366,7 @@ const FileList = React.memo<FileListProps>(({
                                 type="button"
                                 onClick={() => onSelectFile(file.path)}
                                 className={cn(
-                                    'flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left transition-colors',
+                                    'flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-start transition-colors',
                                     isActive
                                         ? 'bg-interactive-selection text-interactive-selection-foreground'
                                         : 'text-muted-foreground hover:bg-interactive-hover hover:text-foreground'
@@ -382,8 +382,8 @@ const FileList = React.memo<FileListProps>(({
                                     {descriptor.code}
                                 </span>
                                 <span
-                                    className="min-w-0 flex-1 truncate typography-meta"
-                                    style={{ direction: 'rtl', textAlign: 'left', unicodeBidi: 'plaintext' }}
+                                    className="oc-ui-start-align min-w-0 flex-1 truncate typography-meta"
+                                    style={{ direction: 'rtl', unicodeBidi: 'plaintext' }}
                                     title={file.path}
                                 >
                                     {file.path}
@@ -452,8 +452,8 @@ const FileTree = React.memo<FileListProps>(({
                                     aria-label={row.expanded
                                         ? t('diffView.fileTree.collapseDirectoryAria', { path: row.path })
                                         : t('diffView.fileTree.expandDirectoryAria', { path: row.path })}
-                                    className="flex w-full items-center gap-1 rounded-md py-1 pr-2 text-left text-muted-foreground transition-colors hover:bg-interactive-hover hover:text-foreground"
-                                    style={{ paddingLeft }}
+                                    className="flex w-full items-center gap-1 rounded-md py-1 pe-2 text-start text-muted-foreground transition-colors hover:bg-interactive-hover hover:text-foreground"
+                                    style={{ paddingInlineStart: paddingLeft }}
                                     title={row.path}
                                 >
                                     <FileTreeChevron expanded={row.expanded} />
@@ -473,13 +473,13 @@ const FileTree = React.memo<FileListProps>(({
                                 onClick={() => onSelectFile(row.file.path)}
                                 aria-current={isActive ? 'true' : undefined}
                                 className={cn(
-                                    'flex w-full items-center gap-1.5 rounded-md py-1 pr-2 text-left transition-colors',
+                                    'flex w-full items-center gap-1.5 rounded-md py-1 pe-2 text-start transition-colors',
                                     fileTreeRowStateClassName(isActive)
                                 )}
-                                style={{ paddingLeft }}
+                                style={{ paddingInlineStart: paddingLeft }}
                                 title={row.file.path}
                             >
-                                <FileTypeIcon filePath={row.file.path} className="ml-0.5 size-3.5 flex-shrink-0" />
+                                <FileTypeIcon filePath={row.file.path} className="ms-0.5 size-3.5 flex-shrink-0" />
                                 <span className="min-w-0 flex-1 truncate typography-meta">{row.name}</span>
                                 <FileTreeStatusLetter
                                     code={descriptor.code}
@@ -1023,8 +1023,8 @@ export const MultiFileDiffEntry = React.memo<MultiFileDiffEntryProps>(({
                                     if (lastSlash === -1) {
                                         return (
                                             <span
-                                                className="block min-w-0 truncate typography-ui-label text-foreground"
-                                                style={{ direction: 'rtl', textAlign: 'left', unicodeBidi: 'plaintext' }}
+                                                className="oc-ui-start-align block min-w-0 truncate typography-ui-label text-foreground"
+                                                style={{ direction: 'rtl', unicodeBidi: 'plaintext' }}
                                             >
                                                 {file.path}
                                             </span>
@@ -1035,10 +1035,10 @@ export const MultiFileDiffEntry = React.memo<MultiFileDiffEntryProps>(({
                                     const name = file.path.slice(lastSlash + 1);
 
                                     return (
-                                        <span className="flex min-w-0 items-baseline overflow-hidden">
+                                        <span dir="ltr" className="flex min-w-0 items-baseline overflow-hidden">
                                             <span
-                                                className="min-w-0 truncate typography-ui-label text-muted-foreground"
-                                                style={{ direction: 'rtl', textAlign: 'left', unicodeBidi: 'plaintext' }}
+                                                className="oc-ui-start-align min-w-0 truncate typography-ui-label text-muted-foreground"
+                                                style={{ direction: 'rtl', unicodeBidi: 'plaintext' }}
                                             >
                                                 {dir}
                                             </span>
@@ -2080,10 +2080,12 @@ export const DiffView: React.FC<DiffViewProps> = ({
         event.preventDefault();
         const startX = event.clientX;
         const startWidth = fileTreeWidth;
+        // The tree sits at the start; in RTL that is the right, so dragging left widens it.
+        const sign = isRightToLeft(event.currentTarget) ? -1 : 1;
         setDraggingFileTree(true);
 
         const onMove = (moveEvent: PointerEvent) => {
-            setStoredFileTreeWidth(clampFileTreeWidth(startWidth + moveEvent.clientX - startX));
+            setStoredFileTreeWidth(clampFileTreeWidth(startWidth + (moveEvent.clientX - startX) * sign));
         };
         const onUp = () => {
             setDraggingFileTree(false);
@@ -2099,7 +2101,8 @@ export const DiffView: React.FC<DiffViewProps> = ({
 
     const handleFileTreeResizeKey = React.useCallback((event: React.KeyboardEvent<HTMLDivElement>) => {
         const step = event.shiftKey ? 40 : 10;
-        const delta = event.key === 'ArrowLeft' ? -step : event.key === 'ArrowRight' ? step : 0;
+        const sign = isRightToLeft(event.currentTarget) ? -1 : 1;
+        const delta = (event.key === 'ArrowLeft' ? -step : event.key === 'ArrowRight' ? step : 0) * sign;
         if (delta === 0) return;
         event.preventDefault();
         setStoredFileTreeWidth(clampFileTreeWidth(fileTreeWidth + delta));
@@ -2329,7 +2332,7 @@ export const DiffView: React.FC<DiffViewProps> = ({
                             onKeyDown={handleFileTreeResizeKey}
                             className={cn(
                                 'relative w-px shrink-0 cursor-col-resize bg-[var(--interactive-border)]/40',
-                                'before:absolute before:inset-y-0 before:-left-1 before:-right-1 before:content-[\'\']',
+                                'before:absolute before:inset-y-0 before:-inset-s-1 before:-inset-e-1 before:content-[\'\']',
                                 'hover:bg-interactive-selection focus-visible:bg-interactive-selection focus-visible:outline-none',
                                 draggingFileTree && 'bg-interactive-selection'
                             )}
@@ -2499,7 +2502,7 @@ export const DiffView: React.FC<DiffViewProps> = ({
     return (
         <div className="flex h-full flex-col overflow-hidden bg-background">
             <ContextPanelHeaderToolbar>
-            <div className={cn('@container/diff-toolbar flex min-w-0 items-center gap-2', inPanelHeader ? 'flex-1 py-1 pr-1' : 'px-3 py-2 bg-background')}>
+            <div className={cn('@container/diff-toolbar flex min-w-0 items-center gap-2', inPanelHeader ? 'flex-1 py-1 pe-1' : 'px-3 py-2 bg-background')}>
                 {rootIsGitRepo === false && Array.isArray(nestedRepoOptions) && nestedRepoOptions.length > 0 ? (
                     <NestedRepoPicker
                         repositories={nestedRepoOptions}
@@ -2575,7 +2578,7 @@ export const DiffView: React.FC<DiffViewProps> = ({
                         onClick={handleExpandOrCollapseAll}
                         className={cn(
                             'diff-toolbar__expand-button h-7 flex-shrink-0 gap-1 px-1.5 text-muted-foreground hover:text-foreground',
-                            'ml-auto',
+                            'ms-auto',
                         )}
                         title={expandedFiles.size > 0 ? t('diffView.actions.collapseAll') : t('diffView.actions.expandAll')}
                     >

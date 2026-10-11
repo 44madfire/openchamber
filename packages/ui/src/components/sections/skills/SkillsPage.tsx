@@ -658,7 +658,7 @@ const SkillsInstalledPage: React.FC = () => {
                             {option.source === 'agents' ? <Icon name="robot-2" className="h-3.5 w-3.5" /> : null}
                             <span>{locationLabelText(option.value)}</span>
                           </div>
-                          <span className="typography-micro text-muted-foreground ml-6">{locationDescriptionText(option.value)}</span>
+                          <span className="typography-micro text-muted-foreground ms-6">{locationDescriptionText(option.value)}</span>
                         </div>
                       </SelectItem>
                     ))}

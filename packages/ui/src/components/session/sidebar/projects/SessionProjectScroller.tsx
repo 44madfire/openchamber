@@ -270,7 +270,7 @@ function SessionProjectScrollerComponent({ model, view, actions }: Props): React
       default:
         label = t('sessions.sidebar.group.empty.loadingSessions');
     }
-    return <div className="py-1 pl-[26px] text-left typography-micro text-muted-foreground">
+    return <div className="py-1 ps-[26px] text-start typography-micro text-muted-foreground">
       <span className="inline-flex flex-wrap items-center gap-1.5">
         {row.status.state === 'loading' ? <Icon name="loader-4" className="size-3 animate-spin" /> : null}
         {label}
@@ -450,7 +450,7 @@ function SessionProjectScrollerComponent({ model, view, actions }: Props): React
     if (row.kind === 'show-control') {
       // Timeline rows have no left gutter, so the control lines up with their
       // text (10px) instead of the grouped view's gutter offset.
-      return <button type="button" className={cn('mt-0.5 flex items-center justify-start rounded-md pr-1.5 py-0.5 text-left text-xs text-muted-foreground/70 leading-tight hover:text-foreground hover:underline', view.timelineView ? 'pl-[10px]' : 'pl-[26px]')} onClick={() => {
+      return <button type="button" className={cn('mt-0.5 flex items-center justify-start rounded-md pe-1.5 py-0.5 text-start text-xs text-muted-foreground/70 leading-tight hover:text-foreground hover:underline', view.timelineView ? 'ps-[10px]' : 'ps-[26px]')} onClick={() => {
         if (row.containerKey.startsWith('activity:')) {
           model.state.setVisibleActivityCountByKey((current) => {
             const next = new Map(current);
@@ -468,7 +468,7 @@ function SessionProjectScrollerComponent({ model, view, actions }: Props): React
     if (row.emptyKind === 'group' && spaceTakesNoNewSession(spacesJourney?.get(row.group?.space?.id ?? ''))) return null;
     if (row.emptyKind === 'group' && row.group?.directory && !row.group.emptyMessage) {
       const group = row.group;
-      return <Button variant="link" size="xs" className="w-full justify-start pl-[26px] text-left font-normal normal-case text-muted-foreground/70 underline-offset-auto hover:text-foreground hover:underline" onClick={() => {
+      return <Button variant="link" size="xs" className="w-full justify-start ps-[26px] text-start font-normal normal-case text-muted-foreground/70 underline-offset-auto hover:text-foreground hover:underline" onClick={() => {
           prepareSessionProjectAction({
             projectId: row.projectId ?? null,
             mobileVariant: view.mobileVariant,
@@ -479,7 +479,7 @@ function SessionProjectScrollerComponent({ model, view, actions }: Props): React
           actions.openNewSessionDraft({ selectedProjectId: row.projectId, directoryOverride: group.directory, target: group.draftTarget });
         }}>{t('sessions.sidebar.group.empty.startSession')}</Button>;
     }
-    return <div className="py-1 pl-[26px] text-left typography-micro text-muted-foreground">
+    return <div className="py-1 ps-[26px] text-start typography-micro text-muted-foreground">
       {row.emptyKind === 'archived' ? t('sessions.sidebar.group.empty.noArchivedSessions') : row.group?.emptyMessage ?? t('sessions.sidebar.group.empty.noSessionsInWorkspace')}
     </div>;
   }, [actions, deleteFolder, files, model, openProjectFolder, projectPickerOptions, renameFolder, renderStatus, requestArchiveAll, showDeletionDialog, spacesJourney, spacesPageAvailable, t, toggleFolderCollapse, view]);
@@ -501,7 +501,7 @@ function SessionProjectScrollerComponent({ model, view, actions }: Props): React
         // Sticky zone headers replace the top shadow in the grouped view; the
         // flat timeline has none, so it shows the shadow once there is content above.
         ref={setScrollContainer} useScrollShadow hideTopScrollShadow={!view.timelineView} scrollShadowSize={40}
-        outerClassName="flex-1 min-h-0" className="oc-sidebar-scroller pb-1 pl-2.5 pr-2 [overflow-anchor:none]"
+        outerClassName="flex-1 min-h-0" className="oc-sidebar-scroller pb-1 ps-2.5 pe-2 [overflow-anchor:none]"
       >
         <DndContext sensors={sensors} collisionDetection={closestCenter} onDragStart={(event) => {
           setIsProjectDragging(projectDragIds.has(String(event.active.id)));

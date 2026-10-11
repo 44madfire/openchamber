@@ -50,7 +50,7 @@ export const NestedRepoPicker: React.FC<NestedRepoPickerProps> = ({
         aria-label={t('gitView.empty.selectRepositoryPlaceholder')}
       >
         <Icon name="folder-3" className="size-4 text-muted-foreground" />
-        <span className="min-w-0 truncate font-medium text-left">
+        <span className="min-w-0 truncate font-medium text-start">
           {selectedRepository ? relativePath(selectedRepository) : ''}
         </span>
       </SelectTrigger>

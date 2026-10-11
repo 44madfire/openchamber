@@ -214,7 +214,7 @@ const ApplyDialogFor: React.FC<{ spaceId: string }> = ({ spaceId }) => {
             <div className="space-y-2">
               {option('branch', t('spaces.apply.as.branch'), false)}
               {chosen === 'branch' ? (
-                <div className="space-y-1 pl-6">
+                <div className="space-y-1 ps-6">
                   <Input
                     value={branch}
                     onChange={(event) => { setBranch(event.target.value); if (branchRefusal) setRefusal(null); }}
@@ -225,9 +225,9 @@ const ApplyDialogFor: React.FC<{ spaceId: string }> = ({ spaceId }) => {
                 </div>
               ) : null}
               {option('changes', t('spaces.apply.as.changes'), changesClosed)}
-              {changesClosed ? <p className="pl-6 typography-meta text-muted-foreground">{t('spaces.apply.changes.closed')}</p> : null}
-              {!changesClosed && preview.newPathsUndecided ? <p className="pl-6 typography-meta text-status-warning">{t('spaces.apply.changes.undecided')}</p> : null}
-              {!changesClosed && !preview.newPathsUndecided && sinceLastApply ? <p className="pl-6 typography-meta text-muted-foreground">{sinceLastApply}</p> : null}
+              {changesClosed ? <p className="ps-6 typography-meta text-muted-foreground">{t('spaces.apply.changes.closed')}</p> : null}
+              {!changesClosed && preview.newPathsUndecided ? <p className="ps-6 typography-meta text-status-warning">{t('spaces.apply.changes.undecided')}</p> : null}
+              {!changesClosed && !preview.newPathsUndecided && sinceLastApply ? <p className="ps-6 typography-meta text-muted-foreground">{sinceLastApply}</p> : null}
             </div>
           )}
 

@@ -472,7 +472,7 @@ export const AgentsPage: React.FC = () => {
             label={t('settings.agents.page.field.agentName')}
           >
             <div className="flex items-center">
-              <span className="typography-ui-label text-muted-foreground mr-1">@</span>
+              <span className="typography-ui-label text-muted-foreground me-1">@</span>
               <Input
                 value={draftName}
                 onChange={(e) => setDraftName(e.target.value)}

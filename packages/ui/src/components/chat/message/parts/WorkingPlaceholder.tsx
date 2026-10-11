@@ -199,7 +199,7 @@ export function WorkingPlaceholder({
       src={providerLogoSrc}
       alt=""
       aria-hidden="true"
-      className="animate-status-logo inline-block h-3.5 w-3.5 mr-1.5 align-[-2px]"
+      className="animate-status-logo inline-block h-3.5 w-3.5 me-1.5 align-[-2px]"
       style={{
         filter: isDarkTheme ? 'brightness(0.9) contrast(1.1) invert(1)' : 'brightness(0.9) contrast(1.1)',
       }}

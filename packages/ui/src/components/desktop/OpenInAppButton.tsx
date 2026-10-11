@@ -179,7 +179,7 @@ const OpenInAppButtonComponent = ({ directory }: OpenInAppButtonProps) => {
                 />
                 <span className="typography-ui-label text-foreground">{app.label}</span>
                 {selectedApp.id === app.id ? (
-                  <Icon name="check" className="ml-auto h-4 w-4 text-primary" />
+                  <Icon name="check" className="ms-auto h-4 w-4 text-primary" />
                 ) : null}
               </DropdownMenuItem>
             );

@@ -649,7 +649,7 @@ const ReadOnlyPromptBanner: React.FC<{ text: string; onStop?: () => void; stopLa
                     <Button
                         variant="ghost"
                         size="icon"
-                        className="-my-1.5 -mr-2 shrink-0 text-[var(--status-error)] hover:text-[var(--status-error)]"
+                        className="-my-1.5 -me-2 shrink-0 text-[var(--status-error)] hover:text-[var(--status-error)]"
                         onClick={onStop}
                         aria-label={stopLabel}
                         title={stopLabel}
@@ -1113,7 +1113,7 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
             variant="outline"
             size="xs"
             onClick={handleReturnToParentSession}
-            className="absolute left-3 top-3 z-20 !font-normal bg-[var(--surface-background)]/95"
+            className="absolute inset-s-3 top-3 z-20 !font-normal bg-[var(--surface-background)]/95"
             aria-label={t('chat.container.returnToParent.aria')}
             title={parentSession.title?.trim()
                 ? t('chat.container.returnToParent.titleNamed', { title: parentSession.title })
@@ -1827,7 +1827,7 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
 			{returnToParentButton}
 			{sessionSurface}
 			{chatSearch.open && currentSessionId && messageSearchEnabled ? (
-				<div className="pointer-events-none absolute right-3 top-2 z-20">
+				<div className="pointer-events-none absolute inset-e-3 top-2 z-20">
 					<ChatSearchBar
 						sessionId={currentSessionId}
 						scrollNode={scrollNode}

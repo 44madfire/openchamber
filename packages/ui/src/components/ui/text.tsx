@@ -44,7 +44,7 @@ const variants = [
         <span
           {...props}
           className={cn(
-            "absolute top-0 left-0 text-primary-muted transition-transform duration-500 ease-in-out",
+            "absolute top-0 inset-s-0 text-primary-muted transition-transform duration-500 ease-in-out",
             "group-hover:-translate-y-full hover:duration-300",
             className
           )}
@@ -54,7 +54,7 @@ const variants = [
         <span
           {...props}
           className={cn(
-            "absolute top-0 left-0 translate-y-full text-primary-muted transition-transform duration-500",
+            "absolute top-0 inset-s-0 translate-y-full text-primary-muted transition-transform duration-500",
             "ease-in-out hover:duration-300 group-hover:translate-y-0",
             className
           )}
@@ -145,7 +145,7 @@ const variants = [
     component: ({ children, className, ...props }) => (
       <div
         className={cn(
-          "relative after:absolute after:bottom-0 after:left-0 after:h-px after:w-full after:origin-bottom-right",
+          "relative after:absolute after:bottom-0 after:inset-s-0 after:h-px after:w-full after:origin-bottom-right",
           "after:scale-x-0 after:bg-primary-muted after:transition-transform after:duration-300 after:ease-in-out hover:after:origin-bottom-left hover:after:scale-x-100"
         )}
       >

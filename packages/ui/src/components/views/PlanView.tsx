@@ -819,7 +819,7 @@ export const PlanView: React.FC<PlanViewProps> = ({ targetPath = null, savedProj
   return (
     <div className="relative flex h-full min-h-0 min-w-0 w-full flex-col overflow-hidden bg-background">
       <ContextPanelHeaderToolbar>
-      <div className={cn('flex min-w-0 items-center gap-2', inPanelHeader ? 'flex-1 py-1 pr-1' : 'border-b border-border/40 px-3 py-1.5 flex-shrink-0')}>
+      <div className={cn('flex min-w-0 items-center gap-2', inPanelHeader ? 'flex-1 py-1 pe-1' : 'border-b border-border/40 px-3 py-1.5 flex-shrink-0')}>
         <div className="min-w-0 flex-1">
           <div className="typography-ui-label font-medium truncate">{parsedTitle}</div>
           {loadError ? (

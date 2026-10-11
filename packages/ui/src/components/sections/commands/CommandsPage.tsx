@@ -308,7 +308,7 @@ export const CommandsPage: React.FC = () => {
             label={t('settings.commands.page.field.commandName')}
           >
             <div className="flex items-center">
-              <span className="typography-ui-label text-muted-foreground mr-1">/</span>
+              <span className="typography-ui-label text-muted-foreground me-1">/</span>
               <Input
                 value={draftName}
                 onChange={(e) => setDraftName(e.target.value)}

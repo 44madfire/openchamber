@@ -87,9 +87,9 @@ function RunSidebarRowComponent({
         aria-current={isActive ? 'page' : undefined}
         aria-label={t('sessions.sidebar.run.openOverviewAria', { title: run.title })}
         onClick={openOverview}
-        style={{ paddingLeft: ROW_GUTTER_LEFT_PX + 4 }}
+        style={{ paddingInlineStart: ROW_GUTTER_LEFT_PX + 4 }}
         className={cn(
-          'group relative my-0.5 flex w-full cursor-pointer items-center rounded-md py-1.5 pr-2.5 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+          'group relative my-0.5 flex w-full cursor-pointer items-center rounded-md py-1.5 pe-2.5 text-start focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
           isActive ? 'bg-interactive-selection/70 text-interactive-selection-foreground' : 'hover:bg-interactive-hover/60',
         )}
       >
@@ -128,9 +128,9 @@ function RunSidebarRowComponent({
       data-run-row={run.key}
       aria-current={isActive ? 'page' : undefined}
       onClick={openOverview}
-      style={{ paddingLeft: ROW_TEXT_LEFT_PX + depth * ROW_DEPTH_STEP_PX }}
+      style={{ paddingInlineStart: ROW_TEXT_LEFT_PX + depth * ROW_DEPTH_STEP_PX }}
       className={cn(
-        'group relative my-0.5 flex cursor-pointer items-center rounded-md py-1 pr-2.5',
+        'group relative my-0.5 flex cursor-pointer items-center rounded-md py-1 pe-2.5',
         isActive ? 'bg-interactive-selection/70 text-interactive-selection-foreground' : 'hover:bg-interactive-hover/60',
       )}
     >
@@ -143,7 +143,7 @@ function RunSidebarRowComponent({
             toggle(event);
           }
         }}
-        style={{ left: ROW_GUTTER_LEFT_PX + depth * ROW_DEPTH_STEP_PX }}
+        style={{ insetInlineStart: ROW_GUTTER_LEFT_PX + depth * ROW_DEPTH_STEP_PX }}
         className="absolute top-1/2 inline-flex h-3.5 w-3.5 -translate-y-1/2 items-center justify-center rounded-md text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         aria-expanded={expanded}
         aria-label={expanded ? t('sessions.sidebar.run.collapse') : t('sessions.sidebar.run.expand')}
@@ -156,11 +156,11 @@ function RunSidebarRowComponent({
           event.stopPropagation();
           openOverview();
         }}
-        className="flex min-w-0 flex-1 items-center gap-1.5 overflow-hidden text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        className="flex min-w-0 flex-1 items-center gap-1.5 overflow-hidden text-start focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         aria-label={t('sessions.sidebar.run.openOverviewAria', { title: run.title })}
       >
         <ArrowsMerge className="h-3.5 w-3.5 shrink-0 text-muted-foreground" aria-hidden="true" />
-        <span dir="auto" className={cn('block min-w-0 flex-1 truncate typography-ui-label font-normal', titleClassName)}>{run.title}</span>
+        <span dir="auto" className={cn('oc-ui-start-align block min-w-0 flex-1 truncate typography-ui-label font-normal', titleClassName)}>{run.title}</span>
         <ProviderLogos providerIDs={run.providerIDs} ringClass="ring-sidebar" />
         {activity}
       </button>

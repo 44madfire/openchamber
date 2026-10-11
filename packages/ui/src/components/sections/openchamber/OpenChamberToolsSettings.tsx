@@ -36,7 +36,7 @@ interface ToolRowProps {
 }
 
 /** Icon column width plus gap, so a nested row lines up with the tool text. */
-const TOOL_ROW_TEXT_INSET_CLASS = 'pl-[3.75rem]';
+const TOOL_ROW_TEXT_INSET_CLASS = 'ps-[3.75rem]';
 
 const ToolRow: React.FC<ToolRowProps> = ({ icon, title, summary, info, ariaLabel, checked, onChange, settingsItem }) => (
   <div data-settings-item={settingsItem} className="flex items-center gap-3 px-4 py-3">
@@ -203,7 +203,7 @@ export const OpenChamberToolsSettings: React.FC = () => {
               learn that browser-provider extensions exist. */}
           <div
             data-settings-item="sessions.browser-provider"
-            className={cn('flex min-w-0 items-center gap-2 pb-3 pr-4', TOOL_ROW_TEXT_INSET_CLASS)}
+            className={cn('flex min-w-0 items-center gap-2 pb-3 pe-4', TOOL_ROW_TEXT_INSET_CLASS)}
           >
             <span className="truncate typography-meta text-muted-foreground">
               {t('settings.openchamber.tools.browserProvider.label')}
@@ -215,7 +215,7 @@ export const OpenChamberToolsSettings: React.FC = () => {
               disabled={!agentWebToolEnabled || providerGuests.length === 0}
             >
               <SelectTrigger
-                className="ml-auto w-auto min-w-0 max-w-[14rem]"
+                className="ms-auto w-auto min-w-0 max-w-[14rem]"
                 aria-label={t('settings.openchamber.tools.browserProvider.aria')}
               >
                 <SelectValue>

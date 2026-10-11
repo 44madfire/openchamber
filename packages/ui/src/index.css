@@ -33,14 +33,41 @@
 
 @custom-variant dark (&:is(.dark *));
 
-/* Hover-revealed row actions cross-fade over a row's right end instead of
+/* The interface's own start edge and the way toward its end. Text whose
+   direction differs from the interface (a dir="auto" title, a path truncated
+   from its start with direction: rtl) aligns with oc-ui-start-align, so it lines up
+   with the rows around it in either layout. */
+:root {
+  --oc-ui-start: left;
+  --oc-to-inline-end: to right;
+}
+
+:root[dir="rtl"] {
+  --oc-ui-start: right;
+  --oc-to-inline-end: to left;
+}
+
+@utility oc-ui-start-align {
+  text-align: var(--oc-ui-start);
+}
+
+/* Hover-revealed row actions cross-fade over a row's end instead of
    re-laying the row out: the text they cover fades away under them. The
-   masked element sits --oc-actions-inset from its nearest @container's left
-   edge; the actions reach --oc-actions-reserve in from that container's right
+   masked element sits --oc-actions-inset from its nearest @container's start
+   edge; the actions reach --oc-actions-reserve in from that container's end
    edge. */
 @utility oc-actions-mask {
   --oc-actions-edge: calc(100cqw - var(--oc-actions-inset, 0px) - var(--oc-actions-reserve, 0px));
-  mask-image: linear-gradient(to right, #000 calc(var(--oc-actions-edge) - 14px), transparent calc(var(--oc-actions-edge) - 2px));
+  mask-image: linear-gradient(var(--oc-to-inline-end), #000 calc(var(--oc-actions-edge) - 14px), transparent calc(var(--oc-actions-edge) - 2px));
+
+  /* A title whose own direction differs from the interface (dir="auto") starts
+     on the side the actions cover, so fading there would hide its first
+     letters. It moves out of the way instead. */
+  &:where(:root[dir="rtl"] *):dir(ltr),
+  &:where(:root:not([dir="rtl"]) *):dir(rtl) {
+    mask-image: none;
+    padding-inline-start: var(--oc-actions-reserve, 0px);
+  }
 }
 
 /* A PR or issue reference coloured by its state (--oc-ref-tint). It is side
@@ -615,6 +642,18 @@ button svg path,
   fill: currentColor !important;
 }
 
+/*
+ * Icons that point somewhere (back, next, disclosure, panel side, send) mirror
+ * in a right-to-left layout. The flip sits on the inner <use>, so classes that
+ * transform or scale the <svg> keep working. :dir() follows the nearest dir
+ * attribute, which keeps physical arrows inside dir="ltr" content (terminal
+ * keys) unmirrored. The flip applies before the <svg>'s own rotation, so a
+ * chevron that turns a quarter turn to open needs `rtl:` to turn the other way.
+ */
+svg.remixicon[data-directional]:dir(rtl) > use {
+  transform: matrix(-1, 0, 0, 1, 24, 0);
+}
+
 /* Safari/WebKit animation fixes - outside @layer for higher specificity */
 .animate-spin {
   animation: webkit-spin 1s linear infinite !important;
@@ -982,7 +1021,7 @@ html:not(.dark) .chat-scroll {
     display: none;
   }
   :root:not(.mobile-pointer):not(.vscode-runtime) .header-tab-badge {
-    margin-left: -0.125rem;
+    margin-inline-start: -0.125rem;
   }
 }
 
@@ -2323,4 +2362,10 @@ html.desktop-runtime .markdown-content [data-openchamber-file-link="true"] {
 .session-tab-title {
   -webkit-mask-image: linear-gradient(to right, black calc(100% - 14px), transparent);
   mask-image: linear-gradient(to right, black calc(100% - 14px), transparent);
+}
+
+/* A right-to-left title (dir="auto") runs out on its left side. */
+.session-tab-title:has([dir="auto"]:dir(rtl)) {
+  -webkit-mask-image: linear-gradient(to left, black calc(100% - 14px), transparent);
+  mask-image: linear-gradient(to left, black calc(100% - 14px), transparent);
 }

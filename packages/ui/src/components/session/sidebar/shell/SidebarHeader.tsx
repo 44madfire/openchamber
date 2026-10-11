@@ -201,10 +201,10 @@ export function SidebarHeader(props: Props): React.ReactNode {
         <div ref={rowRef} className="flex min-h-8 flex-wrap items-center justify-between gap-2">
           {/* Quiet toolbar at the top of the list: the pages the sidebar opens
               at left, most used first; controls for the list itself at right.
-              ml-[3px] compensates the icon inset inside the 24px buttons so the
+              ms-[3px] compensates the icon inset inside the 24px buttons so the
               first glyph sits 16px from the sidebar edge, in line with the
               titlebar controls. */}
-          <div className="ml-[3px] flex min-w-0 items-center gap-1.5">
+          <div className="ms-[3px] flex min-w-0 items-center gap-1.5">
             <div ref={builtinPagesRef} className="flex items-center gap-1.5">
               {showSourceBoard ? (
                 <SidebarPageButton

@@ -202,7 +202,7 @@ export const NewSpaceDialog: React.FC<NewSpaceDialogProps> = ({ open, onOpenChan
   );
 
   const body = (
-    <div className="space-y-5 pr-3">
+    <div className="space-y-5 pe-3">
       {section(t('spaces.create.name.label'), (
         <Input value={name} onChange={(event) => setName(event.target.value)} className="max-w-sm" aria-label={t('spaces.create.name.label')} />
       ))}
@@ -226,10 +226,10 @@ export const NewSpaceDialog: React.FC<NewSpaceDialogProps> = ({ open, onOpenChan
           {option(effectiveStart === 'uncommitted', () => setStart('uncommitted'), t('spaces.create.start.uncommitted'), changes.kind !== 'ready')}
           {changes.kind === 'unknown' ? <p className="typography-meta text-muted-foreground">{t('spaces.create.start.changesUnknown')}</p> : null}
           {hasChanges && effectiveStart === 'uncommitted' ? (
-            <div className="pl-6">
+            <div className="ps-6">
               <button type="button" className="typography-meta text-muted-foreground hover:text-foreground" onClick={() => setShowFiles((value) => !value)}>
                 {changedFiles.length === 1 ? t('spaces.create.start.filesSingle') : t('spaces.create.start.filesPlural', { count: changedFiles.length })}
-                <Icon name={showFiles ? 'arrow-down-s' : 'arrow-right-s'} className="ml-0.5 inline h-3.5 w-3.5" />
+                <Icon name={showFiles ? 'arrow-down-s' : 'arrow-right-s'} className="ms-0.5 inline h-3.5 w-3.5" />
               </button>
               {showFiles ? (
                 <ul className="mt-1 max-h-32 overflow-y-auto typography-meta text-muted-foreground">
@@ -245,9 +245,9 @@ export const NewSpaceDialog: React.FC<NewSpaceDialogProps> = ({ open, onOpenChan
       {section(t('spaces.create.network.label'), (
         <div className="space-y-2">
           {option(effectiveMode === 'allowlist', () => setMode('allowlist'), t('spaces.create.network.allowlist'), !canRestrict)}
-          {!canRestrict ? <p className="pl-6 typography-meta text-muted-foreground">{t('spaces.create.network.cannotRestrict')}</p> : null}
+          {!canRestrict ? <p className="ps-6 typography-meta text-muted-foreground">{t('spaces.create.network.cannotRestrict')}</p> : null}
           {effectiveMode === 'allowlist' ? (
-            <div className="space-y-1.5 pl-6">
+            <div className="space-y-1.5 ps-6">
               {domains.length > 0 ? (
                 <div className="flex flex-wrap gap-1">
                   {domains.map((domain) => (
@@ -274,7 +274,7 @@ export const NewSpaceDialog: React.FC<NewSpaceDialogProps> = ({ open, onOpenChan
             </div>
           ) : null}
           {option(effectiveMode === 'open', () => setMode('open'), t('spaces.create.network.open'))}
-          {effectiveMode === 'open' ? <p className="pl-6 typography-meta text-status-warning">{t('spaces.create.network.openWarning')}</p> : null}
+          {effectiveMode === 'open' ? <p className="ps-6 typography-meta text-status-warning">{t('spaces.create.network.openWarning')}</p> : null}
           <p className="typography-meta text-muted-foreground">{t('spaces.create.network.alwaysBlocked')}</p>
         </div>
       ))}
@@ -294,7 +294,7 @@ export const NewSpaceDialog: React.FC<NewSpaceDialogProps> = ({ open, onOpenChan
                   <span className="typography-micro text-muted-foreground">{t('spaces.create.access.gradeUsesWithoutSeeing')}</span>
                 </label>
                 {choice.selected ? (
-                  <div className="pl-6">
+                  <div className="ps-6">
                     <ModelKeySource provider={provider} login={usableHostLoginOf(logins, provider.id)} choice={choice} onChange={(change) => updateAccess(provider.id, { ...change, sourceChosen: true })} />
                   </div>
                 ) : null}

@@ -573,7 +573,7 @@ const UserMessageBody = React.memo(({ messageId, parts, messageCreatedAt, isMobi
                         ? 'flex h-9 items-start justify-end pt-0'
                         : 'flex h-11 items-start justify-end pt-0'
                 : userActionsMode === 'inline'
-                    ? 'absolute top-full left-0 right-0 z-10 pt-5'
+                    ? 'absolute top-full inset-s-0 inset-e-0 z-10 pt-5'
                     : 'flex h-8 items-start justify-end pt-2'
         )}>
             <div
@@ -581,10 +581,10 @@ const UserMessageBody = React.memo(({ messageId, parts, messageCreatedAt, isMobi
                     'flex items-center justify-end gap-1.5 [&_button]:!h-[26px] [&_button]:!w-[26px] [&_svg]:!size-3.5',
                     isMobile
                         ? userActionsMode === 'inline'
-                            ? 'translate-x-5'
+                            ? 'translate-x-5 rtl:-translate-x-5'
                             : 'translate-x-0'
                         : userActionsMode === 'inline'
-                            ? 'translate-x-5'
+                            ? 'translate-x-5 rtl:-translate-x-5'
                             : 'translate-x-0',
                     alwaysShowActions
                         ? 'pointer-events-auto opacity-100'
@@ -596,7 +596,7 @@ const UserMessageBody = React.memo(({ messageId, parts, messageCreatedAt, isMobi
                     <Tooltip>
                         <TooltipTrigger asChild>
                             <span
-                                className="mr-1 flex items-center gap-1 text-sm tabular-nums text-muted-foreground/60"
+                                className="me-1 flex items-center gap-1 text-sm tabular-nums text-muted-foreground/60"
                                 aria-label={`Message time: ${timestamp}`}
                             >
                                 <Icon name="time" className="h-3.5 w-3.5" />
@@ -642,7 +642,7 @@ const UserMessageBody = React.memo(({ messageId, parts, messageCreatedAt, isMobi
                                         key={action.id}
                                         type="button"
                                         disabled={action.disabled}
-                                        className="flex min-h-11 w-full items-center gap-3 rounded-lg px-3 text-left text-foreground transition-colors active:bg-interactive-active disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
+                                        className="flex min-h-11 w-full items-center gap-3 rounded-lg px-3 text-start text-foreground transition-colors active:bg-interactive-active disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
                                         onClick={() => {
                                             setUserActionSheetOpen(false);
                                             action.onSelect();
@@ -2437,7 +2437,7 @@ const AssistantMessageBody = React.memo(({
                                         </LongErrorText>
                                     </div>
                                 </div>
-                                {errorResponseBody ? <ErrorResponseDetails body={errorResponseBody} className="mt-1 pl-7" /> : null}
+                                {errorResponseBody ? <ErrorResponseDetails body={errorResponseBody} className="mt-1 ps-7" /> : null}
                             </div>
                         </FadeInOnReveal>
                     )}
@@ -2574,7 +2574,7 @@ const AssistantMessageBody = React.memo(({
                                         key={action.id}
                                         type="button"
                                         disabled={action.disabled}
-                                        className="flex min-h-11 w-full items-center gap-3 rounded-lg px-3 text-left text-foreground transition-colors active:bg-interactive-active disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
+                                        className="flex min-h-11 w-full items-center gap-3 rounded-lg px-3 text-start text-foreground transition-colors active:bg-interactive-active disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
                                         onClick={() => {
                                             setActionSheetOpen(false);
                                             action.onSelect();

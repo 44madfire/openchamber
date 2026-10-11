@@ -24,19 +24,19 @@ export const ModelKeySource: React.FC<{ provider: SpaceModelProviderOption; logi
   return (
     <div className="space-y-1.5">
       {login ? option(choice.source === 'login', () => onChange({ source: 'login' }), t('spaces.create.access.login', { name: login.name })) : null}
-      {login && login.expires === null ? <p className="pl-6 typography-meta text-status-warning">{t('spaces.create.access.loginNoEnd')}</p> : null}
+      {login && login.expires === null ? <p className="ps-6 typography-meta text-status-warning">{t('spaces.create.access.loginNoEnd')}</p> : null}
       {provider.key ? (
         <>
           {option(choice.source === 'env', () => onChange({ source: 'env' }), t('spaces.create.access.fromEnv'))}
           {choice.source === 'env' ? (
-            <div className="pl-6">
+            <div className="ps-6">
               <Input value={choice.envName} onChange={(event) => onChange({ envName: event.target.value })} className="max-w-sm font-mono" aria-label={t('spaces.create.access.envNameAria', { provider: provider.name })} />
               <p className="mt-1 typography-meta text-muted-foreground">{t('spaces.create.access.envComesBack')}</p>
             </div>
           ) : null}
           {option(choice.source === 'typed', () => onChange({ source: 'typed' }), t('spaces.create.access.typed'))}
           {choice.source === 'typed' ? (
-            <div className="pl-6">
+            <div className="ps-6">
               <Input type="password" autoComplete="off" value={choice.value} onChange={(event) => onChange({ value: event.target.value })} className="max-w-sm" aria-label={t('spaces.create.access.keyAria', { provider: provider.name })} />
               <p className="mt-1 typography-meta text-status-warning">{t('spaces.create.access.typedNotKept')}</p>
             </div>

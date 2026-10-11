@@ -152,8 +152,8 @@ export const StashesDialog: React.FC<StashesDialogProps> = ({
         <div className="-mx-5 border-t border-border/60" />
 
         <div className="relative">
-          <Icon name="search" className="absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
-          <Input value={query} onChange={(event) => setQuery(event.target.value)} placeholder={t('gitView.stashes.searchPlaceholder')} className="pl-8" />
+          <Icon name="search" className="absolute inset-s-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
+          <Input value={query} onChange={(event) => setQuery(event.target.value)} placeholder={t('gitView.stashes.searchPlaceholder')} className="ps-8" />
         </div>
 
         <div className="flex-1 overflow-y-auto">

@@ -73,7 +73,7 @@ const TIMELINE_ROW_INDENT = 12;
 // Timeline rows are three lines inside a button; this padding, not a min-h-*
 // utility, sets their height, because mobile.css gives every button a 36px
 // floor that beats Tailwind's min-h-*.
-const TIMELINE_ROW_LAYOUT_CLASS = 'flex min-w-0 flex-1 flex-col gap-1 py-2.5 pr-3 text-left';
+const TIMELINE_ROW_LAYOUT_CLASS = 'flex min-w-0 flex-1 flex-col gap-1 py-2.5 pe-3 text-start';
 
 /**
  * A multi-run in the timeline, shaped like the session rows around it:
@@ -97,7 +97,7 @@ const MobileTimelineRunRow: React.FC<{
       <button
         type="button"
         className={cn(TIMELINE_ROW_LAYOUT_CLASS, 'w-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring')}
-        style={{ paddingLeft: TIMELINE_ROW_INDENT, touchAction: 'manipulation' }}
+        style={{ paddingInlineStart: TIMELINE_ROW_INDENT, touchAction: 'manipulation' }}
         onClick={() => useUIStore.getState().setRunOverviewKey(run.key)}
         aria-label={t('sessions.sidebar.run.openOverviewAria', { title: run.title })}
       >
@@ -107,7 +107,7 @@ const MobileTimelineRunRow: React.FC<{
           {activity ? <CollapsedActivityIndicator state={activity} /> : null}
           {time ? <span className="shrink-0 typography-micro text-muted-foreground tabular-nums">{time}</span> : null}
         </span>
-        <span dir="auto" className={cn('block min-w-0 truncate text-left typography-ui-label', active ? 'text-primary' : 'text-foreground')}>
+        <span dir="auto" className={cn('block min-w-0 truncate oc-ui-start-align typography-ui-label', active ? 'text-primary' : 'text-foreground')}>
           {run.title}
         </span>
         <span className="flex min-w-0 items-center gap-1.5 text-muted-foreground">
@@ -217,12 +217,12 @@ const MobileTimelineRow: React.FC<{
                 indent={0}
                 aiRename={aiRename}
                 // One title line tall; the save/cancel controls shrink to fit it.
-                className="h-[1lh] pr-0 typography-ui-label [&_button]:size-6 [&_button>svg]:size-3.5"
+                className="h-[1lh] pe-0 typography-ui-label [&_button]:size-6 [&_button>svg]:size-3.5"
                 onSubmit={(next) => handlers.onSubmitRename(session.id, next)}
                 onCancel={handlers.onCancelRename}
               />
             ) : (
-              <span dir="auto" className={cn('block min-w-0 truncate text-left typography-ui-label', active ? 'text-primary' : 'text-foreground')}>
+              <span dir="auto" className={cn('block min-w-0 truncate oc-ui-start-align typography-ui-label', active ? 'text-primary' : 'text-foreground')}>
                 {title}
               </span>
             )}
@@ -238,7 +238,7 @@ const MobileTimelineRow: React.FC<{
                     <span className="block min-w-0 truncate typography-micro">{branch}</span>
                   </>
                 ) : null}
-                <span className="ml-auto flex shrink-0 items-center gap-1.5">
+                <span className="ms-auto flex shrink-0 items-center gap-1.5">
                   <MobileSessionGoalGlyph session={session} />
                   <MobileSessionPendingBadges {...pendingRequests} />
                 </span>
@@ -248,13 +248,13 @@ const MobileTimelineRow: React.FC<{
         );
         const layoutClassName = TIMELINE_ROW_LAYOUT_CLASS;
         if (renaming) {
-          return <div className={layoutClassName} style={{ paddingLeft: TIMELINE_ROW_INDENT }}>{lines}</div>;
+          return <div className={layoutClassName} style={{ paddingInlineStart: TIMELINE_ROW_INDENT }}>{lines}</div>;
         }
         return (
           <button
             type="button"
             className={cn(layoutClassName, 'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring')}
-            style={{ paddingLeft: TIMELINE_ROW_INDENT, touchAction: 'manipulation' }}
+            style={{ paddingInlineStart: TIMELINE_ROW_INDENT, touchAction: 'manipulation' }}
             onClick={() => {
               // A tap while the actions are out just closes them.
               if (revealed) {

@@ -31,7 +31,7 @@ export function SpacesView(): React.ReactNode {
         <div className="mx-auto w-full max-w-4xl space-y-4">
           <div className="flex items-center">
             <Button size="sm" onClick={() => setCreating(true)}>
-              <Icon name="box-3" className="mr-1 h-3.5 w-3.5" />
+              <Icon name="box-3" className="me-1 h-3.5 w-3.5" />
               {t('spaces.page.new')}
             </Button>
           </div>

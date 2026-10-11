@@ -74,7 +74,7 @@ export const StatusRow: React.FC<StatusRowProps> = ({
             />
           ) : null}
         </div>
-        {onBackground ? <BackgroundWorkButton onClick={onBackground} className="-mr-2.5 h-6 w-6" /> : null}
+        {onBackground ? <BackgroundWorkButton onClick={onBackground} className="-me-2.5 h-6 w-6" /> : null}
       </div>
     </div>
   );

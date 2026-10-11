@@ -19,7 +19,7 @@ import { cva } from 'class-variance-authority';
 export const dropdownTriggerVariants = cva(
   [
     'oc-surface-elevated border-input flex items-center justify-between gap-2 rounded-md border bg-surface-elevated',
-    'typography-ui-label whitespace-nowrap shadow-none outline-none text-left',
+    'typography-ui-label whitespace-nowrap shadow-none outline-none text-start',
     'hover:[background-image:linear-gradient(var(--interactive-hover),var(--interactive-hover))] data-[popup-open]:[background-image:linear-gradient(var(--interactive-active),var(--interactive-active))]',
     'focus-visible:outline-none focus-visible:border-ring focus-visible:ring-ring focus-visible:ring-[3px]',
     'disabled:cursor-not-allowed disabled:opacity-50',

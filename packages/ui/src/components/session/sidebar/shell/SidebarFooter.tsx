@@ -104,7 +104,7 @@ export function SidebarFooter({
       ) : null}
       {!showRuntimeButtons && showUpdateButton ? updateButton : null}
       {showRuntimeButtons ? (
-        <DesktopInstanceMenu className="ml-auto inline-flex h-6 min-w-0 max-w-[12rem] items-center gap-1.5 rounded-md px-2 text-muted-foreground hover:bg-interactive-hover/50 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" />
+        <DesktopInstanceMenu className="ms-auto inline-flex h-6 min-w-0 max-w-[12rem] items-center gap-1.5 rounded-md px-2 text-muted-foreground hover:bg-interactive-hover/50 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" />
       ) : null}
     </div>
   );

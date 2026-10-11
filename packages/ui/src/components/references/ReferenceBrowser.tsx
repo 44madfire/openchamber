@@ -143,7 +143,7 @@ export const ReferenceBrowserSearch: React.FC<{
     return (
         <div className={cn('flex gap-2', isMobile ? 'flex-col' : 'min-w-[14rem] flex-1 items-center')}>
             <div className="relative min-w-0 flex-1">
-                <Icon name="search" className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+                <Icon name="search" className="pointer-events-none absolute inset-s-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
                 <Input
                     ref={searchRef}
                     autoFocus={!isMobile}
@@ -154,9 +154,9 @@ export const ReferenceBrowserSearch: React.FC<{
                     aria-label={placeholder}
                     title={placeholder}
                     inputSize={isMobile ? 'default' : 'compact'}
-                    className={cn('w-full pl-8 pr-14', isMobile && 'h-9')}
+                    className={cn('w-full ps-8 pe-14', isMobile && 'h-9')}
                 />
-                <div className="absolute right-1.5 top-1/2 flex -translate-y-1/2 items-center gap-1">
+                <div className="absolute inset-e-1.5 top-1/2 flex -translate-y-1/2 items-center gap-1">
                     {list.refreshing && list.status !== 'loading' ? (
                         <Icon name="loader-4" className="size-3.5 animate-spin text-muted-foreground" />
                     ) : null}

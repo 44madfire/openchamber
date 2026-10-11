@@ -250,7 +250,7 @@ const BtwFrame: React.FC<{
                     onClick={onTitleClick}
                     aria-label={titleClickLabel}
                     title={titleClickLabel}
-                    className="flex min-w-0 items-center gap-2 text-left text-muted-foreground transition-colors hover:text-foreground"
+                    className="flex min-w-0 items-center gap-2 text-start text-muted-foreground transition-colors hover:text-foreground"
                 >
                     {headerSpinner ? (
                         <Icon name="loader-4" className="size-3.5 shrink-0 animate-spin" />

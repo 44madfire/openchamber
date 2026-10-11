@@ -16,7 +16,7 @@ export const FileTreeIndentGuides: React.FC<{ depth: number }> = ({ depth }) => 
         key={level}
         aria-hidden
         className="pointer-events-none absolute inset-y-0 w-px bg-border/50"
-        style={{ left: `${FILE_TREE_BASE_PADDING_PX + level * FILE_TREE_INDENT_PX + 7}px` }}
+        style={{ insetInlineStart: `${FILE_TREE_BASE_PADDING_PX + level * FILE_TREE_INDENT_PX + 7}px` }}
       />
     ))}
   </>
@@ -25,7 +25,7 @@ export const FileTreeIndentGuides: React.FC<{ depth: number }> = ({ depth }) => 
 export const FileTreeChevron: React.FC<{ expanded: boolean }> = ({ expanded }) => (
   <Icon
     name="arrow-right-s"
-    className={cn('size-3.5 flex-shrink-0 text-muted-foreground transition-transform', expanded && 'rotate-90')}
+    className={cn('size-3.5 flex-shrink-0 text-muted-foreground transition-transform', expanded && 'rotate-90 rtl:-rotate-90')}
   />
 );
 
@@ -59,7 +59,7 @@ export const FileTreeFileMarkers: React.FC<{ isOpen: boolean; status: FileTreeGi
 };
 
 export const FileTreeFolderBadge: React.FC<{ badge: { modified: number; added: number } }> = ({ badge }) => (
-  <span className="ml-auto flex flex-shrink-0 items-center gap-1 typography-micro tabular-nums">
+  <span className="ms-auto flex flex-shrink-0 items-center gap-1 typography-micro tabular-nums">
     {badge.modified > 0 && <span className="text-[var(--status-warning)]">M{badge.modified}</span>}
     {badge.added > 0 && <span className="text-[var(--status-success)]">+{badge.added}</span>}
   </span>

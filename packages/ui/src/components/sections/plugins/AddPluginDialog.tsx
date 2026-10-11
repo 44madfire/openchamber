@@ -251,7 +251,7 @@ export const AddPluginDialog: React.FC<AddPluginDialogProps> = ({
                     type="button"
                     onClick={() => setScope(value)}
                     disabled={submitting}
-                    className="flex items-center gap-2 py-1 text-left disabled:opacity-50"
+                    className="flex items-center gap-2 py-1 text-start disabled:opacity-50"
                   >
                     <Radio
                       checked={selected}

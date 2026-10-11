@@ -133,7 +133,7 @@ export const SyncActions: React.FC<SyncActionsProps> = ({
           <button
             type="button"
             className={cn(
-              'inline-flex h-7 w-6 items-center justify-center border-l border-[var(--interactive-border)] text-muted-foreground',
+              'inline-flex h-7 w-6 items-center justify-center border-s border-[var(--interactive-border)] text-muted-foreground',
               'transition-colors hover:bg-interactive-hover hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50'
             )}
             disabled={isDropdownDisabled}

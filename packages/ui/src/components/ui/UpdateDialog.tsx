@@ -247,7 +247,7 @@ export const UpdateDialog: React.FC<UpdateDialogProps> = ({
 
           {/* Version Diff */}
           {(info?.currentVersion || info?.version) && (
-            <div className="flex items-center gap-2 font-mono text-sm ml-3">
+            <div className="flex items-center gap-2 font-mono text-sm ms-3">
               {info?.currentVersion && (
                 <span className="text-muted-foreground">{info.currentVersion}</span>
               )}
@@ -344,7 +344,7 @@ export const UpdateDialog: React.FC<UpdateDialogProps> = ({
                 <Icon name="terminal" className="h-4 w-4" />
                 <span>{t('updateDialog.fallback.updateViaTerminal')}</span>
               </div>
-              <div className="flex items-center gap-2 p-1 pl-3 bg-surface-elevated/50 rounded-md border border-border">
+              <div className="flex items-center gap-2 p-1 ps-3 bg-surface-elevated/50 rounded-md border border-border">
                 <code className="flex-1 font-mono text-sm text-foreground overflow-x-auto whitespace-nowrap">
                   {updateCommand}
                 </code>

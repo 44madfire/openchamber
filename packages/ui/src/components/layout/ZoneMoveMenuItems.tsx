@@ -25,7 +25,7 @@ export const ZoneMoveMenuItems: React.FC<{ mode: ContextPanelMode }> = ({ mode }
     <>
       {ZONE_MOVES.filter((move) => move.zone !== current).map((move) => (
         <ContextMenuItem key={move.zone} onClick={() => moveContextSurfaceToZone(mode, move.zone)}>
-          <Icon name={move.icon} className="mr-2 size-4" />
+          <Icon name={move.icon} className="me-2 size-4" />
           {t(move.labelKey)}
         </ContextMenuItem>
       ))}

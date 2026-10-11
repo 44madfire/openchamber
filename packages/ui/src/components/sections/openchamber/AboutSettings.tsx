@@ -273,7 +273,7 @@ export const AboutSettings: React.FC<AboutSettingsProps> = ({ initialUpdateDialo
         <p className="typography-meta text-muted-foreground">
           {t('settings.openchamber.about.serviceManagerUpdate', { version: info?.version || '' })}
         </p>
-        <div className="flex items-center gap-2 rounded-md border border-border bg-surface-elevated/50 p-1 pl-3">
+        <div className="flex items-center gap-2 rounded-md border border-border bg-surface-elevated/50 p-1 ps-3">
           <code className="flex-1 overflow-x-auto whitespace-nowrap font-mono text-sm text-foreground">{command}</code>
           <Button
             type="button"
@@ -586,7 +586,7 @@ export const AboutSettings: React.FC<AboutSettingsProps> = ({ initialUpdateDialo
                 variant="default"
                 onClick={() => setUpdateDialogOpen(true)}
               >
-                <Icon name="download" className="h-4 w-4 mr-1" />
+                <Icon name="download" className="h-4 w-4 me-1" />
                 {openChamberUpdateLabel}
               </Button>
             )}

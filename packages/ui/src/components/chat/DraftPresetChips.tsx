@@ -107,7 +107,7 @@ const SortableChip: React.FC<{
                     onClick={(e) => { e.stopPropagation(); onToggleShared(); }}
                     aria-label={t(item.shared ? 'chat.draftStarters.makePersonal' : 'chat.draftStarters.share')}
                     title={t(item.shared ? 'chat.draftStarters.makePersonal' : 'chat.draftStarters.share')}
-                    className="absolute -left-1.5 -top-1.5 hidden h-4 w-4 items-center justify-center rounded-full border text-muted-foreground shadow-sm hover:text-foreground group-hover/chip:flex"
+                    className="absolute -inset-s-1.5 -top-1.5 hidden h-4 w-4 items-center justify-center rounded-full border text-muted-foreground shadow-sm hover:text-foreground group-hover/chip:flex"
                     style={chipStyle}
                 >
                     <Icon name={item.shared ? 'user' : 'team'} className="h-2.5 w-2.5" />
@@ -120,7 +120,7 @@ const SortableChip: React.FC<{
                     onClick={(e) => { e.stopPropagation(); onRemove(); }}
                     aria-label={t('chat.draftStarters.remove')}
                     title={t('chat.draftStarters.remove')}
-                    className="absolute -right-1.5 -top-1.5 hidden h-4 w-4 items-center justify-center rounded-full border text-muted-foreground shadow-sm hover:text-foreground group-hover/chip:flex"
+                    className="absolute -inset-e-1.5 -top-1.5 hidden h-4 w-4 items-center justify-center rounded-full border text-muted-foreground shadow-sm hover:text-foreground group-hover/chip:flex"
                     style={chipStyle}
                 >
                     <Icon name="close" className="h-2.5 w-2.5" />
@@ -249,7 +249,7 @@ const AddStarterPicker: React.FC<{
                 </button>
             </DialogTrigger>
             <DialogContent className="gap-0 overflow-hidden p-0 sm:max-w-sm">
-                <DialogHeader className="px-4 pb-2 pt-4 text-left">
+                <DialogHeader className="px-4 pb-2 pt-4 text-start">
                     <DialogTitle>{t('chat.draftStarters.add')}</DialogTitle>
                 </DialogHeader>
                 <StarterPickerList

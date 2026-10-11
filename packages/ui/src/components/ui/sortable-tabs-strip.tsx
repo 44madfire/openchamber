@@ -14,6 +14,7 @@ import {
 import {
   SortableContext,
   horizontalListSortingStrategy,
+  rectSortingStrategy,
   useSortable,
 } from '@dnd-kit/sortable';
 import { CSS as DndCSS } from '@dnd-kit/utilities';
@@ -148,12 +149,13 @@ export const SortableTabsStrip: React.FC<SortableTabsStripProps> = ({
   className,
   onTabDragOut,
 }) => {
-  const { t } = useI18n();
+  const { t, direction } = useI18n();
+  const isRtl = direction === 'rtl';
   const isMobile = useUIStore((state) => state.isMobile);
   const { isTablet } = useDeviceInfo();
   const alwaysShowCloseControls = isMobile || isTablet;
   const scrollRef = React.useRef<HTMLDivElement>(null);
-  const [overflow, setOverflow] = React.useState<{ left: boolean; right: boolean }>({ left: false, right: false });
+  const [overflow, setOverflow] = React.useState<{ start: boolean; end: boolean }>({ start: false, end: false });
   const itemIDs = React.useMemo(() => items.map((item) => item.id), [items]);
   const isScrollable = layoutMode === 'scrollable';
   const isDefaultVariant = variant === 'default';
@@ -189,8 +191,10 @@ export const SortableTabsStrip: React.FC<SortableTabsStripProps> = ({
     if (pressedIndex < 0 || activeIndex < 0) {
       return 0;
     }
-    return pressedIndex > activeIndex ? PILL_NUDGE_PX : -PILL_NUDGE_PX;
-  }, [activeId, items, pressedId, usesIndicator]);
+    // The pill leans toward the pressed tab, which sits to the left of a later tab in RTL.
+    const towardLater = isRtl ? -PILL_NUDGE_PX : PILL_NUDGE_PX;
+    return pressedIndex > activeIndex ? towardLater : -towardLater;
+  }, [activeId, isRtl, items, pressedId, usesIndicator]);
 
   const sensors = useSensors(
     // Mouse drags after a small move so a click still selects the tab; touch
@@ -258,25 +262,28 @@ export const SortableTabsStrip: React.FC<SortableTabsStripProps> = ({
 
   const updateOverflow = React.useCallback(() => {
     if (!isScrollable) {
-      setOverflow({ left: false, right: false });
+      setOverflow({ start: false, end: false });
       return;
     }
 
     const element = scrollRef.current;
     if (!element) {
-      setOverflow({ left: false, right: false });
+      setOverflow({ start: false, end: false });
       return;
     }
 
+    // scrollLeft runs from 0 at the start of the strip: positive toward the end
+    // in LTR, negative in RTL, so its magnitude is the distance from the start.
+    const fromStart = Math.abs(element.scrollLeft);
     setOverflow({
-      left: element.scrollLeft > 2,
-      right: element.scrollLeft + element.clientWidth < element.scrollWidth - 2,
+      start: fromStart > 2,
+      end: fromStart + element.clientWidth < element.scrollWidth - 2,
     });
   }, [isScrollable]);
 
   React.useEffect(() => {
     if (!isScrollable) {
-      setOverflow({ left: false, right: false });
+      setOverflow({ start: false, end: false });
       return;
     }
 
@@ -436,20 +443,20 @@ export const SortableTabsStrip: React.FC<SortableTabsStripProps> = ({
 
   const list = (
     <div className={cn('relative flex h-full min-w-0 flex-1', className)}>
-      {isScrollable && overflow.left ? (
+      {isScrollable && overflow.start ? (
         <div
           className={cn(
-            'pointer-events-none absolute inset-y-0 left-0 z-20 bg-gradient-to-r to-transparent',
+            'pointer-events-none absolute inset-y-0 inset-s-0 z-20 bg-gradient-to-r rtl:bg-gradient-to-l to-transparent',
             usesActivePillIndicator
               ? 'w-8 from-[var(--surface-background)]'
               : 'w-6 from-background'
           )}
         />
       ) : null}
-      {isScrollable && overflow.right ? (
+      {isScrollable && overflow.end ? (
         <div
           className={cn(
-            'pointer-events-none absolute inset-y-0 right-0 z-20 bg-gradient-to-l to-transparent',
+            'pointer-events-none absolute inset-y-0 inset-e-0 z-20 bg-gradient-to-l rtl:bg-gradient-to-r to-transparent',
             usesActivePillIndicator
               ? 'w-8 from-[var(--surface-background)]'
               : 'w-6 from-background'
@@ -477,6 +484,7 @@ export const SortableTabsStrip: React.FC<SortableTabsStripProps> = ({
         {usesActivePillIndicator && pillRect ? (
           <div
             className={cn(
+              // eslint-disable-next-line no-restricted-syntax -- positioned from offsetLeft, which is physical in either direction
               'pointer-events-none absolute left-0 top-0 z-0 rounded-md bg-[var(--surface-elevated)]',
               // Lifted card look: hairline edge plus a soft ambient shadow rather
               // than a hard border, so the pill reads as raised above the track.
@@ -502,6 +510,7 @@ export const SortableTabsStrip: React.FC<SortableTabsStripProps> = ({
         {useUnderlineIndicator && pillRect ? (
           <div
             className={cn(
+              // eslint-disable-next-line no-restricted-syntax -- positioned from offsetLeft, which is physical in either direction
               'pointer-events-none absolute left-0 -bottom-px z-10 h-[3px] rounded-t-[2px] bg-[var(--primary-base)]',
               pillTransitionEnabled && 'underline-tabs__indicator--is-animated'
             )}
@@ -605,7 +614,7 @@ export const SortableTabsStrip: React.FC<SortableTabsStripProps> = ({
                               ? 'shrink-0 whitespace-nowrap px-3 text-center'
                               : 'px-3 text-center')
                       : isScrollable
-                        ? 'max-w-56 justify-start truncate px-3 text-left'
+                        ? 'max-w-56 justify-start truncate px-3 text-start'
                         : 'w-full justify-center truncate px-3 text-center',
                     usesActivePillIndicator
                       // 24px buttons in a 2px-padded track: the switch is
@@ -698,8 +707,8 @@ export const SortableTabsStrip: React.FC<SortableTabsStripProps> = ({
                     className={cn(
                       'relative z-20 inline-flex !min-h-0 !min-w-0 items-center justify-center transition-opacity',
                       usesActivePillIndicator
-                        ? '-ml-2.5 mr-1 h-[88%] w-5 self-center !aspect-auto rounded-md'
-                        : 'aspect-square h-[65%] min-h-4 max-h-5 rounded-sm mr-1',
+                        ? '-ms-2.5 me-1 h-[88%] w-5 self-center !aspect-auto rounded-md'
+                        : 'aspect-square h-[65%] min-h-4 max-h-5 rounded-sm me-1',
                       usesActivePillIndicator
                         ? (isActive
                           ? 'text-muted-foreground hover:bg-transparent hover:text-foreground'
@@ -753,7 +762,9 @@ export const SortableTabsStrip: React.FC<SortableTabsStripProps> = ({
       onDragEnd={handleDragEnd}
       modifiers={[restrictToXAxis]}
     >
-      <SortableContext items={itemIDs} strategy={horizontalListSortingStrategy}>
+      {/* The horizontal strategy assumes later items sit further right; in RTL the
+          rect strategy shifts neighbours from their real positions instead. */}
+      <SortableContext items={itemIDs} strategy={isRtl ? rectSortingStrategy : horizontalListSortingStrategy}>
         {list}
       </SortableContext>
       <DragOverlay dropAnimation={null} />

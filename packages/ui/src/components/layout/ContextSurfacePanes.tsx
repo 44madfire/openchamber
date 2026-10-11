@@ -6,7 +6,7 @@ import { BrowserPane } from '@/components/browser/BrowserPane';
 import { ChatView } from '@/components/views/ChatView';
 import { Icon } from '@/components/icon/Icon';
 import { useEffectiveDirectory } from '@/hooks/useEffectiveDirectory';
-import { useI18n } from '@/lib/i18n';
+import { isRightToLeft, useI18n } from '@/lib/i18n';
 import { cn } from '@/lib/utils';
 import { registerBrowserOpener, registerSleepingBrowserTab, setShownBrowserTab } from '@/lib/browser/controlClient';
 import { subscribeOpenchamberEvents } from '@/lib/openchamberEvents';
@@ -50,8 +50,8 @@ const GuestSurfacePane = React.lazy(() => import('./GuestSurfacePane').then((mod
 const DOCK_LAYOUT = {
   top: { container: 'flex-col', page: 'border-b border-border', vertical: true },
   bottom: { container: 'flex-col-reverse', page: 'border-t border-border', vertical: true },
-  left: { container: 'flex-row', page: 'border-r border-border', vertical: false },
-  right: { container: 'flex-row-reverse', page: 'border-l border-border', vertical: false },
+  left: { container: 'flex-row', page: 'border-e border-border', vertical: false },
+  right: { container: 'flex-row-reverse', page: 'border-s border-border', vertical: false },
 } as const;
 
 /**
@@ -133,8 +133,10 @@ const EditorTreeColumn: React.FC<{ visible: boolean; active: boolean; fill?: boo
     if (!isResizing || pointerIDRef.current !== event.pointerId) {
       return;
     }
-    // The column grows away from its side's edge, toward the editor.
-    const delta = side === 'left' ? event.clientX - startXRef.current : startXRef.current - event.clientX;
+    // The column grows away from its side's edge, toward the editor; in RTL
+    // the sides are mirrored, so the same drag means the opposite change.
+    const towardEditor = side === 'left' ? event.clientX - startXRef.current : startXRef.current - event.clientX;
+    const delta = isRightToLeft(event.currentTarget) ? -towardEditor : towardEditor;
     const nextWidth = clampContextEditorTreeWidth(startWidthRef.current + delta);
     if (liveWidthRef.current === nextWidth) {
       return;
@@ -166,7 +168,7 @@ const EditorTreeColumn: React.FC<{ visible: boolean; active: boolean; fill?: boo
       ref={columnRef}
       className={cn(
         'relative h-full flex-shrink-0 overflow-hidden bg-background will-change-[width] motion-reduce:transition-none',
-        fill && (side === 'left' ? 'mr-auto' : 'ml-auto'),
+        fill && (side === 'left' ? 'me-auto' : 'ms-auto'),
       )}
       style={{
         width: `${isResizing ? (liveWidthRef.current ?? appliedWidth) : appliedWidth}px`,
@@ -181,13 +183,13 @@ const EditorTreeColumn: React.FC<{ visible: boolean; active: boolean; fill?: boo
     >
       {/* Paint the divider without shifting tree content when the editor closes. */}
       {visible && !fill && (
-        <div aria-hidden="true" className={cn('pointer-events-none absolute inset-y-0 z-20 w-px bg-border', side === 'left' ? 'right-0' : 'left-0')} />
+        <div aria-hidden="true" className={cn('pointer-events-none absolute inset-y-0 z-20 w-px bg-border', side === 'left' ? 'inset-e-0' : 'inset-s-0')} />
       )}
       {visible && !fill && (
         <div
           className={cn(
             'absolute top-0 z-20 h-full w-[3px] cursor-col-resize transition-colors hover:bg-[var(--interactive-border)]/80',
-            side === 'left' ? 'right-0' : 'left-0',
+            side === 'left' ? 'inset-e-0' : 'inset-s-0',
             isResizing && 'bg-[var(--interactive-border)]'
           )}
           onPointerDown={handlePointerDown}

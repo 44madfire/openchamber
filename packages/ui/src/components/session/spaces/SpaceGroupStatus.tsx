@@ -126,7 +126,7 @@ export const SpaceGroupStatus: React.FC<{ spaceId: string; className?: string }>
   const grantLine = (providerId: string | null, children: React.ReactNode) => (
     <button
       type="button"
-      className="-mx-1 self-start rounded px-1 text-left hover:bg-[var(--interactive-hover)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      className="-mx-1 self-start rounded px-1 text-start hover:bg-[var(--interactive-hover)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
       title={t('spaces.group.access.give')}
       aria-label={t('spaces.group.access.giveAria', { label: entry?.name ?? '' })}
       onClick={() => useSpacesStore.getState().openAccessDialog(spaceId, providerId)}

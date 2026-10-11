@@ -206,24 +206,24 @@ export const SessionErrorNotice: React.FC<SessionErrorNoticeProps> = ({ sessionI
           <Icon name="error-warning" className="size-3.5 shrink-0 text-[var(--status-error)]" />
           <span className="typography-meta font-medium text-foreground">{title}</span>
         </div>
-        <LongErrorText text={detail} buttonClassName="ml-[0.875rem]">
+        <LongErrorText text={detail} buttonClassName="ms-[0.875rem]">
           {(visibleText) => (
-            <div className="mt-1 pl-[1.375rem] typography-meta text-muted-foreground break-words">{visibleText}</div>
+            <div className="mt-1 ps-[1.375rem] typography-meta text-muted-foreground break-words">{visibleText}</div>
           )}
         </LongErrorText>
         {!hasDetails ? (
-          <div className="pl-[1.375rem]">
+          <div className="ps-[1.375rem]">
             <Button
               variant="link"
               size="xs"
               onClick={() => { void showOpenCodeStatus(); }}
-              className="-ml-2 normal-case"
+              className="-ms-2 normal-case"
             >
               {t('chat.sessionError.showStatus')}
             </Button>
           </div>
         ) : null}
-        {responseBody ? <ErrorResponseDetails body={responseBody} className="pl-[1.375rem]" /> : null}
+        {responseBody ? <ErrorResponseDetails body={responseBody} className="ps-[1.375rem]" /> : null}
       </div>
     </div>
   );

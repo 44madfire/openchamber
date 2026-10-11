@@ -328,18 +328,18 @@ const CONTEXT_CHAT_MIN_HEIGHT = 200;
 const ZONE_GEOMETRY = {
   right: {
     axis: 'x',
-    gutter: 'mb-2 ml-2 mr-1.5',
+    gutter: 'mb-2 ms-2 me-1.5',
     gutterSize: '0.875rem',
-    expanded: 'absolute inset-y-0 right-0 z-20 min-w-0',
-    handle: 'absolute bottom-2 left-1 top-0 z-50 w-2 cursor-col-resize',
+    expanded: 'absolute inset-y-0 inset-e-0 z-20 min-w-0',
+    handle: 'absolute bottom-2 inset-s-1 top-0 z-50 w-2 cursor-col-resize',
     sizeVariable: '--oc-context-panel-width',
   },
   left: {
     axis: 'x',
-    gutter: 'mb-2 ml-1.5 mr-2',
+    gutter: 'mb-2 ms-1.5 me-2',
     gutterSize: '0.875rem',
-    expanded: 'absolute inset-y-0 left-0 z-20 min-w-0',
-    handle: 'absolute bottom-2 right-1 top-0 z-50 w-2 cursor-col-resize',
+    expanded: 'absolute inset-y-0 inset-s-0 z-20 min-w-0',
+    handle: 'absolute bottom-2 inset-e-1 top-0 z-50 w-2 cursor-col-resize',
     sizeVariable: '--oc-context-panel-width',
   },
   bottom: {
@@ -374,7 +374,8 @@ export const ContextPanel: React.FC<{ zone?: ContextZone }> = ({ zone = 'right' 
   const geometry = ZONE_GEOMETRY[zone];
   const layoutAnimationMs = useLayoutAnimationMs();
   const isVertical = geometry.axis === 'y';
-  const { t } = useI18n();
+  const { t, direction } = useI18n();
+  const isRtl = direction === 'rtl';
   const effectiveDirectory = useEffectiveDirectory() ?? '';
   const repositoryProvider = useRepositoryReferenceProvider(effectiveDirectory || null);
   // Tab names in this repository's words: a GitLab project's change request tab is a merge request.
@@ -649,7 +650,10 @@ export const ContextPanel: React.FC<{ zone?: ContextZone }> = ({ zone = 'right' 
       }
       // The zone grows away from its window edge, toward the chat.
       const pointer = isVertical ? event.clientY : event.clientX;
-      const delta = zone === 'left' ? pointer - startPointerRef.current : startPointerRef.current - pointer;
+      // A side zone's handle faces the chat, so in RTL, where the zones swap
+      // sides, the same drag direction means the opposite width change.
+      const towardChat = zone === 'left' ? pointer - startPointerRef.current : startPointerRef.current - pointer;
+      const delta = !isVertical && isRtl ? -towardChat : towardChat;
       const nextSize = clampSizeForDrag(startSizeRef.current + delta);
       if (resizingSizeRef.current === nextSize) {
         return;
@@ -681,7 +685,7 @@ export const ContextPanel: React.FC<{ zone?: ContextZone }> = ({ zone = 'right' 
       window.removeEventListener('pointercancel', handleUp);
       window.removeEventListener('blur', handleWindowBlur);
     };
-  }, [applyFollowSize, clampSizeForDrag, finishResize, isResizing, isVertical, zone]);
+  }, [applyFollowSize, clampSizeForDrag, finishResize, isResizing, isRtl, isVertical, zone]);
 
   React.useEffect(() => {
     if (!isResizing) {
@@ -758,34 +762,37 @@ export const ContextPanel: React.FC<{ zone?: ContextZone }> = ({ zone = 'right' 
       }
       const { id, index, allIds, close } = args;
       const closeOthers = () => closeContextPanelTabs(directoryKey, allIds.filter((tabId) => tabId !== id));
-      const closeToLeft = () => closeContextPanelTabs(directoryKey, allIds.slice(0, index));
-      const closeToRight = () => closeContextPanelTabs(directoryKey, allIds.slice(index + 1));
+      // "Left" and "right" name the screen sides; in RTL the earlier tabs are on the right.
+      const before = allIds.slice(0, index);
+      const after = allIds.slice(index + 1);
+      const closeToLeft = () => closeContextPanelTabs(directoryKey, isRtl ? after : before);
+      const closeToRight = () => closeContextPanelTabs(directoryKey, isRtl ? before : after);
       const closeAll = () => closeContextPanelTabs(directoryKey, allIds);
       const hasOthers = allIds.length > 1;
-      const isFirst = index === 0;
-      const isLast = index === allIds.length - 1;
+      const nothingToLeft = isRtl ? index === allIds.length - 1 : index === 0;
+      const nothingToRight = isRtl ? index === 0 : index === allIds.length - 1;
       return (
         <>
           <ContextMenuItem onClick={close}>
-            <Icon name="close" className="mr-2 size-4" />
+            <Icon name="close" className="me-2 size-4" />
             {t('contextPanel.tab.menu.close')}
           </ContextMenuItem>
           <ContextMenuSeparator />
           <ContextMenuItem onClick={closeOthers} disabled={!hasOthers}>
-            <Icon name="expand-horizontal" className="mr-2 size-4" />
+            <Icon name="expand-horizontal" className="me-2 size-4" />
             {t('contextPanel.tab.menu.closeOthers')}
           </ContextMenuItem>
-          <ContextMenuItem onClick={closeToLeft} disabled={isFirst}>
-            <Icon name="expand-left" className="mr-2 size-4" />
+          <ContextMenuItem onClick={closeToLeft} disabled={nothingToLeft}>
+            <Icon name="expand-left" className="me-2 size-4" />
             {t('contextPanel.tab.menu.closeToLeft')}
           </ContextMenuItem>
-          <ContextMenuItem onClick={closeToRight} disabled={isLast}>
-            <Icon name="expand-right" className="mr-2 size-4" />
+          <ContextMenuItem onClick={closeToRight} disabled={nothingToRight}>
+            <Icon name="expand-right" className="me-2 size-4" />
             {t('contextPanel.tab.menu.closeToRight')}
           </ContextMenuItem>
           <ContextMenuSeparator />
           <ContextMenuItem onClick={closeAll} disabled={!hasOthers}>
-            <Icon name="close-circle" className="mr-2 size-4" />
+            <Icon name="close-circle" className="me-2 size-4" />
             {t('contextPanel.tab.menu.closeAll')}
           </ContextMenuItem>
           {activeTab ? (
@@ -798,7 +805,7 @@ export const ContextPanel: React.FC<{ zone?: ContextZone }> = ({ zone = 'right' 
         </>
       );
     },
-    [activeTab, closeContextPanelTabs, directoryKey, t],
+    [activeTab, closeContextPanelTabs, directoryKey, isRtl, t],
   );
 
   // A tab dragged out of the strip moves its whole surface to a zone.
@@ -904,7 +911,7 @@ export const ContextPanel: React.FC<{ zone?: ContextZone }> = ({ zone = 'right' 
           </span>
         </div>
         {/* The active surface's own toolbar lands here (contextPanelHeaderSlot). */}
-        <div ref={registerHeaderSlot} className="flex min-w-0 flex-1 items-stretch pl-1.5 empty:hidden" />
+        <div ref={registerHeaderSlot} className="flex min-w-0 flex-1 items-stretch ps-1.5 empty:hidden" />
         </>
       )}
       <div className="flex h-10 shrink-0 items-center gap-1 self-start px-1.5">
@@ -1075,7 +1082,7 @@ export const ContextPanel: React.FC<{ zone?: ContextZone }> = ({ zone = 'right' 
       {/* The inline work-status card's host, right-anchored under the panel:
           the card fades out while the panel fades in over it, and back. */}
       {zone === 'right' ? (
-        <div ref={setWorkStatusHost} className={cn('absolute inset-y-0 right-0 z-0 flex', chatCovered && 'invisible')} />
+        <div ref={setWorkStatusHost} className={cn('absolute inset-y-0 inset-e-0 z-0 flex', chatCovered && 'invisible')} />
       ) : null}
       {isOpen && !isExpanded && (
         // In the gutter facing the chat, along the card's edge. Nothing paints
@@ -1097,8 +1104,8 @@ export const ContextPanel: React.FC<{ zone?: ContextZone }> = ({ zone = 'right' 
           // room on every side the aside clips; the resize handle sits in the
           // one facing the chat.
           geometry.gutter,
-          zone === 'bottom' && (leftZoneShown ? 'ml-0' : 'ml-2'),
-          zone === 'bottom' && (rightSlotFilled ? 'mr-0' : 'mr-1.5'),
+          zone === 'bottom' && (leftZoneShown ? 'ms-0' : 'ms-2'),
+          zone === 'bottom' && (rightSlotFilled ? 'me-0' : 'me-1.5'),
           isVertical ? null : 'h-[calc(100%-0.5rem)]',
           // A framed card, inset from the chat: its own border and radius rather
           // than a divider running the length of the window.

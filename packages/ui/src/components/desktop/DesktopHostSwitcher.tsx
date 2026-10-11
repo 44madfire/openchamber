@@ -956,7 +956,7 @@ export function DesktopHostSwitcherDialog({
                     <button
                       type="button"
                       className={cn(
-                        'flex items-center gap-2 flex-1 min-w-0 text-left',
+                        'flex items-center gap-2 flex-1 min-w-0 text-start',
                         isEditing && 'pointer-events-none opacity-70'
                       )}
                       onClick={() => void handleSwitch(host)}
@@ -1113,7 +1113,7 @@ export function DesktopHostSwitcherDialog({
         <div className="flex-shrink-0 border-t border-[var(--interactive-border)]">
           <button
             type="button"
-            className="w-full flex items-center gap-2 px-2 py-2 text-left text-muted-foreground hover:text-foreground hover:bg-interactive-hover/30 transition-colors"
+            className="w-full flex items-center gap-2 px-2 py-2 text-start text-muted-foreground hover:text-foreground hover:bg-interactive-hover/30 transition-colors"
             onClick={openRemoteInstancesSettings}
           >
             <Icon name="add" className="h-4 w-4" />

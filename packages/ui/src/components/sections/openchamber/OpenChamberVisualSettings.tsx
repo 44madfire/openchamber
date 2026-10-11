@@ -1768,7 +1768,7 @@ export const OpenChamberVisualSettings: React.FC<OpenChamberVisualSettingsProps>
                                                         onClick={() => handleChatRenderModeChange(option.id)}
                                                         aria-pressed={selected}
                                                         className={cn(
-                                                            'flex flex-col items-start gap-1 rounded-lg border p-3 text-left transition-colors',
+                                                            'flex flex-col items-start gap-1 rounded-lg border p-3 text-start transition-colors',
                                                             selected
                                                                 ? 'border-border bg-interactive-selection text-interactive-selection-foreground'
                                                                 : 'border-border hover:border-border/80 hover:bg-interactive-hover'

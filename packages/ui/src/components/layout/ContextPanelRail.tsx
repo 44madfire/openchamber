@@ -135,7 +135,7 @@ const ContextPanelRailItem: React.FC<RailItemProps> = ({
             {showOrderNumber && orderNumber != null ? (
               <span
                 aria-hidden="true"
-                className="absolute right-0 top-0 flex h-4 min-w-4 items-center justify-center rounded-full bg-surface-muted px-1 text-[0.625rem] font-medium leading-none text-muted-foreground"
+                className="absolute inset-e-0 top-0 flex h-4 min-w-4 items-center justify-center rounded-full bg-surface-muted px-1 text-[0.625rem] font-medium leading-none text-muted-foreground"
               >
                 {orderNumber === 10 ? '0' : orderNumber}
               </span>
@@ -145,7 +145,7 @@ const ContextPanelRailItem: React.FC<RailItemProps> = ({
                 // Muted digits on the muted surface sat at almost the same
                 // luminance as the glyph they overlap. The count is a live
                 // signal, so it takes the info tone on its own opaque chip.
-                className="absolute -right-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full px-1 text-[0.625rem] font-semibold leading-none"
+                className="absolute -inset-e-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full px-1 text-[0.625rem] font-semibold leading-none"
                 style={{
                   backgroundColor: 'var(--status-info-background)',
                   color: 'var(--status-info)',
@@ -156,7 +156,7 @@ const ContextPanelRailItem: React.FC<RailItemProps> = ({
             ) : showActivityDot ? (
               <span
                 aria-hidden="true"
-                className="absolute right-1 top-1 h-1.5 w-1.5 rounded-full bg-[var(--status-info)]"
+                className="absolute inset-e-1 top-1 h-1.5 w-1.5 rounded-full bg-[var(--status-info)]"
               />
             ) : null}
           </button>

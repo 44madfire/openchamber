@@ -452,7 +452,7 @@ function DraftTargetSelectorsView(props: DraftTargetProps) {
                         {projectRootBranchOption ? <SelectSeparator /> : null}
                         {/* Creating comes before the list, so a long list never hides it. */}
                         <WorktreeCreateActions
-                            className="flex w-full cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 text-left typography-ui-label hover:bg-[var(--interactive-hover)]"
+                            className="flex w-full cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 text-start typography-ui-label hover:bg-[var(--interactive-hover)]"
                             onQuick={() => { setOpenPicker(null); void createWorktreeDraft(); }}
                             onCustom={onCreateCustomWorktree ? () => { setOpenPicker(null); onCreateCustomWorktree(); } : undefined}
                         />
@@ -575,7 +575,7 @@ export function ProjectPickerSheet({
                             <button
                                 key={project.id}
                                 type="button"
-                                className="flex w-full cursor-pointer items-center gap-2 rounded-lg px-2 py-2.5 text-left typography-ui-label hover:bg-[var(--interactive-hover)]"
+                                className="flex w-full cursor-pointer items-center gap-2 rounded-lg px-2 py-2.5 text-start typography-ui-label hover:bg-[var(--interactive-hover)]"
                                 onClick={() => {
                                     onSelectProject(project.id);
                                     onClose();
@@ -664,7 +664,7 @@ export function MobileDraftTargetSheets(
                                 <button
                                     key={key ?? value}
                                     type="button"
-                                    className="flex w-full cursor-pointer items-center gap-2 rounded-lg px-2 py-2.5 text-left typography-ui-label hover:bg-[var(--interactive-hover)]"
+                                    className="flex w-full cursor-pointer items-center gap-2 rounded-lg px-2 py-2.5 text-start typography-ui-label hover:bg-[var(--interactive-hover)]"
                                     onClick={() => {
                                         onDirectoryChange(value);
                                         onOpenPickerChange(null);
@@ -688,7 +688,7 @@ export function MobileDraftTargetSheets(
                                     ) : null}
                                     <div className="my-1 h-px bg-border" />
                                     <WorktreeCreateActions
-                                        className="flex w-full cursor-pointer items-center gap-2 rounded-lg px-2 py-2.5 text-left typography-ui-label hover:bg-[var(--interactive-hover)]"
+                                        className="flex w-full cursor-pointer items-center gap-2 rounded-lg px-2 py-2.5 text-start typography-ui-label hover:bg-[var(--interactive-hover)]"
                                         onQuick={() => { onOpenPickerChange(null); void createWorktreeDraft(); }}
                                         onCustom={onCreateCustomWorktree ? () => { onOpenPickerChange(null); onCreateCustomWorktree(); } : undefined}
                                     />

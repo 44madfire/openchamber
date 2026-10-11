@@ -4,7 +4,7 @@ import { toast } from '@/components/ui';
 import { Icon } from '@/components/icon/Icon';
 import type { IconName } from '@/components/icon/icons';
 import { Input } from '@/components/ui/input';
-import { useI18n } from '@/lib/i18n';
+import { isRightToLeft, useI18n } from '@/lib/i18n';
 import { resolveProjectContextId, type ProjectRef, type ProjectTodoItem } from '@/lib/projectContextApi';
 import { observeProjectContext } from '@/lib/projectContextSync';
 import { cn } from '@/lib/utils';
@@ -226,10 +226,14 @@ export const ProjectNotesTodoPanel: React.FC<ProjectNotesTodoPanelProps> = ({
     if (!event.currentTarget.hasPointerCapture(event.pointerId)) {
       return;
     }
-    // The sidebar is on the right, so dragging its left edge leftwards widens
-    // it: the width is the distance from the pointer to the panel's edge.
-    const panelRight = event.currentTarget.closest('nav')?.getBoundingClientRect().right ?? 0;
-    setDraggedWidth(clampSidebarWidth(panelRight - event.clientX));
+    // The sidebar is at the end of the row (right, or left in RTL), so dragging
+    // its inner edge outward widens it: the width is the distance from the
+    // pointer to the panel's outer edge.
+    const panelRect = event.currentTarget.closest('nav')?.getBoundingClientRect();
+    const width = isRightToLeft(event.currentTarget)
+      ? event.clientX - (panelRect?.left ?? 0)
+      : (panelRect?.right ?? 0) - event.clientX;
+    setDraggedWidth(clampSidebarWidth(width));
   }, []);
 
   const handleResizeEnd = React.useCallback((event: React.PointerEvent<HTMLDivElement>) => {
@@ -375,19 +379,19 @@ export const ProjectNotesTodoPanel: React.FC<ProjectNotesTodoPanelProps> = ({
     <div className={cn('relative flex-shrink-0', inPanelHeader ? 'w-full max-w-72' : 'w-40')}>
       <Icon
         name="search"
-        className="pointer-events-none absolute left-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground"
+        className="pointer-events-none absolute inset-s-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground"
       />
       <Input
         value={query}
         onChange={(event) => setQuery(event.target.value)}
         placeholder={t('rightSidebar.contextNotesTodo.search.placeholder')}
-        className={cn('pl-7 pr-7', inPanelHeader ? 'h-7' : 'h-8')}
+        className={cn('ps-7 pe-7', inPanelHeader ? 'h-7' : 'h-8')}
       />
       {query ? (
         <button
           type="button"
           onClick={() => setQuery('')}
-          className="absolute right-1.5 top-1/2 inline-flex h-5 w-5 -translate-y-1/2 items-center justify-center rounded-md text-muted-foreground hover:text-foreground hover:bg-interactive-hover/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          className="absolute inset-e-1.5 top-1/2 inline-flex h-5 w-5 -translate-y-1/2 items-center justify-center rounded-md text-muted-foreground hover:text-foreground hover:bg-interactive-hover/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           aria-label={t('rightSidebar.contextNotesTodo.search.clear')}
           title={t('rightSidebar.contextNotesTodo.search.clear')}
         >
@@ -401,7 +405,7 @@ export const ProjectNotesTodoPanel: React.FC<ProjectNotesTodoPanelProps> = ({
     <div className={cn('flex h-full min-h-0 w-full min-w-0 flex-col', className)}>
       {inPanelHeader ? (
         <ContextPanelHeaderToolbar>
-          <div className="flex min-w-0 flex-1 items-center pr-1">{searchField}</div>
+          <div className="flex min-w-0 flex-1 items-center pe-1">{searchField}</div>
         </ContextPanelHeaderToolbar>
       ) : null}
       {/* Title and search share a row: search is a filter over what is already
@@ -534,13 +538,13 @@ export const ProjectNotesTodoPanel: React.FC<ProjectNotesTodoPanelProps> = ({
 
         {isMobile ? null : (
         <nav
-          className="relative flex flex-shrink-0 flex-col gap-0.5 overflow-y-auto border-l border-[var(--interactive-border)] p-2"
+          className="relative flex flex-shrink-0 flex-col gap-0.5 overflow-y-auto border-s border-[var(--interactive-border)] p-2"
           style={{ width: `${sidebarWidth}px` }}
           aria-label={t('rightSidebar.contextNotesTodo.sections.label')}
         >
           <div
             className={cn(
-              'absolute left-0 top-0 z-20 h-full w-[3px] cursor-col-resize transition-colors hover:bg-[var(--interactive-border)]/80',
+              'absolute inset-s-0 top-0 z-20 h-full w-[3px] cursor-col-resize transition-colors hover:bg-[var(--interactive-border)]/80',
               isResizing && 'bg-[var(--interactive-border)]',
             )}
             onPointerDown={handleResizeStart}
@@ -560,7 +564,7 @@ export const ProjectNotesTodoPanel: React.FC<ProjectNotesTodoPanelProps> = ({
                 onClick={() => setStoredTab(section.id)}
                 aria-current={isActive ? 'page' : undefined}
                 className={cn(
-                  'flex min-w-0 items-center gap-2 rounded-md px-2 py-1.5 text-left transition-colors',
+                  'flex min-w-0 items-center gap-2 rounded-md px-2 py-1.5 text-start transition-colors',
                   'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
                   isActive
                     ? 'bg-interactive-active text-foreground'

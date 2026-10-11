@@ -363,14 +363,14 @@ const tableToMarkdown = ({ headers, rows }: { headers: string[]; rows: string[][
 const buildTableMenu = (action: string, items: Array<{ key: string; label: string }>): HTMLDivElement => {
   const menu = document.createElement('div');
   // Match the app's DropdownMenu look (same class tokens + surface colors).
-  menu.className = `absolute top-full right-0 mt-1 hidden ${dropdownMenuPopupClass}`;
+  menu.className = `absolute top-full inset-e-0 mt-1 hidden ${dropdownMenuPopupClass}`;
   menu.style.backgroundColor = 'var(--surface-elevated)';
   menu.style.color = 'var(--surface-elevated-foreground)';
   menu.setAttribute('data-md-menu', action);
   for (const item of items) {
     const button = document.createElement('button');
     button.type = 'button';
-    button.className = `w-full text-left ${dropdownMenuItemClass}`;
+    button.className = `w-full text-start ${dropdownMenuItemClass}`;
     button.setAttribute('data-md-action', `${action}-${item.key}`);
     button.textContent = item.label;
     menu.appendChild(button);
@@ -453,10 +453,10 @@ const decorateTables = (root: HTMLElement, ctx: DecorateContext): void => {
     lastBodyRow?.classList.remove('border-b');
     lastBodyRow?.classList.add('border-0');
     for (const th of Array.from(table.querySelectorAll('th'))) {
-      th.classList.add('min-w-[120px]', 'whitespace-normal', '[overflow-wrap:anywhere]', 'border-r', 'border-border/60', 'px-4', 'py-2.5', 'text-left', 'align-middle', 'font-semibold', 'text-foreground', 'last:border-r-0');
+      th.classList.add('min-w-[120px]', 'whitespace-normal', '[overflow-wrap:anywhere]', 'border-e', 'border-border/60', 'px-4', 'py-2.5', 'text-start', 'align-middle', 'font-semibold', 'text-foreground', 'last:border-e-0');
     }
     for (const td of Array.from(table.querySelectorAll('td'))) {
-      td.classList.add('min-w-[120px]', 'whitespace-normal', '[overflow-wrap:anywhere]', 'border-r', 'border-border/60', 'px-4', 'py-2.5', 'align-middle', 'text-foreground/90', 'last:border-r-0');
+      td.classList.add('min-w-[120px]', 'whitespace-normal', '[overflow-wrap:anywhere]', 'border-e', 'border-border/60', 'px-4', 'py-2.5', 'align-middle', 'text-foreground/90', 'last:border-e-0');
     }
 
     scroll.appendChild(table);
@@ -647,7 +647,7 @@ const decorateMermaid = (root: HTMLElement, ctx: DecorateContext): void => {
     toolbar.setAttribute('data-markdown', 'mermaid-toolbar');
     // Visible on touch screens, so a shared image must drop it explicitly.
     toolbar.setAttribute(MESSAGE_IMAGE_EXPORT_EXCLUDE_ATTRIBUTE, 'true');
-    toolbar.className = 'absolute top-1 right-2 flex items-center gap-1';
+    toolbar.className = 'absolute top-1 inset-e-2 flex items-center gap-1';
 
     if (rendered.svg) {
       block.setAttribute('data-mermaid-render', 'svg');
@@ -716,7 +716,7 @@ const decorateLinks = (root: HTMLElement, ctx: DecorateContext): void => {
       const favWrap = document.createElement('span');
       favWrap.setAttribute(MESSAGE_IMAGE_EXPORT_EXCLUDE_ATTRIBUTE, 'true');
       favWrap.className =
-        'mr-1 inline-flex size-[18px] items-center justify-center rounded border border-[var(--border)] bg-[var(--interactive-hover)] align-middle';
+        'me-1 inline-flex size-[18px] items-center justify-center rounded border border-[var(--border)] bg-[var(--interactive-hover)] align-middle';
       const img = document.createElement('img');
       img.src = faviconUrl;
       img.alt = '';
@@ -732,7 +732,7 @@ const decorateLinks = (root: HTMLElement, ctx: DecorateContext): void => {
     if (ctx.onPreviewLoopback && isLoopbackHttpUrl(href)) {
       const preview = document.createElement('button');
       preview.type = 'button';
-      preview.className = `ml-1 align-middle ${ICON_BTN_CLASS}`;
+      preview.className = `ms-1 align-middle ${ICON_BTN_CLASS}`;
       preview.setAttribute('data-md-action', 'preview-loopback');
       preview.setAttribute('data-md-url', href);
       preview.setAttribute('title', ctx.labels.previewTitle);

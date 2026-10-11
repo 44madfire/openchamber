@@ -312,14 +312,14 @@ const TimelineDialogBody: React.FC<TimelineDialogBodyProps> = ({
                 </DialogHeader>
 
                 <div className="relative mt-2 shrink-0">
-                    <Icon name="search" className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                    <Icon name="search" className="absolute inset-s-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                     <Input
                         autoFocus
                         placeholder={t('chat.timeline.searchPlaceholder')}
                         value={searchQuery}
                         onChange={(e) => onSearchQueryChange(e.target.value)}
                         onKeyDown={handleSearchKeyDown}
-                        className="pl-9 w-full"
+                        className="ps-9 w-full"
                     />
                 </div>
 
@@ -387,7 +387,7 @@ const TimelineDialogBody: React.FC<TimelineDialogBodyProps> = ({
                                         onMouseEnter={() => setSelectedIndex(index)}
                                     >
                                         <span className={cn(
-                                            "typography-meta min-w-16 flex-shrink-0 text-right tabular-nums whitespace-nowrap",
+                                            "typography-meta min-w-16 flex-shrink-0 text-end tabular-nums whitespace-nowrap",
                                             isSelected ? "text-interactive-selection-foreground/70" : "text-muted-foreground"
                                         )}>
                                             {messageTime}
@@ -400,7 +400,7 @@ const TimelineDialogBody: React.FC<TimelineDialogBodyProps> = ({
                                             {!snippet && preview && preview.length >= 80 && '…'}
                                         </p>
 
-                                        <div className="flex-shrink-0 h-5 flex items-center mr-2">
+                                        <div className="flex-shrink-0 h-5 flex items-center me-2">
                                             <div className={cn("gap-1", alwaysShowActions ? "flex" : "hidden group-hover:flex")}>
                                                 <Tooltip>
                                                     <TooltipTrigger asChild>

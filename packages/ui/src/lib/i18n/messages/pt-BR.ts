@@ -199,6 +199,8 @@ export const dict: Record<I18nKey, string> = {
   "common.language.polish": "Polonês",
   "common.language.japanese": "Japonês",
   "common.language.turkish": "Turco",
+  "common.language.arabic": "Árabe",
+  "common.language.hebrew": "Hebraico",
   "common.language.dutch": "Holandês",
   "common.revealPath.finder": "Mostrar no Finder",
   "common.revealPath.fileExplorer": "Abrir no File Explorer",

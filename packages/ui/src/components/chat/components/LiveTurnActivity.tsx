@@ -65,7 +65,7 @@ export function LiveTurnActivity({ turn, hasLaterAssistant, expanded, onToggle, 
                     ) : null}
                 </span>
             ) : null}
-            {details ? <span className="hidden min-w-0 flex-1 truncate text-left typography-meta @min-[560px]:inline" title={details}>{fileLabel ? '· ' : ''}{details}</span> : null}
+            {details ? <span className="hidden min-w-0 flex-1 truncate text-start typography-meta @min-[560px]:inline" title={details}>{fileLabel ? '· ' : ''}{details}</span> : null}
         </>
     );
     const windowStore = React.useContext(TurnMessageWindowContext);
@@ -77,7 +77,7 @@ export function LiveTurnActivity({ turn, hasLaterAssistant, expanded, onToggle, 
         }
         onToggle();
     }, [activityMessages.length, expanded, onToggle, settled, turn.turnId, windowStore]);
-    const headerClass = 'w-full justify-start normal-case !pl-px !pr-2 text-[var(--tools-description)] hover:!bg-transparent active:!bg-transparent';
+    const headerClass = 'w-full justify-start normal-case !ps-px !pe-2 text-[var(--tools-description)] hover:!bg-transparent active:!bg-transparent';
     return (
         <div className="relative z-0" data-live-turn-activity={turn.turnId}>
             {settled ? (

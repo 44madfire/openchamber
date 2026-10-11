@@ -81,7 +81,7 @@ const ShellRow: React.FC<{ shell: TrackedShell; rootSessionId: string; rootDirec
   };
 
   return (
-    <div className="flex h-10 items-center gap-2 pl-3 pr-1.5">
+    <div className="flex h-10 items-center gap-2 ps-3 pe-1.5">
       <Icon name="terminal-box" className="size-3.5 shrink-0 text-muted-foreground" />
       <Tooltip delayDuration={COMMAND_TOOLTIP_DELAY_MS}>
         <TooltipTrigger asChild>
@@ -142,7 +142,7 @@ export const BackgroundShellsStrip: React.FC<BackgroundShellsStripProps> = React
   // The whole header toggles the list, as the queue header does.
   return (
     <div role="group" className="border-b border-border/60" aria-label={t('chat.backgroundShells.aria')}>
-      <div className="flex h-10 items-center pl-3 pr-3">
+      <div className="flex h-10 items-center ps-3 pe-3">
         <Button
           type="button"
           variant="ghost"
@@ -154,7 +154,7 @@ export const BackgroundShellsStrip: React.FC<BackgroundShellsStripProps> = React
           className="min-w-0 flex-1 shrink justify-start gap-2 px-0 text-sm font-normal normal-case text-muted-foreground hover:!bg-transparent hover:text-foreground has-[>svg]:px-0"
         >
           <Icon name="terminal-box" className="size-3.5 shrink-0" aria-hidden="true" />
-          <span className="min-w-0 flex-1 truncate text-left">
+          <span className="min-w-0 flex-1 truncate text-start">
             {t('chat.backgroundShells.count', { count: shells.length })}
           </span>
           <Icon name={expanded ? 'arrow-up-s' : 'arrow-down-s'} className="size-4 shrink-0" aria-hidden="true" />

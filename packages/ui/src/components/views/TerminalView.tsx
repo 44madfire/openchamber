@@ -876,12 +876,12 @@ export const TerminalView: React.FC<TerminalViewProps> = ({ visible, directory, 
                 <>
                     {tab.purpose.type === 'terminal' ? (
                         <ContextMenuItem onClick={() => setRenamingTabId(id)}>
-                            <Icon name="edit" className="mr-2 size-4" />
+                            <Icon name="edit" className="me-2 size-4" />
                             {t('terminalView.tabs.menu.rename')}
                         </ContextMenuItem>
                     ) : null}
                     <ContextMenuItem onClick={close}>
-                        <Icon name="close" className="mr-2 size-4" />
+                        <Icon name="close" className="me-2 size-4" />
                         {t('terminalView.tabs.closeTabTitle')}
                     </ContextMenuItem>
                     {/* In a zone, a tab moves the whole terminal, like a zone's own tabs. */}
@@ -1254,7 +1254,7 @@ export const TerminalView: React.FC<TerminalViewProps> = ({ visible, directory, 
             />
             {enableTabs && directoryTerminalState ? (
                 <ContextPanelHeaderToolbar>
-                    <div className={cn('app-region-no-drag flex min-w-0 flex-1 items-center gap-2 text-xs', inPanelHeader ? 'pr-1' : cn('sticky top-0 z-20 shrink-0 bg-[var(--surface-background)]', isTouchTerminal ? 'px-4 py-1.5' : 'pl-4 pr-2.5 py-1'))}>
+                    <div className={cn('app-region-no-drag flex min-w-0 flex-1 items-center gap-2 text-xs', inPanelHeader ? 'pe-1' : cn('sticky top-0 z-20 shrink-0 bg-[var(--surface-background)]', isTouchTerminal ? 'px-4 py-1.5' : 'ps-4 pe-2.5 py-1'))}>
                         <div className={cn('min-w-0 flex-1', inPanelHeader ? 'self-stretch' : isTouchTerminal ? 'h-8' : 'h-7')}>
                             <SortableTabsStrip
                                 items={terminalTabItems}
@@ -1329,18 +1329,21 @@ export const TerminalView: React.FC<TerminalViewProps> = ({ visible, directory, 
             ) : null}
 
             {!isTouchTerminal && showQuickKeys ? (
-                <div className="app-region-no-drag shrink-0 bg-[var(--surface-background)] pb-1 pl-4 pr-2.5 pt-1 text-xs">
-                    <div className="flex flex-wrap items-center gap-1">
+                <div className="app-region-no-drag shrink-0 bg-[var(--surface-background)] pb-1 ps-4 pe-2.5 pt-1 text-xs">
+                    {/* Keys are physical: arrows keep pointing where the key does. */}
+                    <div dir="ltr" className="flex flex-wrap items-center gap-1">
                         {quickKeysControls}
                     </div>
                 </div>
             ) : null}
 
+            {/* Terminal output is left to right in every language. */}
             <div
+                dir="ltr"
                 className="relative flex-1 overflow-hidden"
                 style={{ backgroundColor: xtermTheme.background }}
             >
-                <div className="h-full w-full box-border pl-4 pr-1.5 pt-3 pb-4">
+                <div className="h-full w-full box-border ps-4 pe-1.5 pt-3 pb-4">
                     {shouldRenderViewport ? mountedTabIds.map((tabId) => (
                         <TerminalTabViewport
                             key={`${terminalDirectory}::${tabId}`}
@@ -1381,7 +1384,8 @@ export const TerminalView: React.FC<TerminalViewProps> = ({ visible, directory, 
             </div>
             {isTouchTerminal && showQuickKeys ? (
                 <div className="shrink-0 overflow-x-auto border-t border-border/40 bg-[var(--surface-background)] px-2 pt-1.5 pb-[max(0.375rem,calc(var(--oc-app-bottom-safe,0px)-var(--oc-keyboard-inset,0px)))] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-                    <div className="flex min-w-max items-center gap-1.5">
+                    {/* Keys are physical: arrows keep pointing where the key does. */}
+                    <div dir="ltr" className="flex min-w-max items-center gap-1.5">
                         {quickKeysControls}
                     </div>
                 </div>

@@ -488,7 +488,7 @@ export const ComposerDictation: React.FC<ComposerDictationProps> = ({
                     >
                         {status === 'recording' ? (
                             <>
-                                <span className="relative ml-1 flex h-2 w-2 flex-shrink-0" aria-hidden="true">
+                                <span className="relative ms-1 flex h-2 w-2 flex-shrink-0" aria-hidden="true">
                                     <span
                                         className="absolute inline-flex h-full w-full animate-ping rounded-full opacity-60"
                                         style={{ backgroundColor: currentTheme.colors.status.error }}
@@ -504,11 +504,11 @@ export const ComposerDictation: React.FC<ComposerDictationProps> = ({
                                 </span>
                             </>
                         ) : status === 'uploading' ? (
-                            <Icon name="loader-4" className="ml-1 h-4 w-4 animate-spin" style={{ color: currentTheme.colors.surface.mutedForeground }} />
+                            <Icon name="loader-4" className="ms-1 h-4 w-4 animate-spin" style={{ color: currentTheme.colors.surface.mutedForeground }} />
                         ) : null}
                         {/* Same inter-control gap as the composer's right cluster:
                             gap-x-1 on mobile, md:gap-x-3 on desktop. */}
-                        <div className={cn('ml-auto flex flex-shrink-0 items-center', isMobile ? 'gap-x-1' : 'gap-x-1.5 md:gap-x-3')}>
+                        <div className={cn('ms-auto flex flex-shrink-0 items-center', isMobile ? 'gap-x-1' : 'gap-x-1.5 md:gap-x-3')}>
                             {status === 'recording' ? (
                                 <>
                                     <button

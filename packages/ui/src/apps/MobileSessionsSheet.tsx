@@ -386,7 +386,7 @@ const SessionRow: React.FC<{
         <button
           type="button"
           className="absolute z-10 flex w-6 items-center justify-center rounded-md text-muted-foreground/70 transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-          style={{ left: Math.max(indent - 32, 2), top: 0, bottom: 0, touchAction: 'manipulation' }}
+          style={{ insetInlineStart: Math.max(indent - 32, 2), top: 0, bottom: 0, touchAction: 'manipulation' }}
           aria-label={aiRename.pending
             ? t('sessions.aiRename.generating')
             : expanded
@@ -405,7 +405,7 @@ const SessionRow: React.FC<{
               state={turnActivity ?? 'unread'}
             />
           ) : (
-            <RiArrowDownSLine className={cn('size-[18px] transition-transform duration-150', expanded ? 'rotate-0' : '-rotate-90')} />
+            <RiArrowDownSLine className={cn('size-[18px] transition-transform duration-150', expanded ? 'rotate-0' : '-rotate-90 rtl:rotate-90')} />
           )}
         </button>
       ) : null}
@@ -426,10 +426,10 @@ const SessionRow: React.FC<{
         // height explicit. Two-line rows (search results with a context
         // subtitle) keep flexible height.
         className={cn(
-          'flex min-w-0 flex-1 items-center gap-2.5 pr-3.5 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset',
+          'flex min-w-0 flex-1 items-center gap-2.5 pe-3.5 text-start focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset',
           contextLabel ? 'min-h-10 py-1' : 'h-9',
         )}
-        style={{ paddingLeft: indent, touchAction: 'manipulation' }}
+        style={{ paddingInlineStart: indent, touchAction: 'manipulation' }}
         onClick={() => {
           // A tap while the actions are out just closes them.
           if (revealed) {
@@ -444,7 +444,7 @@ const SessionRow: React.FC<{
             <span
               dir="auto"
               className={cn(
-                'block min-w-0 flex-1 truncate text-left typography-ui-label',
+                'block min-w-0 flex-1 truncate oc-ui-start-align typography-ui-label',
                 active ? 'text-primary' : 'text-foreground',
               )}
             >
@@ -558,21 +558,21 @@ const MobileRunRow: React.FC<{ run: MultiRunSummary; laneNodes: readonly Session
       {activity ? (
         <span
           className="absolute flex w-6 items-center justify-center"
-          style={{ left: Math.max(indent - 32, 2), top: 0, bottom: 0 }}
+          style={{ insetInlineStart: Math.max(indent - 32, 2), top: 0, bottom: 0 }}
         >
           <CollapsedActivityIndicator state={activity} />
         </span>
       ) : null}
       <button
         type="button"
-        className="flex h-9 w-full min-w-0 items-center gap-2.5 pr-3.5 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
-        style={{ paddingLeft: indent, touchAction: 'manipulation' }}
+        className="flex h-9 w-full min-w-0 items-center gap-2.5 pe-3.5 text-start focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
+        style={{ paddingInlineStart: indent, touchAction: 'manipulation' }}
         onClick={() => useUIStore.getState().setRunOverviewKey(run.key)}
         aria-label={t('sessions.sidebar.run.openOverviewAria', { title: run.title })}
       >
         <span className="flex min-w-0 flex-1 items-center gap-1.5">
           <ArrowsMerge className="size-3.5 shrink-0 text-muted-foreground" aria-hidden="true" />
-          <span dir="auto" className={cn('block min-w-0 flex-1 truncate text-left typography-ui-label', active ? 'text-primary' : 'text-foreground')}>
+          <span dir="auto" className={cn('block min-w-0 flex-1 truncate oc-ui-start-align typography-ui-label', active ? 'text-primary' : 'text-foreground')}>
             {run.title}
           </span>
         </span>
@@ -591,8 +591,8 @@ const ShowMoreRow: React.FC<{
   return (
     <button
       type="button"
-      className="flex min-h-9 w-full items-center gap-2 py-1 pr-3 text-left text-muted-foreground transition-colors hover:bg-interactive-hover hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
-      style={{ paddingLeft: indent, touchAction: 'manipulation' }}
+      className="flex min-h-9 w-full items-center gap-2 py-1 pe-3 text-start text-muted-foreground transition-colors hover:bg-interactive-hover hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
+      style={{ paddingInlineStart: indent, touchAction: 'manipulation' }}
       onClick={onClick}
     >
       <RiArrowDownSLine className="size-4" />
@@ -609,8 +609,8 @@ const ShowFewerRow: React.FC<{
   return (
     <button
       type="button"
-      className="flex min-h-9 w-full items-center gap-2 py-1 pr-3 text-left text-muted-foreground transition-colors hover:bg-interactive-hover hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
-      style={{ paddingLeft: indent, touchAction: 'manipulation' }}
+      className="flex min-h-9 w-full items-center gap-2 py-1 pe-3 text-start text-muted-foreground transition-colors hover:bg-interactive-hover hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
+      style={{ paddingInlineStart: indent, touchAction: 'manipulation' }}
       onClick={onClick}
     >
       <RiArrowUpSLine className="size-4" />
@@ -700,7 +700,7 @@ const SortableProjectRow: React.FC<{
         </button>
         <button
           type="button"
-          className="flex min-h-9 min-w-0 flex-1 items-center gap-2 rounded-xl px-1 text-left transition-colors hover:bg-interactive-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
+          className="flex min-h-9 min-w-0 flex-1 items-center gap-2 rounded-xl px-1 text-start transition-colors hover:bg-interactive-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
           onClick={onToggleExpanded}
           aria-expanded={expanded}
           aria-label={expanded
@@ -724,7 +724,7 @@ const SortableProjectRow: React.FC<{
             items={project.worktrees.map((worktree) => normalizePath(worktree.path))}
             strategy={verticalListSortingStrategy}
           >
-            <div className="mt-1 flex flex-col gap-0.5 pl-3">
+            <div className="mt-1 flex flex-col gap-0.5 ps-3">
               {project.worktrees.map((worktree) => (
                 <SortableWorktreeReorderRow key={normalizePath(worktree.path)} worktree={worktree} />
               ))}
@@ -1883,7 +1883,7 @@ export const MobileSessionsSheet: React.FC<MobileSessionsSheetProps> = ({ open, 
                       >
                         <button
                           type="button"
-                          className="flex min-h-12 min-w-0 flex-1 items-center gap-3 px-3 py-1.5 text-left transition-colors hover:bg-interactive-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
+                          className="flex min-h-12 min-w-0 flex-1 items-center gap-3 px-3 py-1.5 text-start transition-colors hover:bg-interactive-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
                           onClick={() => handleSelectProject(project)}
                           style={{ touchAction: 'manipulation' }}
                         >
@@ -1896,7 +1896,7 @@ export const MobileSessionsSheet: React.FC<MobileSessionsSheetProps> = ({ open, 
                           <NewWorktreeIconButton onClick={() => handleNewWorktree(project.id)} />
                         ) : null}
                         <NewSessionIconButton
-                          className="mr-2"
+                          className="me-2"
                           label={t('mobile.sessions.newSessionInProjectAria', { label: project.label })}
                           onClick={() => handleNewSessionInProject(project)}
                         />
@@ -1942,7 +1942,7 @@ export const MobileSessionsSheet: React.FC<MobileSessionsSheetProps> = ({ open, 
                     <div className="flex min-h-12 w-full items-center">
                       <button
                         type="button"
-                        className="flex min-h-12 min-w-0 flex-1 items-center gap-2 px-3 py-1.5 text-left transition-colors hover:bg-interactive-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
+                        className="flex min-h-12 min-w-0 flex-1 items-center gap-2 px-3 py-1.5 text-start transition-colors hover:bg-interactive-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
                         onClick={() => {
                           if (revealedRowId) {
                             handleRowKeyRevealedChange(revealedRowId, false);
@@ -1972,7 +1972,7 @@ export const MobileSessionsSheet: React.FC<MobileSessionsSheetProps> = ({ open, 
                           reachable from its own section, not only the title bar. */}
                       {!editingOrder ? (
                         <NewSessionIconButton
-                          className="mr-2"
+                          className="me-2"
                           label={t('mobile.sessions.newChat')}
                           onClick={handleStartNewChat}
                         />
@@ -1992,7 +1992,7 @@ export const MobileSessionsSheet: React.FC<MobileSessionsSheetProps> = ({ open, 
                               : undefined,
                           )
                         ) : (
-                          <p className="px-3 pb-1 typography-micro text-muted-foreground" style={{ paddingLeft: PROJECT_SESSION_INDENT }}>
+                          <p className="px-3 pb-1 typography-micro text-muted-foreground" style={{ paddingInlineStart: PROJECT_SESSION_INDENT }}>
                             {t('sessions.sidebar.activity.chatsEmpty')}
                           </p>
                         )}
@@ -2008,7 +2008,7 @@ export const MobileSessionsSheet: React.FC<MobileSessionsSheetProps> = ({ open, 
                   <section>
                     <button
                       type="button"
-                      className="flex min-h-12 w-full min-w-0 items-center gap-2 px-3 py-1.5 text-left transition-colors hover:bg-interactive-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
+                      className="flex min-h-12 w-full min-w-0 items-center gap-2 px-3 py-1.5 text-start transition-colors hover:bg-interactive-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
                       onClick={() => {
                         if (revealedRowId) {
                           handleRowKeyRevealedChange(revealedRowId, false);
@@ -2049,7 +2049,7 @@ export const MobileSessionsSheet: React.FC<MobileSessionsSheetProps> = ({ open, 
                   <section>
                     <button
                       type="button"
-                      className="flex min-h-12 w-full min-w-0 items-center gap-2 px-3 py-1.5 text-left transition-colors hover:bg-interactive-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
+                      className="flex min-h-12 w-full min-w-0 items-center gap-2 px-3 py-1.5 text-start transition-colors hover:bg-interactive-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
                       onClick={() => {
                         if (revealedRowId) {
                           handleRowKeyRevealedChange(revealedRowId, false);
@@ -2163,7 +2163,7 @@ export const MobileSessionsSheet: React.FC<MobileSessionsSheetProps> = ({ open, 
                       <div data-active-project={node.isActive || undefined} className="flex min-h-12 w-full items-center">
                         <button
                           type="button"
-                          className="flex min-h-12 min-w-0 flex-1 items-center gap-2 px-3 py-1.5 text-left transition-colors hover:bg-interactive-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
+                          className="flex min-h-12 min-w-0 flex-1 items-center gap-2 px-3 py-1.5 text-start transition-colors hover:bg-interactive-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
                           onClick={() => {
                             if (revealedRowId) {
                               handleRowKeyRevealedChange(revealedRowId, false);
@@ -2188,7 +2188,7 @@ export const MobileSessionsSheet: React.FC<MobileSessionsSheetProps> = ({ open, 
                           <NewWorktreeIconButton onClick={() => handleNewWorktree(node.project.id)} />
                         ) : null}
                         <NewSessionIconButton
-                          className="mr-2"
+                          className="me-2"
                           label={t('mobile.sessions.newSessionInProjectAria', { label: node.project.label })}
                           onClick={() => handleNewSessionInProject(node.project)}
                         />
@@ -2269,7 +2269,7 @@ export const MobileSessionsSheet: React.FC<MobileSessionsSheetProps> = ({ open, 
                                     >
                                     <button
                                       type="button"
-                                      className="flex min-h-10 w-full items-center gap-2 px-3 py-1 text-left transition-colors hover:bg-interactive-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
+                                      className="flex min-h-10 w-full items-center gap-2 px-3 py-1 text-start transition-colors hover:bg-interactive-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
                                       onClick={() => {
                                         if (revealedRowId) {
                                           handleRowKeyRevealedChange(revealedRowId, false);
@@ -2315,7 +2315,7 @@ export const MobileSessionsSheet: React.FC<MobileSessionsSheetProps> = ({ open, 
                                       ) : null}
                                     </button>
                                     </MobileSwipeActionsRow>
-                                    {bucket.space ? <SpaceGroupStatus spaceId={bucket.space.id} className="px-3 pb-1 pl-9" /> : null}
+                                    {bucket.space ? <SpaceGroupStatus spaceId={bucket.space.id} className="px-3 pb-1 ps-9" /> : null}
                                     {worktreeExpanded
                                       ? renderBucketSessions(`${node.project.id}::${bucket.key}`, bucket, PROJECT_SESSION_INDENT)
                                       : null}
@@ -2373,7 +2373,7 @@ export const MobileSessionsSheet: React.FC<MobileSessionsSheetProps> = ({ open, 
                   style={{ touchAction: 'manipulation' }}
                 >
                   <Icon name="download" className="size-5" />
-                  <span className="absolute right-2 top-2 inline-flex size-2 rounded-full bg-primary" aria-hidden />
+                  <span className="absolute inset-e-2 top-2 inline-flex size-2 rounded-full bg-primary" aria-hidden />
                 </Button>
               ) : null}
               <Button
@@ -2480,7 +2480,7 @@ export const MobileSessionsSheet: React.FC<MobileSessionsSheetProps> = ({ open, 
                 key={mode}
                 type="button"
                 className={cn(
-                  'flex min-h-11 w-full items-center justify-between rounded-lg px-3 text-left transition-colors active:bg-interactive-active focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring',
+                  'flex min-h-11 w-full items-center justify-between rounded-lg px-3 text-start transition-colors active:bg-interactive-active focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring',
                   sidebarViewMode === mode ? 'text-primary' : 'text-foreground',
                 )}
                 onClick={() => {
@@ -2504,7 +2504,7 @@ export const MobileSessionsSheet: React.FC<MobileSessionsSheetProps> = ({ open, 
                 key={order}
                 type="button"
                 className={cn(
-                  'flex min-h-11 w-full items-center justify-between rounded-lg px-3 text-left transition-colors active:bg-interactive-active focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring',
+                  'flex min-h-11 w-full items-center justify-between rounded-lg px-3 text-start transition-colors active:bg-interactive-active focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring',
                   projectSortOrder === order ? 'text-primary' : 'text-foreground',
                 )}
                 onClick={() => {
@@ -2523,7 +2523,7 @@ export const MobileSessionsSheet: React.FC<MobileSessionsSheetProps> = ({ open, 
                 type="button"
                 aria-pressed={showRecentSection}
                 className={cn(
-                  'mt-2 flex min-h-11 w-full items-center justify-between rounded-lg px-3 text-left transition-colors active:bg-interactive-active focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring',
+                  'mt-2 flex min-h-11 w-full items-center justify-between rounded-lg px-3 text-start transition-colors active:bg-interactive-active focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring',
                   showRecentSection ? 'text-primary' : 'text-foreground',
                 )}
                 onClick={() => {
@@ -2590,7 +2590,7 @@ export const MobileSessionsSheet: React.FC<MobileSessionsSheetProps> = ({ open, 
       <div className="flex h-[var(--oc-header-height,56px)] shrink-0 items-center gap-2 px-3">
         <button
           type="button"
-          className="-ml-1 flex size-10 shrink-0 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-interactive-hover hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          className="-ms-1 flex size-10 shrink-0 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-interactive-hover hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           aria-label={t('mobile.surface.closeAria')}
           onClick={() => onOpenChange(false)}
           style={{ touchAction: 'manipulation' }}
@@ -2634,6 +2634,7 @@ const MobileSessionsDrawerContainer: React.FC<{
   ariaLabel: string;
   children: React.ReactNode;
 }> = ({ open, onClose, onSwipeClose, ariaLabel, children }) => {
+  const { direction } = useI18n();
   const rootRef = React.useRef<HTMLElement | null>(null);
   const drawerRef = React.useRef<HTMLElement>(null);
   const [entered, setEntered] = React.useState(false);
@@ -2648,12 +2649,13 @@ const MobileSessionsDrawerContainer: React.FC<{
     onSwipeCloseRef.current = onSwipeClose;
   }, [onSwipeClose]);
 
-  // Swipe from the drawer's right edge back toward the left = close, the
-  // reverse of the left-edge swipe that opened it from the chat. Rows inside
+  // Swipe from the drawer's end edge back toward its start = close, the
+  // reverse of the start-edge swipe that opened it from the chat. Rows inside
   // reveal their actions in the opposite direction, so the two never fight.
+  const closeFromEdge = () => (onSwipeCloseRef.current ?? onCloseRef.current)();
   useEdgeSwipe(drawerRef, {
     enabled: open,
-    onRightEdgeSwipe: () => (onSwipeCloseRef.current ?? onCloseRef.current)(),
+    ...(direction === 'rtl' ? { onLeftEdgeSwipe: closeFromEdge } : { onRightEdgeSwipe: closeFromEdge }),
   });
 
   if (typeof document !== 'undefined' && !rootRef.current) {
@@ -2705,7 +2707,7 @@ const MobileSessionsDrawerContainer: React.FC<{
         paddingTop: 'var(--oc-safe-area-top, 0px)',
         // Settled state drops the transform entirely so the drawer isn't kept
         // on a compositing layer (iOS clips those to the safe-area viewport).
-        transform: entered ? 'none' : 'translateX(-100%)',
+        transform: entered ? 'none' : direction === 'rtl' ? 'translateX(100%)' : 'translateX(-100%)',
         transition: `transform ${DRAWER_ENTER_DURATION_MS}ms ${DRAWER_EASING}`,
         visibility: visible ? 'visible' : 'hidden',
         pointerEvents: open ? 'auto' : 'none',

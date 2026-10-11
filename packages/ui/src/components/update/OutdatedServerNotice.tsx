@@ -48,7 +48,7 @@ export function OutdatedServerNotice({ version }: { version: string }) {
         {offer.kind === 'checking' ? t('startup.serverOutdated.checking') : t('onboarding.desktopRecovery.remoteIncompatible.updateServer')}
       </Button>
       {manual && (
-        <div className="w-full space-y-2 text-left">
+        <div className="w-full space-y-2 text-start">
           {!manual.info?.available && (
             <p className="typography-meta text-[var(--status-error)]">{t('startup.serverOutdated.noUpdate')}</p>
           )}

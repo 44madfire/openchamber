@@ -1496,7 +1496,7 @@ export const TunnelSettings: React.FC = () => {
                           <div className="flex items-start gap-2 px-3">
                             <CollapsibleTrigger
                               type="button"
-                              className="group flex-1 justify-start gap-2 rounded-md px-0 py-1 pr-1 text-left hover:bg-[var(--interactive-hover)]"
+                              className="group flex-1 justify-start gap-2 rounded-md px-0 py-1 pe-1 text-start hover:bg-[var(--interactive-hover)]"
                               disabled={state === 'starting' || state === 'stopping' || isSavingMode}
                             >
                               {isOpen

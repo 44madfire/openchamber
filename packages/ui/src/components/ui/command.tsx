@@ -147,7 +147,7 @@ function CommandShortcut({
     <span
       data-slot="command-shortcut"
       className={cn(
-        "text-muted-foreground ml-auto shrink-0 whitespace-nowrap typography-meta",
+        "text-muted-foreground ms-auto shrink-0 whitespace-nowrap typography-meta",
         className
       )}
       {...props}

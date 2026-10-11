@@ -171,13 +171,13 @@ const SessionFolderItemBase = <TSessionNode,>({
           : t('sessions.sidebar.folderItem.collapseAria', { folderName: folder.name })}
       >
         <div className={cn(
-          'min-w-0 flex items-center gap-1.5 pl-1.5 flex-1',
+          'min-w-0 flex items-center gap-1.5 ps-1.5 flex-1',
           archivedBucket
-            ? (alwaysShowActions ? 'pr-7' : 'group-hover/folder:pr-7 group-focus-within/folder:pr-7')
+            ? (alwaysShowActions ? 'pe-7' : 'group-hover/folder:pe-7 group-focus-within/folder:pe-7')
             // Actions overlay on hover (new session, rename, delete = three
             // 24px buttons anchored at the right edge); reserve room only
             // while they are revealed, mirroring session-row behavior.
-            : (alwaysShowActions ? 'pr-20' : 'group-hover/folder:pr-20 group-focus-within/folder:pr-20'),
+            : (alwaysShowActions ? 'pe-20' : 'group-hover/folder:pe-20 group-focus-within/folder:pe-20'),
         )}>
           <Icon name={folderIconName} className={cn('h-3.5 w-3.5 flex-shrink-0', isDropTarget ? 'text-primary' : 'text-muted-foreground')} />
 
@@ -267,7 +267,7 @@ const SessionFolderItemBase = <TSessionNode,>({
         {!renaming && (!hideActions || archivedBucket) ? (
           <div
             className={cn(
-              'absolute right-0.5 top-1/2 z-10 flex -translate-y-1/2 items-center gap-0.5 transition-opacity',
+              'absolute inset-e-0.5 top-1/2 z-10 flex -translate-y-1/2 items-center gap-0.5 transition-opacity',
               alwaysShowActions
                 ? 'opacity-100'
                 : 'opacity-0 pointer-events-none group-hover/folder:opacity-100 group-hover/folder:pointer-events-auto group-focus-within/folder:opacity-100 group-focus-within/folder:pointer-events-auto',
@@ -328,7 +328,7 @@ const SessionFolderItemBase = <TSessionNode,>({
           {sessions.length > 0 ? (
             children
           ) : !subFolderItems ? (
-            <div className="py-1 pl-1.5 text-left typography-micro text-muted-foreground/70">
+            <div className="py-1 ps-1.5 text-start typography-micro text-muted-foreground/70">
               {t('sessions.sidebar.folderItem.emptyFolder')}
             </div>
           ) : null}

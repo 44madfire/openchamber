@@ -116,7 +116,7 @@ export const SessionTimelineRowBody: React.FC<Props> = ({
   // Compact rows have no third line, so their badges ride in the meta
   // cluster: the hover actions overlay that cluster, and anything placed
   // after it would sit underneath them.
-  const meta = <span className={cn('ml-auto flex flex-shrink-0 items-center gap-1 transition-opacity', metaPaddingClass, hideMetaOnHoverClass)}>
+  const meta = <span className={cn('ms-auto flex flex-shrink-0 items-center gap-1 transition-opacity', metaPaddingClass, hideMetaOnHoverClass)}>
     {compact ? goal : null}
     {compact ? badges : null}
     {directoryIndicator}
@@ -127,7 +127,7 @@ export const SessionTimelineRowBody: React.FC<Props> = ({
   </span>;
   if (compact) {
     return <div className={cn('@container relative flex w-full min-w-0 items-center gap-1', actionsReserveClass)}>
-      <div dir="auto" className={cn('min-w-0 flex-1 truncate typography-ui-label font-normal', actionsMaskClass, titleClassName)}>{title}</div>
+      <div dir="auto" className={cn('oc-ui-start-align min-w-0 flex-1 truncate typography-ui-label font-normal', actionsMaskClass, titleClassName)}>{title}</div>
       {meta}
     </div>;
   }
@@ -142,7 +142,7 @@ export const SessionTimelineRowBody: React.FC<Props> = ({
       ) : null}
       {meta}
     </div>
-    <div dir="auto" className={cn('w-full min-w-0 truncate typography-ui-label font-normal', titleClassName)}>{title}</div>
+    <div dir="auto" className={cn('oc-ui-start-align w-full min-w-0 truncate typography-ui-label font-normal', titleClassName)}>{title}</div>
     {hasThirdLine ? (
       <div className="flex w-full min-w-0 items-center gap-1">
         {thirdLineLead ?? (branchLabel ? (
@@ -154,7 +154,7 @@ export const SessionTimelineRowBody: React.FC<Props> = ({
             <span className="min-w-0 truncate typography-micro text-muted-foreground/50">{branchLabel}</span>
           </>
         ) : null)}
-        <span className="ml-auto flex flex-shrink-0 items-center gap-1">
+        <span className="ms-auto flex flex-shrink-0 items-center gap-1">
           {goal}
           {zombieIndicator ?? prBadge}
           {badges}

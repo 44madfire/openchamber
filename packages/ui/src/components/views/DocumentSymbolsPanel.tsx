@@ -81,7 +81,7 @@ export function DocumentSymbolsPanel({ open, onOpenChange, view }: DocumentSymbo
             data-editor-overlay
             // `Command` leaves the background to its container (a dialog or a
             // menu does it elsewhere), so the panel paints it here.
-            className="absolute left-3 top-3 z-40 w-[min(28rem,calc(100%-1.5rem))] overflow-hidden rounded-xl border border-[var(--interactive-border)] bg-[var(--surface-elevated)] shadow-lg"
+            className="absolute inset-s-3 top-3 z-40 w-[min(28rem,calc(100%-1.5rem))] overflow-hidden rounded-xl border border-[var(--interactive-border)] bg-[var(--surface-elevated)] shadow-lg"
             onKeyDown={(event) => {
                 if (event.key !== 'Escape') return;
                 event.preventDefault();
@@ -115,7 +115,7 @@ export function DocumentSymbolsPanel({ open, onOpenChange, view }: DocumentSymbo
                             onSelect={() => select(symbol)}
                             className="gap-2"
                         >
-                            <span className="flex min-w-0 flex-1 items-center gap-2" style={{ paddingLeft: `${symbol.depth * 12}px` }}>
+                            <span className="flex min-w-0 flex-1 items-center gap-2" style={{ paddingInlineStart: `${symbol.depth * 12}px` }}>
                                 <Icon name={KIND_ICON[symbol.kind]} className="size-3.5 shrink-0 text-muted-foreground" />
                                 <span className="min-w-0 truncate text-foreground">{symbol.name}</span>
                             </span>

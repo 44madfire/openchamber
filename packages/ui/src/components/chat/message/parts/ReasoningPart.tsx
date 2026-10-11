@@ -403,7 +403,7 @@ export const ReasoningTimelineBlock: React.FC<ReasoningTimelineBlockProps> = ({
                 aria-controls={contentId}
                 aria-label={toggleAriaLabel}
                 className={cn(
-                    'group/tool flex gap-1.5 pr-2 pl-px py-1.5 rounded-xl cursor-pointer items-center',
+                    'group/tool flex gap-1.5 pe-2 ps-px py-1.5 rounded-xl cursor-pointer items-center',
                 )}
                 onClick={handleToggle}
                 onKeyDown={handleKeyDown}
@@ -474,7 +474,7 @@ export const ReasoningTimelineBlock: React.FC<ReasoningTimelineBlockProps> = ({
                     }}
                 >
                     <div
-                        className="relative ml-2 pl-3 pb-1 pt-0.5"
+                        className="relative ms-2 ps-3 pb-1 pt-0.5"
                         style={{
                             opacity: isExpanded ? 1 : 0,
                             transform: isExpanded ? 'translateY(0)' : 'translateY(-4px)',

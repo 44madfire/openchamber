@@ -1189,9 +1189,9 @@ const ProjectActionsButtonComponent = ({
               </span>
             ) : null}
             {isStopping || runState?.status === 'waiting-for-preview'
-              ? <Icon name="loader-4" className="ml-auto h-4 w-4 animate-spin text-[var(--status-warning)]" />
+              ? <Icon name="loader-4" className="ms-auto h-4 w-4 animate-spin text-[var(--status-warning)]" />
               : isRunning
-                ? <Icon name="stop" className="ml-auto h-4 w-4 text-[var(--status-warning)]" />
+                ? <Icon name="stop" className="ms-auto h-4 w-4 text-[var(--status-warning)]" />
                 : null}
           </DropdownMenuItem>
         );
@@ -1207,7 +1207,7 @@ const ProjectActionsButtonComponent = ({
             type="button"
             onClick={handlePrimaryClick}
             disabled={isLoading || isStoppingSelected}
-            className="flex min-w-0 flex-1 items-center gap-2 rounded-md text-left focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[var(--interactive-focus-ring)] disabled:cursor-not-allowed"
+            className="flex min-w-0 flex-1 items-center gap-2 rounded-md text-start focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[var(--interactive-focus-ring)] disabled:cursor-not-allowed"
             aria-label={selectedRunning
               ? t('projectActions.actions.stopNamedAria', { name: resolvedSelected.name })
               : t('projectActions.actions.runNamedAria', { name: resolvedSelected.name })}

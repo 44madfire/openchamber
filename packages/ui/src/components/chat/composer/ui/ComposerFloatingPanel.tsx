@@ -53,7 +53,7 @@ export function ComposerFloatingPanel({ header, children, compact = false, role,
     }, []);
 
     return (
-        <div ref={panelRef} className="chat-input-column absolute bottom-full left-0 right-0 z-30 mb-3" role={role} aria-label={ariaLabel}>
+        <div ref={panelRef} className="chat-input-column absolute bottom-full inset-s-0 inset-e-0 z-30 mb-3" role={role} aria-label={ariaLabel}>
             {/* Shadow on the wrapper, never on the glass: see "Floating composer"
                 in composer/DOCUMENTATION.md. */}
             <GlassPopupMotion className="origin-bottom rounded-xl shadow-[0_4px_16px_-4px_rgb(0_0_0_/_0.12)]">

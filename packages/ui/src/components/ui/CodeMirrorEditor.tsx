@@ -601,6 +601,8 @@ export function CodeMirrorEditor({
     <>
       <div
         ref={hostRef}
+        // Code reads left to right in every UI language; gutters stay on the left.
+        dir="ltr"
         className={cn(
           'oc-surface-code h-full w-full',
           '[&_.cm-editor]:h-full [&_.cm-editor]:w-full',

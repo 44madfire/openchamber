@@ -2474,7 +2474,7 @@ export const RemoteInstancesPage: React.FC = () => {
                 />
               </div>
               {remoteLanExposed ? (
-                <p className="mt-2 typography-micro text-[var(--status-warning)] md:pl-[16rem]">
+                <p className="mt-2 typography-micro text-[var(--status-warning)] md:ps-[16rem]">
                   {t('settings.remoteInstances.page.field.remoteLanAccessWarning')}
                 </p>
               ) : null}
@@ -2679,7 +2679,7 @@ export const RemoteInstancesPage: React.FC = () => {
             />
           </div>
           {uiPasswordMissing ? (
-            <p className="typography-micro text-[var(--status-error)] md:pl-[16rem]">
+            <p className="typography-micro text-[var(--status-error)] md:ps-[16rem]">
               {t('settings.remoteInstances.page.field.uiPasswordMissingForLan')}
             </p>
           ) : null}
@@ -2999,7 +2999,7 @@ export const RemoteInstancesPage: React.FC = () => {
               </Button>
             </>
           ) : null}
-          {error ? <div className="ml-auto typography-meta text-[var(--status-error)]">{error}</div> : null}
+          {error ? <div className="ms-auto typography-meta text-[var(--status-error)]">{error}</div> : null}
         </div>
       </div>
 

@@ -1100,7 +1100,7 @@ export const PullRequestSection: React.FC<{
                       className="h-7 w-32"
                     />
                   )}
-                  <div className="ml-auto flex shrink-0 items-center gap-0.5">
+                  <div className="ms-auto flex shrink-0 items-center gap-0.5">
                     {repoUrl ? (
                       <Tooltip>
                         <TooltipTrigger asChild>
@@ -1137,7 +1137,7 @@ export const PullRequestSection: React.FC<{
                       <Button
                         variant="ghost"
                         size="xs"
-                        className="rounded-r-none"
+                        className="rounded-e-none"
                         onClick={generateDescription}
                         disabled={isGenerating || isCreating}
                       >
@@ -1149,7 +1149,7 @@ export const PullRequestSection: React.FC<{
                           <Button
                             variant="ghost"
                             size="xs"
-                            className="rounded-l-none border-l-0 px-1"
+                            className="rounded-s-none border-s-0 px-1"
                             disabled={isGenerating || isCreating}
                             aria-label={t('gitView.pr.generate.optionsAria')}
                           >
@@ -1171,7 +1171,7 @@ export const PullRequestSection: React.FC<{
                       <Textarea
                         value={additionalContext}
                         onChange={(e) => setAdditionalContext(e.target.value)}
-                        className="min-h-[72px] pr-9"
+                        className="min-h-[72px] pe-9"
                         placeholder={t('gitView.pr.placeholder.additionalContext')}
                         aria-label={t('gitView.pr.generate.notesAria')}
                         autoFocus={isContextOpen && !additionalContext}
@@ -1179,7 +1179,7 @@ export const PullRequestSection: React.FC<{
                       <Button
                         variant="ghost"
                         size="xs"
-                        className="absolute right-1.5 top-1.5 h-6 w-6 px-0"
+                        className="absolute inset-e-1.5 top-1.5 h-6 w-6 px-0"
                         onClick={() => {
                           setAdditionalContext('');
                           setIsContextOpen(false);
@@ -1214,7 +1214,7 @@ export const PullRequestSection: React.FC<{
                   <div className="flex items-center">
                     <Button
                       size="sm"
-                      className="justify-center gap-2 rounded-r-none"
+                      className="justify-center gap-2 rounded-e-none"
                       onClick={createPr}
                       disabled={createDisabled}
                     >
@@ -1225,7 +1225,7 @@ export const PullRequestSection: React.FC<{
                       <DropdownMenuTrigger asChild>
                         <Button
                           size="sm"
-                          className="rounded-l-none border-l-0 px-1.5"
+                          className="rounded-s-none border-s-0 px-1.5"
                           disabled={isCreating}
                           aria-label={t('gitView.pr.createKindAria')}
                         >

@@ -3,6 +3,19 @@
 import * as React from "react"
 import { Toaster as Sonner } from "sonner"
 import type { ToasterProps } from "sonner"
+import { getLocaleDirection, useI18nStore } from "@/lib/i18n"
+
+type ToastPosition = NonNullable<ToasterProps["position"]>
+
+// Corners mirror with the layout: a right-to-left app stacks toasts on the left.
+const MIRRORED_POSITION = {
+  "top-left": "top-right",
+  "top-right": "top-left",
+  "bottom-left": "bottom-right",
+  "bottom-right": "bottom-left",
+  "top-center": "top-center",
+  "bottom-center": "bottom-center",
+} as const satisfies Record<ToastPosition, ToastPosition>
 
 const SHADOW_DARK =
   "inset 0 1px 0 0 rgba(255,255,255,0.12), inset 0 0 0 1px rgba(255,255,255,0.08), 0 0 0 1px rgba(0,0,0,0.36), 0 1px 1px -0.5px rgba(0,0,0,0.22), 0 3px 3px -1.5px rgba(0,0,0,0.20), 0 6px 6px -3px rgba(0,0,0,0.16)"
@@ -69,7 +82,9 @@ function usePinnedToastStyles(container: HTMLElement | null, shadow: string) {
   }, [container, shadow])
 }
 
-const Toaster = ({ ...props }: ToasterProps) => {
+const Toaster = ({ position = "bottom-right", ...props }: ToasterProps) => {
+  // Read from the store, so a Toaster rendered outside the provider still works.
+  const direction = getLocaleDirection(useI18nStore((state) => state.locale))
   const isDark = useIsDarkTheme()
   const shadow = isDark ? SHADOW_DARK : SHADOW_LIGHT
   // State, not a ref: the observer attaches once sonner's section mounts.
@@ -80,12 +95,14 @@ const Toaster = ({ ...props }: ToasterProps) => {
     <Sonner
       ref={setContainer}
       theme={isDark ? "dark" : "light"}
+      dir={direction}
+      position={direction === "rtl" ? MIRRORED_POSITION[position] : position}
       className="toaster group"
       closeButton={false}
       toastOptions={{
         classNames: {
           toast:
-            "oc-surface-elevated group/toast toast !rounded-[var(--radius-xl)] !border-0 !px-3.5 !py-3 !gap-2.5 !text-foreground [&_[data-cancel]+[data-button]]:!ml-2",
+            "oc-surface-elevated group/toast toast !rounded-[var(--radius-xl)] !border-0 !px-3.5 !py-3 !gap-2.5 !text-foreground [&_[data-cancel]+[data-button]]:!ms-2",
           title: "typography-ui-label !font-medium !text-foreground",
           description: "typography-meta !text-muted-foreground !mt-0.5",
           actionButton:

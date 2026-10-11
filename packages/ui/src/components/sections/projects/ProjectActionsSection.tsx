@@ -390,7 +390,7 @@ export const ProjectActionsSection: React.FC<ProjectActionsSectionProps> = ({ pr
                 className="py-1.5"
               >
                 <div className="flex items-start gap-2">
-                  <CollapsibleTrigger className="group flex-1 justify-start gap-2 rounded-md px-0 pr-1 py-1 hover:bg-[var(--interactive-hover)] focus-visible:ring-2 focus-visible:ring-[var(--interactive-focus-ring)]">
+                  <CollapsibleTrigger className="group flex-1 justify-start gap-2 rounded-md px-0 pe-1 py-1 hover:bg-[var(--interactive-hover)] focus-visible:ring-2 focus-visible:ring-[var(--interactive-focus-ring)]">
                     {isOpen ? (
                       <Icon name="arrow-down-s" className="h-4 w-4 text-muted-foreground" />
                     ) : (
@@ -427,7 +427,7 @@ export const ProjectActionsSection: React.FC<ProjectActionsSectionProps> = ({ pr
                 </div>
 
                 <CollapsibleContent className="pt-1.5">
-                  <div className="space-y-2 pb-4 pl-3 pr-1">
+                  <div className="space-y-2 pb-4 ps-3 pe-1">
                     <div className="flex items-center gap-2 py-1">
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>

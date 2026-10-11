@@ -33,7 +33,7 @@ export const SpaceAccessButton: React.FC<{ directory: string | null | undefined;
       <TooltipTrigger asChild>
         <button type="button" aria-label={label} onClick={() => useSpacesStore.getState().openAccessDialog(spaceId)} className={cn('relative', className)}>
           <Icon name="key" className={iconClassName} />
-          {lacking ? <span className="absolute right-1 top-1 size-2 rounded-full border border-[var(--background)] bg-[var(--status-warning)]" aria-hidden /> : null}
+          {lacking ? <span className="absolute inset-e-1 top-1 size-2 rounded-full border border-[var(--background)] bg-[var(--status-warning)]" aria-hidden /> : null}
         </button>
       </TooltipTrigger>
       <TooltipContent side="bottom">{label}</TooltipContent>
