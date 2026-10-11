@@ -1175,11 +1175,11 @@ function SessionNodeItemComponent(props: SessionNodeItemProps): React.ReactNode 
     if (event.defaultPrevented) return;
     // SAFETY: React click targets are DOM EventTargets; closest is valid only for HTMLElements.
     const target = event.target instanceof HTMLElement ? event.target : null;
-    if (target?.closest('button, a, input, [role="menuitem"], [role="menu"]')) return;
+    if (target?.closest('button, a, input, [data-session-row-main], [role="menuitem"], [role="menu"]')) return;
     handleRowSelect(event);
   };
 
-  const handleRowMouseDown = (event: React.MouseEvent<HTMLButtonElement>) => {
+  const handleRowMouseDown = (event: React.MouseEvent<HTMLDivElement>) => {
     if (event.button === 2 || (event.button === 0 && event.ctrlKey && !selectionModeEnabled)) {
       suppressNextSelectRef.current = true;
     }
@@ -1189,7 +1189,7 @@ function SessionNodeItemComponent(props: SessionNodeItemProps): React.ReactNode 
       event.preventDefault();
     }
   };
-  const handleRowPointerDown = (event: React.PointerEvent<HTMLButtonElement>) => {
+  const handleRowPointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
     if (mobileVariant && event.pointerType === 'touch') {
       setIsTouchPressed(true);
     }
@@ -1215,7 +1215,7 @@ function SessionNodeItemComponent(props: SessionNodeItemProps): React.ReactNode 
   const hoverPrefetchTarget = !isActive && !selectionModeEnabled && sessionDirectory
     ? { id: session.id, directory: sessionDirectory }
     : null;
-  const handleRowPointerEnter = (event: React.PointerEvent<HTMLButtonElement>) => {
+  const handleRowPointerEnter = (event: React.PointerEvent<HTMLDivElement>) => {
     if (event.pointerType !== 'mouse' || !hoverPrefetchTarget) return;
     hoverPrefetch?.schedule(hoverPrefetchTarget);
   };
@@ -1225,7 +1225,7 @@ function SessionNodeItemComponent(props: SessionNodeItemProps): React.ReactNode 
   const handleRowHoverEnd = () => {
     if (hoverPrefetchTarget) hoverPrefetch?.cancel(hoverPrefetchTarget);
   };
-  const handleRowPointerEnd = (event: React.PointerEvent<HTMLButtonElement>) => {
+  const handleRowPointerEnd = (event: React.PointerEvent<HTMLDivElement>) => {
     if (mobileVariant && event.pointerType === 'touch') {
       setIsTouchPressed(false);
     }
@@ -1800,8 +1800,17 @@ function SessionNodeItemComponent(props: SessionNodeItemProps): React.ReactNode 
                 {/* Rows without a tooltip keep the trigger inert: an open
                     but empty row tooltip would block the PR badge's own. */}
                 <TooltipTrigger asChild closeDelay={SIDEBAR_REF_TOOLTIP_CLOSE_DELAY_MS} disabled={isVSCode || isTimelineRow}>
-                  <button
-                    type="button"
+                  {/* A button by role only: the body holds the PR badge, a
+                      real button, and HTML does not nest buttons. */}
+                  <div
+                    role="button"
+                    tabIndex={0}
+                    data-session-row-main=""
+                    onKeyDown={(event) => {
+                      if (event.target !== event.currentTarget || (event.key !== 'Enter' && event.key !== ' ')) return;
+                      event.preventDefault();
+                      event.currentTarget.click();
+                    }}
 	                    aria-pressed={selectionModeEnabled ? isRowSelected : undefined}
 	                    onPointerDown={handleRowPointerDown}
  	                    onPointerUp={handleRowPointerEnd}
@@ -1917,7 +1926,7 @@ function SessionNodeItemComponent(props: SessionNodeItemProps): React.ReactNode 
                       ) : null}
                     </div>
                     )}
-                  </button>
+                  </div>
                 </TooltipTrigger>
                 {/* VS Code already shows project context via workspace headers, so
                     the per-row metadata tooltip is redundant noise there. */}
