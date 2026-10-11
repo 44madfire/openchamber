@@ -296,6 +296,28 @@ export const isSpaceDirectoryStopped = (directory: string | null | undefined): b
   return spaceId !== null && isSpaceStopped(spaceId);
 };
 
+/** The spaces this window knows: those the session list marked and those the journey list holds. */
+export const knownSpaceIds = (state: Pick<SpacesState, 'spaces' | 'journey'>): ReadonlySet<string> => (
+  new Set([...state.spaces.keys(), ...(state.journey?.keys() ?? [])])
+);
+
+/**
+ * Whether a directory may seed from this browser's cache: a host directory always, a space's
+ * directory only while this window knows the space. The chats of a deleted space moved to the
+ * archive, so a cached list of its directory would show them where the space was and address
+ * them through a prefix the host answers with 404; and at start-up, before the first lists, a
+ * space's list is a few hundred milliseconds away rather than painted from the cache.
+ */
+export const isDirectoryOfKnownSpace = (directory: string | null | undefined): boolean => {
+  const spaceId = spaceIdOfDirectory(directory);
+  return spaceId === null || knownSpaceIds(useSpacesStore.getState()).has(spaceId);
+};
+
+/** The spaces `previous` knew that `next` knows no more: deleted here, or from another window. */
+export const spaceIdsGone = (previous: ReadonlySet<string>, next: ReadonlySet<string>): string[] => (
+  Array.from(previous).filter((spaceId) => !next.has(spaceId))
+);
+
 export const useSpaceDirectoryStopped = (directory: string | null | undefined): boolean => {
   const spaceId = spaceIdOfDirectory(directory);
   return useSpacesStore((state) => spaceId !== null && isStoppedEntry(state.journey?.get(spaceId)));

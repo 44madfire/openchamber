@@ -396,6 +396,24 @@ is ready, and it reads the journey list again whatever the outcome. After a
 removal that went through it also reloads the global session list: the mark of
 the removed space goes only with the host's next complete list, and until then
 the sidebar kept an empty group for the space, about forty seconds measured.
+A deleted space's chats are on the Archive page under the archive's own
+directory, so what this browser cached for the space's directory is a lie
+from then on: a store seeded from it listed the chat under the project and
+addressed it through the prefix of a space the host answers with 404
+("Session could not be loaded"). Two rules close that. A store of a space
+directory seeds its session list from the persisted cache only while this
+window knows the space, by its mark or its journey entry (`seedsSessions`, given
+to `ChildStoreManager` at construction so no store escapes it,
+`isDirectoryOfKnownSpace`); at start-up, before
+the first lists, a space's chats wait for the authoritative list instead of
+painting from the cache. And when a space leaves both lists, deleted here or
+from another window, `sync-context.tsx` forgets every store of its
+directories (`ChildStoreManager.forgetDirectory`: the list emptied, the cache
+dropped, the store disposed once nothing holds it) and moves the open chat of
+that space to the archive directory once the global list names it, which may
+be a later page than the one that dropped the mark. A reset of the store, a
+runtime switch or the switch turned off, empties the lists without deleting
+anything and forgets nothing.
 
 The host also announces each step of a creation as
 `openchamber:space-progress`; the pipeline hands it to `sync-context.tsx`, which

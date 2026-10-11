@@ -79,7 +79,7 @@ import { refreshStoresForCatalogKind } from "@/stores/catalogRefresh"
 import { useMcpStore } from "@/stores/useMcpStore"
 import { resolveGlobalSessionDirectory, useGlobalSessionsStore } from "@/stores/useGlobalSessionsStore"
 import { spaceIdOfDirectory } from "@/lib/spaces/space-route"
-import { isSpaceDirectoryStopped, isSpaceStopped, refreshSpacesJourney, useSpacesStore } from "@/lib/spaces/spaces-store"
+import { isDirectoryOfKnownSpace, isSpaceDirectoryStopped, isSpaceStopped, knownSpaceIds, refreshSpacesJourney, spaceIdsGone, spacesRuntimeGeneration, useSpacesStore } from "@/lib/spaces/spaces-store"
 import { cleanupPersistedSessionState } from "./session-deletion-cleanup"
 import { toast } from "@/components/ui"
 import { appendNotification } from "./notification-store"
@@ -2524,6 +2524,23 @@ const dispatchOpenCodeUpdateAvailable = (payload: { version: string }) => {
   window.dispatchEvent(new CustomEvent("openchamber:opencode-update-available", { detail: payload }))
 }
 
+/**
+ * Moves the open chat of a space among `goneIds` to the directory the global list holds for it,
+ * the archive's. Answers whether there is nothing more to do: the chat moved, or the open chat
+ * is not one of those spaces' any more. False while the global list does not name the
+ * directory yet.
+ */
+const followCurrentChatToArchive = (goneIds: ReadonlySet<string>): boolean => {
+  const ui = useSessionUIStore.getState()
+  const current = normalizePath(ui.currentSessionDirectory)
+  const spaceId = spaceIdOfDirectory(current)
+  if (!ui.currentSessionId || spaceId === null || !goneIds.has(spaceId)) return true
+  const archived = normalizePath(useGlobalSessionsStore.getState().entityById.get(ui.currentSessionId)?.directory)
+  if (!archived || archived === current) return false
+  ui.setSessionDirectory(ui.currentSessionId, archived)
+  return true
+}
+
 export function SyncProvider(props: {
   sdk: OpenCodeClient
   directory: string
@@ -2537,7 +2554,11 @@ export function SyncProvider(props: {
   // selection as everywhere else ('auto' falls back to SSE on WS failure).
   const messageStreamTransport = useConfigStore((state) => state.settingsMessageStreamTransport)
   const childStoresRef = useRef<ChildStoreManager | null>(null)
-  if (!childStoresRef.current) childStoresRef.current = new ChildStoreManager()
+  // The cached list of an isolated space's directory seeds a store only while this window knows
+  // the space: a deleted space's chats are on the Archive page, under the archive's own directory,
+  // and the space's prefix answers 404. Given here so a store a consumer makes during the first
+  // render, before `configure` runs, is gated too.
+  if (!childStoresRef.current) childStoresRef.current = new ChildStoreManager({ seedsSessions: isDirectoryOfKnownSpace })
   const childStores = childStoresRef.current
   const runtimeKey = getRuntimeKey()
   const messageLoaderRef = useRef<SessionMessageLoader | null>(null)
@@ -2806,6 +2827,37 @@ export function SyncProvider(props: {
       isLoadingSessions: () => false,
     })
   }, [childStores, messageLoader, props.sdk, routingIndex])
+
+  // A space that left both lists, deleted here or from another window, takes its directories
+  // with it: their stores and persisted caches go, so its chats show once, from the archive.
+  useEffect(() => {
+    let previous = knownSpaceIds(useSpacesStore.getState())
+    let generation = spacesRuntimeGeneration()
+    return useSpacesStore.subscribe((state) => {
+      const next = knownSpaceIds(state)
+      // A reset empties both lists without deleting anything: a runtime switch, whose stores go
+      // their own way, or the switch turned off, whose spaces come back with it.
+      const reset = spacesRuntimeGeneration() !== generation
+      generation = spacesRuntimeGeneration()
+      const gone = reset ? [] : spaceIdsGone(previous, next)
+      previous = next
+      if (gone.length === 0) return
+      const goneIds = new Set(gone)
+      for (const directory of Array.from(childStores.children.keys())) {
+        const spaceId = spaceIdOfDirectory(directory)
+        if (spaceId !== null && goneIds.has(spaceId)) childStores.forgetDirectory(directory)
+      }
+      // The open chat of a deleted space lives on under the archive's directory, which the
+      // global list names: the selection follows it there, so the chat reads as the archive,
+      // read-only, and not through the prefix the host answers with 404. The marks are applied
+      // before the global snapshot that carries them, and the archive record may be on a later
+      // page, so the move waits for the global store to name the directory.
+      if (followCurrentChatToArchive(goneIds)) return
+      const unsubscribe = useGlobalSessionsStore.subscribe(() => {
+        if (followCurrentChatToArchive(goneIds)) unsubscribe()
+      })
+    })
+  }, [childStores])
 
   // Bootstrap global state — set bootingRoot/bootedAt to suppress
   // redundant refresh events during startup

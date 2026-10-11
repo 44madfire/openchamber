@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, test } from 'bun:test';
-import { getSpaceMark, hasIsolatedSpaces, isSpaceDirectoryStopped, refreshSpacesJourney, spaceMarkSchema, spacesOfProject, spacesWithoutProject, useSpacesStore, type SpaceMark } from './spaces-store';
+import { getSpaceMark, hasIsolatedSpaces, isDirectoryOfKnownSpace, isSpaceDirectoryStopped, knownSpaceIds, refreshSpacesJourney, spaceIdsGone, spaceMarkSchema, spacesOfProject, spacesWithoutProject, useSpacesStore, type SpaceMark } from './spaces-store';
 import type { SpaceEntry } from './spaces-api';
 
 const ID = 'a1b2c3d4e5f6';
@@ -76,6 +76,24 @@ describe('the journey list and creation progress', () => {
     expect(isSpaceDirectoryStopped(directory)).toBe(false);
     useSpacesStore.getState().applyJourney([entry()], 0);
     expect(isSpaceDirectoryStopped(directory)).toBe(false);
+  });
+
+  test('a space directory seeds from the cache only while a list knows the space; a space that left both lists is gone', () => {
+    const directory = `/spaces/${ID}/app`;
+    expect(isDirectoryOfKnownSpace('/home/me/app')).toBe(true);
+    expect(isDirectoryOfKnownSpace(null)).toBe(true);
+    expect(isDirectoryOfKnownSpace(directory)).toBe(false);
+    useSpacesStore.getState().applyMarks([mark()]);
+    expect(isDirectoryOfKnownSpace(directory)).toBe(true);
+    useSpacesStore.getState().applyMarks([]);
+    expect(isDirectoryOfKnownSpace(directory)).toBe(false);
+    useSpacesStore.getState().applyJourney([entry()], 0);
+    expect(isDirectoryOfKnownSpace(directory)).toBe(true);
+    const known = knownSpaceIds(useSpacesStore.getState());
+    expect([...known]).toEqual([ID]);
+    expect(spaceIdsGone(known, new Set())).toEqual([ID]);
+    expect(spaceIdsGone(new Set(), known)).toEqual([]);
+    expect(spaceIdsGone(known, known)).toEqual([]);
   });
 
   // One list answer the test releases by hand, so a progress event can land while the read is out.
