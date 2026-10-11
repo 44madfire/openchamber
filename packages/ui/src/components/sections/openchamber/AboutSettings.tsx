@@ -239,7 +239,7 @@ export const AboutSettings: React.FC<AboutSettingsProps> = ({ initialUpdateDialo
       ? t('settings.openchamber.about.actions.updateAppToVersion', { version })
       : t('settings.openchamber.about.actions.updateOpenChamberToVersion', { version });
   })();
-  const isInstallBlocked = (info: UpdateInfo | null) => info?.installBlocked === 'service-manager';
+  const isInstallBlocked = (info: UpdateInfo | null) => Boolean(info?.installBlocked);
   const installBlocked = update.available && isInstallBlocked(update.info);
   const remoteHostInstallBlocked = Boolean(remoteHostUpdate?.available && isInstallBlocked(remoteHostUpdate.info));
 
@@ -267,6 +267,14 @@ export const AboutSettings: React.FC<AboutSettingsProps> = ({ initialUpdateDialo
   };
 
   const renderManualUpdateNotice = (info: UpdateInfo | null) => {
+    // No command updates a copy that no package manager installed.
+    if (info?.installBlocked === 'manual-install') {
+      return (
+        <p className="typography-meta text-muted-foreground">
+          {t('settings.openchamber.about.manualInstallUpdate', { version: info.version || '' })}
+        </p>
+      );
+    }
     const command = info?.updateCommand || 'openchamber update';
     return (
       <div className="space-y-2">

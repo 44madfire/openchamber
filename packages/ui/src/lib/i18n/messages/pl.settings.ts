@@ -742,6 +742,7 @@ export const settingsDict = {
   'settings.openchamber.about.actions.updateOpenCodeToVersion': 'Aktualizuj OpenCode do wersji {version}',
   'settings.openchamber.about.actions.checkServerForUpdates': 'Sprawdź aktualizacje serwera',
   'settings.openchamber.about.serviceManagerUpdate': 'OpenChamber {version} jest dostępny. Ten serwer działa pod menedżerem usług i nie może zaktualizować się sam. Uruchom to na serwerze, a potem zrestartuj usługę:',
+  'settings.openchamber.about.manualInstallUpdate': 'OpenChamber {version} jest dostępny. Ta kopia nie została zainstalowana menedżerem pakietów i nie może zaktualizować się sama. Zainstaluj nową wersję tak samo, jak zainstalowano tę.',
   'settings.openchamber.about.openCode.installedVersion': 'Zainstalowano OpenCode {version}. Przeładuj OpenCode, aby zacząć go używać.',
   'settings.openchamber.about.openCode.installed': 'Zainstalowano aktualizację OpenCode. Przeładuj OpenCode, aby zacząć jej używać.',
   'settings.openchamber.about.openCode.manualUpdate': 'OpenCode {version} jest dostępny. Zaktualizuj OpenCode w taki sposób, w jaki go zainstalowano, a potem uruchom ponownie OpenChamber.',

@@ -573,6 +573,7 @@ export const settingsDict = {
   'settings.openchamber.about.actions.updateOpenCodeToVersion': 'עדכן את OpenCode לגרסה {version}',
   'settings.openchamber.about.actions.checkServerForUpdates': 'בדוק עדכונים לשרת',
   'settings.openchamber.about.serviceManagerUpdate': 'OpenChamber {version} זמין. השרת הזה רץ תחת מנהל שירותים ולא יכול לעדכן את עצמו. יש להריץ את הפקודה הזו בשרת ואז להפעיל מחדש את השירות:',
+  'settings.openchamber.about.manualInstallUpdate': 'OpenChamber {version} זמין. העותק הזה לא הותקן עם מנהל חבילות ולא יכול לעדכן את עצמו. יש להתקין את הגרסה החדשה באותה דרך שבה הותקן העותק הזה.',
   'settings.openchamber.about.openCode.installedVersion': 'OpenCode {version} הותקן. יש לטעון מחדש את OpenCode כדי להתחיל להשתמש בו.',
   'settings.openchamber.about.openCode.installed': 'עדכון OpenCode הותקן. יש לטעון מחדש את OpenCode כדי להתחיל להשתמש בו.',
   'settings.openchamber.about.openCode.manualUpdate': 'OpenCode {version} זמין. יש לעדכן את OpenCode באותה דרך שבה הותקן, ואז להפעיל מחדש את OpenChamber.',

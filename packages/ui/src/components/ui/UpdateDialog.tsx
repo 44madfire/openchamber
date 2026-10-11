@@ -337,8 +337,8 @@ export const UpdateDialog: React.FC<UpdateDialogProps> = ({
             </div>
           )}
 
-          {/* Web runtime fallback command */}
-          {isWebRuntime && info?.packageManager !== 'electron' && webUpdateState === 'error' && (
+          {/* Web runtime fallback command; it would not update a copy no package manager installed */}
+          {isWebRuntime && info?.packageManager !== 'electron' && info?.installBlocked !== 'manual-install' && webUpdateState === 'error' && (
             <div className="space-y-2 mt-4">
               <div className="flex items-center gap-2 typography-meta text-muted-foreground">
                 <Icon name="terminal" className="h-4 w-4" />

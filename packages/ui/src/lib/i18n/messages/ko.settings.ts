@@ -541,6 +541,7 @@ export const settingsDict = {
   'settings.openchamber.about.actions.updateOpenCodeToVersion': 'OpenCode를 {version}으로 업데이트',
   'settings.openchamber.about.actions.checkServerForUpdates': '서버 업데이트 확인',
   'settings.openchamber.about.serviceManagerUpdate': 'OpenChamber {version}을 사용할 수 있습니다. 이 서버는 서비스 관리자에서 실행되므로 스스로 업데이트할 수 없습니다. 서버에서 다음 명령을 실행한 뒤 서비스를 다시 시작하세요:',
+  'settings.openchamber.about.manualInstallUpdate': 'OpenChamber {version}을 사용할 수 있습니다. 이 사본은 패키지 관리자로 설치되지 않아 스스로 업데이트할 수 없습니다. 이 사본을 설치한 것과 같은 방법으로 새 버전을 설치하세요.',
   'settings.openchamber.about.openCode.installedVersion': 'OpenCode {version}이 설치되었습니다. 사용하려면 OpenCode를 다시 로드하세요.',
   'settings.openchamber.about.openCode.installed': 'OpenCode 업데이트가 설치되었습니다. 사용하려면 OpenCode를 다시 로드하세요.',
   'settings.openchamber.about.openCode.manualUpdate': 'OpenCode {version}을 사용할 수 있습니다. 설치했던 방식으로 OpenCode를 업데이트한 뒤 OpenChamber를 다시 시작하세요.',

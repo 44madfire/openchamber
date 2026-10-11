@@ -541,6 +541,7 @@ export const settingsDict = {
   'settings.openchamber.about.actions.updateOpenCodeToVersion': '将 OpenCode 更新到 {version}',
   'settings.openchamber.about.actions.checkServerForUpdates': '检查服务器更新',
   'settings.openchamber.about.serviceManagerUpdate': 'OpenChamber {version} 已可用。此服务器由服务管理器运行，无法自行更新。请在服务器上运行以下命令，然后重启服务：',
+  'settings.openchamber.about.manualInstallUpdate': 'OpenChamber {version} 已可用。此副本不是通过包管理器安装的，无法自行更新。请用安装此副本的方式安装新版本。',
   'settings.openchamber.about.openCode.installedVersion': '已安装 OpenCode {version}。重新加载 OpenCode 以开始使用。',
   'settings.openchamber.about.openCode.installed': '已安装 OpenCode 更新。重新加载 OpenCode 以开始使用。',
   'settings.openchamber.about.openCode.manualUpdate': 'OpenCode {version} 已可用。请按照你安装 OpenCode 的方式更新它，然后重启 OpenChamber。',

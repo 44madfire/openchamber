@@ -21,6 +21,7 @@ import { runtimeFetch } from '@/lib/runtime-fetch';
 import { subscribeRuntimeEndpointChanged } from '@/lib/runtime-switch';
 import { formatShortcutForDisplay, getEffectiveShortcutCombo } from '@/lib/shortcuts';
 import { useUIStore } from '@/stores/useUIStore';
+import { parseUpdateCheckResponse } from '@/stores/useUpdateStore';
 
 type Props = {
   className?: string;
@@ -104,16 +105,9 @@ function DesktopInstanceMenuContent({ className }: Props): React.ReactNode {
       if (!response.ok) {
         throw new Error(`Server responded with ${response.status}`);
       }
-      const data = await response.json();
-      setRemoteUpdateInfo({
-        available: data.available ?? false,
-        version: data.version,
-        currentVersion: data.currentVersion ?? 'unknown',
-        body: data.body,
-        nextSuggestedCheckInSec: typeof data.nextSuggestedCheckInSec === 'number' ? data.nextSuggestedCheckInSec : undefined,
-        packageManager: data.packageManager,
-        updateCommand: data.updateCommand,
-      });
+      // The shared parse keeps installBlocked, so the dialog never offers a
+      // command that cannot update this server.
+      setRemoteUpdateInfo(parseUpdateCheckResponse(await response.json()));
     } catch (error) {
       setRemoteUpdateInfo(null);
       setRemoteUpdateError(error instanceof Error ? error.message : t('header.services.remoteUpdate.error'));

@@ -573,6 +573,7 @@ export const settingsDict = {
   'settings.openchamber.about.actions.updateOpenCodeToVersion': 'تحديث OpenCode إلى {version}',
   'settings.openchamber.about.actions.checkServerForUpdates': 'التحقق من تحديثات الخادم',
   'settings.openchamber.about.serviceManagerUpdate': 'يتوفر OpenChamber {version}. يعمل هذا الخادم تحت مدير خدمات ولا يمكنه تحديث نفسه. شغّل هذا على الخادم، ثم أعد تشغيل الخدمة:',
+  'settings.openchamber.about.manualInstallUpdate': 'يتوفر OpenChamber {version}. لم تُثبَّت هذه النسخة بمدير حزم، ولا يمكنها تحديث نفسها. ثبّت الإصدار الجديد بالطريقة التي ثبّت بها هذه النسخة.',
   'settings.openchamber.about.openCode.installedVersion': 'تم تثبيت OpenCode {version}. أعد تحميل OpenCode لبدء استخدامه.',
   'settings.openchamber.about.openCode.installed': 'تم تثبيت تحديث OpenCode. أعد تحميل OpenCode لبدء استخدامه.',
   'settings.openchamber.about.openCode.manualUpdate': 'يتوفر OpenCode {version}. حدّث OpenCode بالطريقة التي ثبّته بها، ثم أعد تشغيل OpenChamber.',

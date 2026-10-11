@@ -549,6 +549,7 @@ export const settingsDict = {
   'settings.openchamber.about.actions.updateOpenCodeToVersion': 'OpenCode\'u {version} sürümüne güncelle',
   'settings.openchamber.about.actions.checkServerForUpdates': 'Sunucu güncellemelerini denetle',
   'settings.openchamber.about.serviceManagerUpdate': 'OpenChamber {version} mevcut. Bu sunucu bir hizmet yöneticisi altında çalıştığı için kendini güncelleyemez. Bunu sunucuda çalıştırın, ardından hizmeti yeniden başlatın:',
+  'settings.openchamber.about.manualInstallUpdate': 'OpenChamber {version} mevcut. Bu kopya bir paket yöneticisiyle kurulmadığı için kendini güncelleyemez. Yeni sürümü bu kopyayı kurduğunuz şekilde kurun.',
   'settings.openchamber.about.openCode.installedVersion': 'OpenCode {version} yüklendi. Kullanmaya başlamak için OpenCode\'u yeniden yükleyin.',
   'settings.openchamber.about.openCode.installed': 'OpenCode güncellemesi yüklendi. Kullanmaya başlamak için OpenCode\'u yeniden yükleyin.',
   'settings.openchamber.about.openCode.manualUpdate': 'OpenCode {version} mevcut. OpenCode\'u nasıl yüklediyseniz o şekilde güncelleyin, ardından OpenChamber\'ı yeniden başlatın.',

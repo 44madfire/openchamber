@@ -850,6 +850,18 @@ within a ten-minute overall deadline.
 - `registerOpenChamberRoutes(app, dependencies)`: registers OpenChamber endpoints:
   - `GET /api/openchamber/update-check`
   - `POST /api/openchamber/update-install`
+    - A copy no package manager installed answers 409 before any command
+      runs: a global install would add a second copy and leave the running
+      one as it is. Detection reports such a copy as `unmanaged-install` when
+      no package manager claims it and its path is outside any `node_modules`
+      folder: an unpacked tarball, the Docker image, a source checkout. A copy
+      inside `node_modules` that no check attributes keeps `default-fallback`
+      and the npm install, since a version manager's npm may still own it.
+      The update check marks an
+      unmanaged copy's update `installBlocked: 'manual-install'`, and a
+      foreground server without a service manager `installBlocked:
+      'service-manager'`, so clients show manual steps in place of an Update
+      button.
     - Desktop-managed hosts delegate authenticated Web update requests to the Electron main process, which checks, downloads, and applies the update through `electron-updater` before restarting the host.
     - Foreground servers running under a systemd user unit queue installation in
       a separate transient unit and restart the configured service afterwards.

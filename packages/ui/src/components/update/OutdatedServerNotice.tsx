@@ -26,7 +26,7 @@ export function OutdatedServerNotice({ version }: { version: string }) {
     setOffer({ kind: 'checking' });
     try {
       const info = await checkConnectedServerForUpdates();
-      setOffer(info.available && info.installBlocked !== 'service-manager'
+      setOffer(info.available && !info.installBlocked
         ? { kind: 'available', info }
         : { kind: 'manual', info, error: null });
     } catch (error) {

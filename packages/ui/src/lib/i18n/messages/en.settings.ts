@@ -573,6 +573,7 @@ export const settingsDict = {
   'settings.openchamber.about.actions.updateOpenCodeToVersion': 'Update OpenCode to {version}',
   'settings.openchamber.about.actions.checkServerForUpdates': 'Check server for updates',
   'settings.openchamber.about.serviceManagerUpdate': 'OpenChamber {version} is available. This server runs under a service manager and can\'t update itself. Run this on the server, then restart the service:',
+  'settings.openchamber.about.manualInstallUpdate': 'OpenChamber {version} is available. This copy wasn\'t installed with a package manager and can\'t update itself. Install the new version the way you installed this one.',
   'settings.openchamber.about.openCode.installedVersion': 'OpenCode {version} installed. Reload OpenCode to start using it.',
   'settings.openchamber.about.openCode.installed': 'OpenCode update installed. Reload OpenCode to start using it.',
   'settings.openchamber.about.openCode.manualUpdate': 'OpenCode {version} is available. Update OpenCode the way you installed it, then restart OpenChamber.',

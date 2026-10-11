@@ -574,6 +574,7 @@ export const settingsDict = {
   'settings.openchamber.about.actions.updateOpenCodeToVersion': 'OpenCode を {version} にアップデート',
   'settings.openchamber.about.actions.checkServerForUpdates': 'サーバーのアップデートを確認',
   'settings.openchamber.about.serviceManagerUpdate': 'OpenChamber {version} が利用可能です。このサーバーはサービスマネージャーで動作しているため、自分ではアップデートできません。サーバーで次のコマンドを実行し、サービスを再起動してください:',
+  'settings.openchamber.about.manualInstallUpdate': 'OpenChamber {version} が利用可能です。このコピーはパッケージマネージャーでインストールされていないため、自分ではアップデートできません。このコピーと同じ方法で新しいバージョンをインストールしてください。',
   'settings.openchamber.about.openCode.installedVersion': 'OpenCode {version} をインストールしました。使用するには OpenCode を再読み込みしてください。',
   'settings.openchamber.about.openCode.installed': 'OpenCode のアップデートをインストールしました。使用するには OpenCode を再読み込みしてください。',
   'settings.openchamber.about.openCode.manualUpdate': 'OpenCode {version} が利用可能です。インストールしたときと同じ方法で OpenCode をアップデートし、OpenChamber を再起動してください。',

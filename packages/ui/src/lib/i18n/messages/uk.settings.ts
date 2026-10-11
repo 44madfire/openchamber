@@ -541,6 +541,7 @@ export const settingsDict = {
   "settings.openchamber.about.actions.updateOpenCodeToVersion": "Оновити OpenCode до {version}",
   "settings.openchamber.about.actions.checkServerForUpdates": "Перевірити оновлення сервера",
   "settings.openchamber.about.serviceManagerUpdate": "Доступна версія OpenChamber {version}. Цей сервер працює під менеджером служб і не може оновитися сам. Виконайте це на сервері, а потім перезапустіть службу:",
+  "settings.openchamber.about.manualInstallUpdate": "Доступна версія OpenChamber {version}. Цю копію встановлено не через менеджер пакетів, тож вона не може оновитися сама. Встановіть нову версію так само, як встановили цю.",
   "settings.openchamber.about.openCode.installedVersion": "OpenCode {version} встановлено. Перезавантажте OpenCode, щоб почати ним користуватися.",
   "settings.openchamber.about.openCode.installed": "Оновлення OpenCode встановлено. Перезавантажте OpenCode, щоб почати ним користуватися.",
   "settings.openchamber.about.openCode.manualUpdate": "Доступна версія OpenCode {version}. Оновіть OpenCode так само, як встановлювали, а потім перезапустіть OpenChamber.",
