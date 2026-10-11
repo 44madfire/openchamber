@@ -4482,7 +4482,7 @@ export const FilesView: React.FC<FilesViewProps> = ({ mode = 'full', visible = t
             <GoToLineDialog
               open={isGoToLineOpen}
               onOpenChange={setIsGoToLineOpen}
-              view={editorViewRef.current}
+              viewRef={editorViewRef}
               variant="inline"
             />
           </>
@@ -5165,7 +5165,7 @@ export const FilesView: React.FC<FilesViewProps> = ({ mode = 'full', visible = t
               ref={editorWrapperRef}
             >
               {!isFullscreen && (
-                <DocumentSymbolsPanel open={isSymbolsOpen} onOpenChange={setIsSymbolsOpen} view={editorViewRef.current} />
+                <DocumentSymbolsPanel open={isSymbolsOpen} onOpenChange={setIsSymbolsOpen} viewRef={editorViewRef} />
               )}
               <div className={cn('h-full', shouldMaskEditorForPendingNavigation && 'invisible')}>
                 <FilePositionEditor
@@ -5451,7 +5451,7 @@ export const FilesView: React.FC<FilesViewProps> = ({ mode = 'full', visible = t
             renderShikiFileView(selectedFile, draftContent, fullscreenViewVirtualizer, restoreFullscreenCodeScroll)
           ) : (
             <div className={cn('relative h-full', shouldMaskEditorForPendingNavigation && 'overflow-hidden')}>
-              <DocumentSymbolsPanel open={isSymbolsOpen} onOpenChange={setIsSymbolsOpen} view={editorViewRef.current} />
+              <DocumentSymbolsPanel open={isSymbolsOpen} onOpenChange={setIsSymbolsOpen} viewRef={editorViewRef} />
               <div className={cn('h-full', shouldMaskEditorForPendingNavigation && 'invisible')}>
               <FilePositionEditor
                 key={`${filePositionKey}:fullscreen`}
