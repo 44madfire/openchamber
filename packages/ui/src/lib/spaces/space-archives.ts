@@ -62,6 +62,12 @@ export const ensureSpaceArchives = (): void => {
   void refreshSpaceArchives().catch(() => {});
 };
 
+/** Whether a directory holds the archived chats of a deleted space, as this runtime last read the archives. */
+export const isSpaceArchiveDirectory = (directory: string | null | undefined): boolean => {
+  const key = normalizePath(directory);
+  return key !== null && (useSpaceArchivesStore.getState().byDirectory?.has(key) ?? false);
+};
+
 /** The deleted space whose chats a directory holds, or null. */
 export const useSpaceArchiveOf = (directory: string | null | undefined): SpaceArchive | null => {
   const key = normalizePath(directory);

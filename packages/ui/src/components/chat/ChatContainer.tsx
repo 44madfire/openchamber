@@ -1125,11 +1125,12 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
     ) : null;
     // A chat of a deleted isolated space is on the Archive page and read-only; the server refuses
     // to run it whatever the screen shows. Its directory is the archive's own, and the list of
-    // archives is read once per runtime.
+    // archives is read once per runtime. A draft opened after such a chat still sits in the
+    // archive's directory until it is sent, and is not read-only: it is a new chat.
     React.useEffect(() => {
         ensureSpaceArchives();
     }, []);
-    const spaceArchive = useSpaceArchiveOf(effectiveSessionDirectory);
+    const spaceArchive = useSpaceArchiveOf(currentSessionId ? effectiveSessionDirectory : null);
     const promptReadOnly = spaceArchive !== null || resolveChatPromptReadOnly(
         currentSession,
         allowPromptingSubagentSessions,
