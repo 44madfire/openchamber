@@ -33,7 +33,7 @@ import { runGuestSessionAction } from '@/lib/guests/session-action';
 import { SessionAiRenameMenuItem } from '@/components/session/SessionAiRenameMenuItem';
 import { handleSessionRenameKeyDown } from '@/components/session/sessionRenameKeyboard';
 import { useIsSessionAiRenamePending } from '@/sync/use-session-ai-rename';
-import { useSessionBlockingRequestCounts } from '@/sync/sync-context';
+import { useSessionBlockingRequests } from '@/sync/sync-context';
 import { usePrefetchSessionMessages, useSessionMessageRecordsForExport } from '@/sync/use-sync';
 import { useSessionHoverPrefetch } from '../list/useSessionPrefetch';
 import { getSyncSessionMaterializationStatus } from '@/sync/sync-refs';
@@ -665,9 +665,9 @@ function SessionNodeItemComponent(props: SessionNodeItemProps): React.ReactNode 
     [isExpanded, node, sessionDirectory, timelineBadgeSessionScopes],
   );
   const {
-    permissionCount: pendingPermissionCount,
-    formCount: pendingFormCount,
-  } = useSessionBlockingRequestCounts(blockingBadgeSessionScopes);
+    hasPermission: hasPendingPermission,
+    hasForm: hasPendingForm,
+  } = useSessionBlockingRequests(blockingBadgeSessionScopes);
   const isSubtaskSession = Boolean(resolvedSession.parentID);
   const unseenCount = useSessionUnseenCount(session.id);
   const needsAttention = unseenCount > 0 && (!isSubtaskSession || notifyOnSubtasks);
@@ -974,9 +974,7 @@ function SessionNodeItemComponent(props: SessionNodeItemProps): React.ReactNode 
     );
   }
 
-  const pendingFormLabel = pendingFormCount === 1
-    ? t('sessions.sidebar.session.status.questionPendingSingle')
-    : t('sessions.sidebar.session.status.questionPendingMany', { count: pendingFormCount });
+  const pendingFormLabel = t('sessions.sidebar.session.status.questionPending');
   // Actions are permanently visible (with matching permanent padding) only in
   // the non-VSCode alwaysShowActions layout; every other layout hover-reveals
   // them over the row's right edge, where the badges live (#2284).
@@ -1608,19 +1606,17 @@ function SessionNodeItemComponent(props: SessionNodeItemProps): React.ReactNode 
   ) : null);
   // Timeline rows carry the done hint in their first line instead.
   const badgeDoneHint = !isTimelineRow && showDoneHint;
-  const rowBadges = (pendingPermissionCount > 0 || pendingFormCount > 0 || badgeDoneHint) ? (
+  const rowBadges = (hasPendingPermission || hasPendingForm || badgeDoneHint) ? (
     <>
       {badgeDoneHint ? doneHintBadge() : null}
-      {pendingPermissionCount > 0 ? (
-        <span className="inline-flex flex-shrink-0 items-center gap-1 rounded bg-destructive/10 px-1 py-0.5 text-[0.7rem] text-destructive" title={t('sessions.sidebar.session.status.permissionRequired')} aria-label={t('sessions.sidebar.session.status.permissionRequired')}>
+      {hasPendingPermission ? (
+        <span className="inline-flex flex-shrink-0 items-center rounded bg-destructive/10 px-1 py-0.5 text-destructive" title={t('sessions.sidebar.session.status.permissionRequired')} aria-label={t('sessions.sidebar.session.status.permissionRequired')}>
           <Icon name="shield" className="h-3 w-3" />
-          <span className="leading-none">{pendingPermissionCount}</span>
         </span>
       ) : null}
-      {pendingFormCount > 0 ? (
-        <span className="inline-flex flex-shrink-0 items-center gap-1 rounded bg-status-info/10 px-1 py-0.5 text-[0.7rem] text-status-info" title={pendingFormLabel} aria-label={pendingFormLabel}>
+      {hasPendingForm ? (
+        <span className="inline-flex flex-shrink-0 items-center rounded bg-status-info/10 px-1 py-0.5 text-status-info" title={pendingFormLabel} aria-label={pendingFormLabel}>
           <Icon name="question" className="h-3 w-3" />
-          <span className="leading-none">{pendingFormCount}</span>
         </span>
       ) : null}
     </>
@@ -1909,16 +1905,14 @@ function SessionNodeItemComponent(props: SessionNodeItemProps): React.ReactNode 
                           </span>
                         </div>
                       ) : null}
-                      {pendingPermissionCount > 0 ? (
-                        <span className={cn('inline-flex items-center gap-1 rounded bg-destructive/10 px-1 py-0.5 text-[0.7rem] text-destructive flex-shrink-0', badgeVisibilityClass)} title={t('sessions.sidebar.session.status.permissionRequired')} aria-label={t('sessions.sidebar.session.status.permissionRequired')}>
+                      {hasPendingPermission ? (
+                        <span className={cn('inline-flex items-center rounded bg-destructive/10 px-1 py-0.5 text-destructive flex-shrink-0', badgeVisibilityClass)} title={t('sessions.sidebar.session.status.permissionRequired')} aria-label={t('sessions.sidebar.session.status.permissionRequired')}>
                           <Icon name="shield" className="h-3 w-3" />
-                          <span className="leading-none">{pendingPermissionCount}</span>
                         </span>
                       ) : null}
-                      {pendingFormCount > 0 ? (
-                        <span className={cn('inline-flex items-center gap-1 rounded bg-status-info/10 px-1 py-0.5 text-[0.7rem] text-status-info flex-shrink-0', badgeVisibilityClass)} title={pendingFormLabel} aria-label={pendingFormLabel}>
+                      {hasPendingForm ? (
+                        <span className={cn('inline-flex items-center rounded bg-status-info/10 px-1 py-0.5 text-status-info flex-shrink-0', badgeVisibilityClass)} title={pendingFormLabel} aria-label={pendingFormLabel}>
                           <Icon name="question" className="h-3 w-3" />
-                          <span className="leading-none">{pendingFormCount}</span>
                         </span>
                       ) : null}
                     </div>

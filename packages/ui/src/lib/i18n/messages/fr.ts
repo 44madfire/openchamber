@@ -554,8 +554,6 @@ export const dict = {
   'sessions.sidebar.session.status.pinned': 'Session épinglée',
   'sessions.sidebar.session.status.movingToWorktree': 'Déplacement de la session vers un nouveau worktree',
   'sessions.sidebar.session.status.permissionRequired': 'Autorisation requise',
-  'sessions.sidebar.session.status.questionPendingSingle': '1 question en attente',
-  'sessions.sidebar.session.status.questionPendingMany': '{count} questions en attente',
   'sessions.sidebar.session.status.questionPending': 'Question en attente',
   'sessions.sidebar.session.status.activeFor': 'Active depuis {duration}',
   'sessions.sidebar.session.status.lastTurnDuration': 'Le dernier tour a duré {duration}',

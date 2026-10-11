@@ -24,7 +24,7 @@ import { useUIStore } from '@/stores/useUIStore';
 import { formatRelativeShort, getSessionTimestamp } from './mobileSessionFields';
 import { MobileRunProviderLogos } from './MobileRunProviderLogos';
 import { MobileSessionGoalGlyph, MobileSessionPendingBadges } from './MobileSessionStateBadges';
-import { usePendingRequestCounts } from './usePendingRequestCounts';
+import { usePendingRequests } from './usePendingRequests';
 import { getSessionGoal } from '@/lib/sessionGoalMetadata';
 
 export type TimelineProject = MobileProjectIconProject & { label: string };
@@ -151,11 +151,11 @@ const MobileTimelineRow: React.FC<{
   const work = onToggleWork ? { inWork, onToggle: () => onToggleWork(session, inWork) } : undefined;
   const pinned = handlers.isPinned(session);
   const pin = { pinned, onToggle: () => handlers.onTogglePin(session) };
-  // Timeline rows never expand, so their subsessions' requests count here.
+  // Timeline rows never expand, so their subsessions' requests show here.
   const { descendantIdsOf } = handlers;
   const familyIds = React.useMemo(() => [session.id, ...descendantIdsOf(session.id)], [descendantIdsOf, session.id]);
-  const pendingRequests = usePendingRequestCounts(familyIds);
-  const hasPendingRequests = pendingRequests.permissionCount > 0 || pendingRequests.formCount > 0;
+  const pendingRequests = usePendingRequests(familyIds);
+  const hasPendingRequests = pendingRequests.hasPermission || pendingRequests.hasForm;
   const hasGoal = getSessionGoal(session) !== null;
 
   return (

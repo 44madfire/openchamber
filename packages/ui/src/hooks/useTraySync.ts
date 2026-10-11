@@ -112,7 +112,7 @@ const permissionLabel = (request: BlockingPermissionRequest): string => {
   return resource ? `${head}: ${resource}` : head;
 };
 
-const formLabel = (request: Pick<BlockingFormRequest, 'title'>): string => request.title.trim() || 'Question';
+const formLabel = (request: BlockingFormRequest): string => request.title.trim() || 'Question';
 
 const compareSessionOrder = (left: Session, right: Session): number => (
   compareSessionsByLifecycleOrder(

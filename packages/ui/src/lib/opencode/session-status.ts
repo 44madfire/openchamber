@@ -1,5 +1,4 @@
 import { z } from "zod"
-import { formQuestionCount } from "./model"
 
 // v2 reports active loops globally. A malformed response cannot prove idle.
 export const activeSessionSnapshotSchema = z.record(z.string().min(1), z.object({ type: z.literal("running") }))
@@ -17,8 +16,7 @@ const hostFormRequestSchema = z.object({
   id: z.string().min(1),
   sessionID: z.string().min(1),
   title: z.string(),
-  fields: z.array(z.object({ type: z.string(), when: z.array(z.object({ key: z.string() })).optional() })),
-}).transform(({ fields, ...form }) => ({ ...form, questionCount: formQuestionCount(fields) }))
+})
 
 // Cross-project status kept by the OpenChamber host (web server or VS Code
 // extension host) from its single upstream event stream. Entries carry the

@@ -722,8 +722,6 @@ export const dict = {
   'sessions.sidebar.session.status.pinned': 'Vastgezette sessie',
   'sessions.sidebar.session.status.movingToWorktree': 'Sessie wordt verplaatst naar een nieuwe worktree',
   'sessions.sidebar.session.status.permissionRequired': 'Toestemming vereist',
-  'sessions.sidebar.session.status.questionPendingSingle': '1 openstaande vraag',
-  'sessions.sidebar.session.status.questionPendingMany': '{count} openstaande vragen',
   'sessions.sidebar.session.status.questionPending': 'Openstaande vraag',
   'sessions.sidebar.session.status.activeFor': '{duration} actief',
   'sessions.sidebar.session.status.lastTurnDuration': 'Laatste beurt duurde {duration}',

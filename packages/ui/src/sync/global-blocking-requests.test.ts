@@ -12,11 +12,11 @@ import {
 const permission = (id: string, sessionID: string): BlockingPermissionRequest => ({
   id, sessionID, action: 'bash', resources: ['rm *'],
 });
-const form = (id: string, sessionID: string): BlockingFormRequest => ({ id, sessionID, title: 'Pick one', questionCount: 1 });
+const form = (id: string, sessionID: string): BlockingFormRequest => ({ id, sessionID, title: 'Pick one' });
 const permissionAsked = (request: BlockingPermissionRequest): SyncEvent => ({ type: 'permission.asked', properties: request });
-const formCreated = ({ id, sessionID, title }: BlockingFormRequest): SyncEvent => ({
+const formCreated = (request: BlockingFormRequest): SyncEvent => ({
   type: 'form.created',
-  properties: { form: { id, sessionID, title, fields: [{ key: 'answer', type: 'boolean' }] } },
+  properties: { form: { ...request, fields: [{ key: 'answer', type: 'boolean' }] } },
 });
 const bySession = () => useGlobalBlockingRequestsStore.getState().bySession;
 

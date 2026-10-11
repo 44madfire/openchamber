@@ -944,7 +944,7 @@ read `useSyncRuntime()`. `useDirectoryStore(directory)` reads the current
 directory through `runtime.currentDirectory` with `useSyncExternalStore`, so a
 consumer that passes its own directory gets a constant snapshot and is not
 re-rendered by a cross-project switch. This is what keeps sidebar rows
-(permissions, form counts, session lookups) out of the switch commit: a
+(pending permissions and forms, session lookups) out of the switch commit: a
 row must not pay for the chat changing directory.
 
 ### Session switch commit

@@ -116,7 +116,7 @@ import type { SessionNode } from '@/components/session/sidebar/types';
 import { buildMultiRunIndex, type MultiRunSummary } from '@/lib/multirun/runs';
 import { MobileRunProviderLogos } from './MobileRunProviderLogos';
 import { MobileSessionGoalGlyph, MobileSessionPendingBadges } from './MobileSessionStateBadges';
-import { usePendingRequestCounts } from './usePendingRequestCounts';
+import { usePendingRequests } from './usePendingRequests';
 
 type MobileSessionsSheetProps = {
   open: boolean;
@@ -375,7 +375,7 @@ const SessionRow: React.FC<{
     () => (descendantIdsOf && !(hasChildren && expanded) ? [session.id, ...descendantIdsOf(session.id)] : [session.id]),
     [descendantIdsOf, expanded, hasChildren, session.id],
   );
-  const pendingRequests = usePendingRequestCounts(familyIds);
+  const pendingRequests = usePendingRequests(familyIds);
 
   const rowContent = (
     <>
