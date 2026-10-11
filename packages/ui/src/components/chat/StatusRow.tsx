@@ -58,7 +58,9 @@ export const StatusRow: React.FC<StatusRowProps> = ({
       {/* The chip lives here, not on the container: the root above is
           an inline-size query container, whose width ignores its children —
           a shrink-to-fit wrapper around it always collapsed to zero. */}
-      <div className="oc-surface-floating inline-flex w-max max-w-full items-center gap-2 h-7 whitespace-nowrap rounded-full [corner-shape:round] px-3">
+      {/* Left inset matches the scroll pill's arrow: 1px border + 6px puts
+          the provider logo 7px from the edge, same as the arrow icon. */}
+      <div className="oc-surface-floating inline-flex w-max max-w-full items-center gap-2 h-7 whitespace-nowrap rounded-full [corner-shape:round] pl-1.5 pr-3">
         <div className="flex items-center min-w-0 gap-2 overflow-x-hidden">
           {shouldRenderPlaceholder ? (
             <WorkingPlaceholder
