@@ -4,15 +4,16 @@ import type { StoreApi } from "zustand"
 import { useStore } from "zustand"
 import type { OpenCodeClient } from "@opencode/client"
 import { syncEventMessageID, syncEventSessionID, type CatalogKind, type OpenchamberNotification, type SyncEvent } from "@/lib/opencode/events"
-import type {
-  FormRequest,
-  Message,
-  Part,
-  PermissionRequest,
-  Session,
-  SessionOutcome,
-  SessionStatus,
-  StructuredError,
+import {
+  formQuestionCount,
+  type FormRequest,
+  type Message,
+  type Part,
+  type PermissionRequest,
+  type Session,
+  type SessionOutcome,
+  type SessionStatus,
+  type StructuredError,
 } from "@/lib/opencode/model"
 import { createEventPipeline } from "./event-pipeline"
 import { isVSCodeRuntime } from "@/lib/desktop"
@@ -3504,8 +3505,8 @@ const EMPTY_SESSION_BLOCKING_REQUEST_COUNTS: SessionBlockingRequestCounts = {
 }
 
 /**
- * Count pending permissions and forms across exact session buckets grouped
- * by owning directory. This lets collapsed rows cover hidden descendants
+ * Count pending permissions and form questions (`formQuestionCount` per form)
+ * across exact session buckets grouped by owning directory. This lets collapsed rows cover hidden descendants
  * without bootstrapping their stores or subscribing to unrelated updates.
  */
 export function useSessionBlockingRequestCounts(
@@ -3533,7 +3534,7 @@ export function useSessionBlockingRequestCounts(
       const { permission: permissions, form: forms } = store.getState()
       for (const sessionID of sessionIDs) {
         permissionCount += permissions[sessionID]?.length ?? 0
-        formCount += forms[sessionID]?.length ?? 0
+        for (const form of forms[sessionID] ?? []) formCount += formQuestionCount(form.fields)
       }
     }
     const previous = snapshotRef.current

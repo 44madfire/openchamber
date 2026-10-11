@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import type { SyncEvent } from '@/lib/opencode/events';
 import { normalizeProjectPath } from '@/lib/projectResolution';
-import type { FormRequest, PermissionRequest } from '@/lib/opencode/model';
+import { formQuestionCount, type FormRequest, type PermissionRequest } from '@/lib/opencode/model';
 
 // Cross-directory index of permission requests and forms still waiting for an
 // answer. Directory stores remain the source for open directories; this index
@@ -18,7 +18,10 @@ import type { FormRequest, PermissionRequest } from '@/lib/opencode/model';
 // carry no more than this, and storing the full requests would make the two
 // feeds disagree on shape for no gain.
 export type BlockingPermissionRequest = Pick<PermissionRequest, 'id' | 'sessionID' | 'action' | 'resources'>;
-export type BlockingFormRequest = Pick<FormRequest, 'id' | 'sessionID' | 'title'>;
+export type BlockingFormRequest = Pick<FormRequest, 'id' | 'sessionID' | 'title'> & {
+  /** `formQuestionCount` of the form's fields, which the index does not keep. */
+  questionCount: number;
+};
 
 type PendingBlockingRequests = {
   directory: string;
@@ -48,7 +51,9 @@ const normalizeDirectory = (directory: string): string => normalizeProjectPath(d
 const toBlockingPermission = ({ id, sessionID, action, resources }: PermissionRequest): BlockingPermissionRequest => (
   { id, sessionID, action, resources }
 );
-const toBlockingForm = ({ id, sessionID, title }: FormRequest): BlockingFormRequest => ({ id, sessionID, title });
+const toBlockingForm = ({ id, sessionID, title, fields }: FormRequest): BlockingFormRequest => (
+  { id, sessionID, title, questionCount: formQuestionCount(fields) }
+);
 
 /**
  * Returns the list with the request added or replaced, or null when nothing

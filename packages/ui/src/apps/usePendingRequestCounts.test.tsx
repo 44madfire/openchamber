@@ -29,12 +29,18 @@ describe('usePendingRequestCounts', () => {
       }]));
       expect(capture.renders).toBe(idleRenders);
 
-      // A subagent's permission and the parent's question both land on the row.
+      // A subagent's permission and the parent's questions both land on the
+      // row. The form counts each question it asks up front; the gated one
+      // joins only after an answer.
       await act(async () => applyGlobalBlockingRequestEvents('/workspace', [
         { type: 'permission.asked', properties: { id: 'p1', sessionID: 'child', action: 'bash', resources: [] } },
-        { type: 'form.created', properties: { form: { id: 'q1', sessionID: 'parent', title: 'Pick', fields: [{ key: 'answer', type: 'boolean' }] } } },
+        { type: 'form.created', properties: { form: { id: 'q1', sessionID: 'parent', title: 'Pick', fields: [
+          { key: 'answer', type: 'boolean' },
+          { key: 'name', type: 'string' },
+          { key: 'why', type: 'string', when: [{ key: 'answer', op: 'eq', value: true }] },
+        ] } } },
       ]));
-      expect(capture.counts).toEqual({ permissionCount: 1, formCount: 1 });
+      expect(capture.counts).toEqual({ permissionCount: 1, formCount: 2 });
 
       await act(async () => applyGlobalBlockingRequestEvents('/workspace', [
         { type: 'permission.replied', properties: { sessionID: 'child', requestID: 'p1' } },

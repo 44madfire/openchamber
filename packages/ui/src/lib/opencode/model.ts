@@ -367,6 +367,15 @@ export type PermissionReply = "once" | "always" | "reject"
 /** OpenCode v2 replaced the question tool with typed forms. */
 export type FormRequest = FormInfo
 
+/**
+ * Questions a form puts to the user, as a pending-request badge counts them:
+ * one per field, the way the docked form numbers its steps. A field gated by
+ * a `when` clause is left out, since it joins only once an answer unlocks it.
+ * Never below 1: a pending form always waits on the user.
+ */
+export const formQuestionCount = (fields: readonly { type: string; when?: readonly { key: string }[] }[]): number =>
+  Math.max(1, fields.filter((field) => !field.when?.length).length)
+
 // ---------------------------------------------------------------------------
 // Part identity
 // ---------------------------------------------------------------------------

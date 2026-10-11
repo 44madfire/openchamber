@@ -147,4 +147,23 @@ describe('useSessionBlockingRequestCounts', () => {
       expect(renderedCounts).toEqual({ permissionCount: 1, formCount: 2 })
     })
   })
+
+  test('counts every question of a multi-question form, as the docked form numbers them', async () => {
+    await withProbe(false, async () => {
+      await act(async () => {
+        stores!.parent.setState({
+          form: { parent: [{
+            ...form('parent-form', 'parent'),
+            fields: [
+              { key: 'first', type: 'boolean' },
+              { key: 'second', type: 'string' },
+              { key: 'third', type: 'string', when: [{ key: 'first', op: 'eq', value: true }] },
+            ],
+          }] },
+        })
+      })
+
+      expect(renderedCounts?.formCount).toBe(2)
+    })
+  })
 })
