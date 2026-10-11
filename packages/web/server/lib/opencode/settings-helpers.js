@@ -755,12 +755,6 @@ export const createSettingsHelpers = (dependencies) => {
     if (typeof candidate.showTurnChangedFiles === 'boolean') {
       result.showTurnChangedFiles = candidate.showTurnChangedFiles;
     }
-    if (typeof candidate.showExpandedBashTools === 'boolean') {
-      result.showExpandedBashTools = candidate.showExpandedBashTools;
-    }
-    if (typeof candidate.showExpandedEditTools === 'boolean') {
-      result.showExpandedEditTools = candidate.showExpandedEditTools;
-    }
     if (typeof candidate.timeFormatPreference === 'string') {
       const mode = candidate.timeFormatPreference.trim();
       if (mode === 'auto' || mode === '12h' || mode === '24h') {

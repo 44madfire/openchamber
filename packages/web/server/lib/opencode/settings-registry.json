@@ -363,12 +363,6 @@
     "showTurnChangedFiles": {
       "scope": "profile"
     },
-    "showExpandedBashTools": {
-      "scope": "profile"
-    },
-    "showExpandedEditTools": {
-      "scope": "profile"
-    },
     "toolJsonViewMode": {
       "scope": "profile"
     },
