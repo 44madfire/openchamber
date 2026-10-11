@@ -1,0 +1,30 @@
+   0.00 w1 start shown   
+   0.35 w1 fail  shown  -102 http://localhost:8481/
+   0.35 w1 ok    shown   http://localhost:8481/
+   0.86 w1 start shown   
+   0.87 w1 fail  shown  -102 http://localhost:8481/
+   0.87 w1 ok    shown   http://localhost:8481/
+   1.39 w1 start shown   
+   1.40 w1 fail  shown  -102 http://localhost:8481/
+   1.40 w1 ok    shown   http://localhost:8481/
+   1.93 w1 start shown   
+   1.94 w1 fail  shown  -102 http://localhost:8481/
+   1.94 w1 ok    shown   http://localhost:8481/
+   2.74 w1 start shown   
+   2.75 w1 fail  shown  -102 http://localhost:8481/
+   2.75 w1 ok    shown   http://localhost:8481/
+   3.96 w1 start shown   
+   3.98 w1 fail  shown  -102 http://localhost:8481/
+   3.98 w1 ok    shown   http://localhost:8481/
+   5.82 w1 start shown   
+   5.86 w1 fail  shown  -102 http://localhost:8481/
+   5.86 w1 ok    shown   http://localhost:8481/
+   8.68 w1 start shown   
+   8.71 w1 fail  shown  -102 http://localhost:8481/
+   8.72 w1 ok    shown   http://localhost:8481/
+  12.74 w1 start shown   
+  12.77 w1 fail  shown  -102 http://localhost:8481/
+  12.77 w1 ok    shown   http://localhost:8481/
+  16.82 w1 start shown   
+  17.08 w1 ok    shown   http://localhost:8481/
+fails per webview: {"1":9}

@@ -1,0 +1,52 @@
+# the wait ran out on screen; at 1791726106.67 (absolute seconds) I switched to the other tab and back twice; no loads follow
+1791726062.60 w1 start shown   
+1791726062.82 w1 fail  shown  -102 http://localhost:8481/
+1791726062.83 w1 ok    shown   http://localhost:8481/
+1791726063.34 w1 start shown   
+1791726063.34 w1 fail  shown  -102 http://localhost:8481/
+1791726063.35 w1 ok    shown   http://localhost:8481/
+1791726063.85 w1 start shown   
+1791726063.86 w1 fail  shown  -102 http://localhost:8481/
+1791726063.86 w1 ok    shown   http://localhost:8481/
+1791726064.38 w1 start shown   
+1791726064.39 w1 fail  shown  -102 http://localhost:8481/
+1791726064.39 w1 ok    shown   http://localhost:8481/
+1791726065.18 w1 start shown   
+1791726065.19 w1 fail  shown  -102 http://localhost:8481/
+1791726065.19 w1 ok    shown   http://localhost:8481/
+1791726066.39 w1 start shown   
+1791726066.39 w1 fail  shown  -102 http://localhost:8481/
+1791726066.40 w1 ok    shown   http://localhost:8481/
+1791726068.19 w1 start shown   
+1791726068.20 w1 fail  shown  -102 http://localhost:8481/
+1791726068.21 w1 ok    shown   http://localhost:8481/
+1791726070.92 w1 start shown   
+1791726070.95 w1 fail  shown  -102 http://localhost:8481/
+1791726070.95 w1 ok    shown   http://localhost:8481/
+1791726074.99 w1 start shown   
+1791726074.99 w1 fail  shown  -102 http://localhost:8481/
+1791726075.00 w1 ok    shown   http://localhost:8481/
+1791726079.01 w1 start shown   
+1791726079.02 w1 fail  shown  -102 http://localhost:8481/
+1791726079.02 w1 ok    shown   http://localhost:8481/
+1791726083.03 w1 start shown   
+1791726083.04 w1 fail  shown  -102 http://localhost:8481/
+1791726083.04 w1 ok    shown   http://localhost:8481/
+1791726087.04 w1 start shown   
+1791726087.05 w1 fail  shown  -102 http://localhost:8481/
+1791726087.05 w1 ok    shown   http://localhost:8481/
+1791726091.06 w1 start shown   
+1791726091.07 w1 fail  shown  -102 http://localhost:8481/
+1791726091.07 w1 ok    shown   http://localhost:8481/
+1791726095.07 w1 start shown   
+1791726095.08 w1 fail  shown  -102 http://localhost:8481/
+1791726095.08 w1 ok    shown   http://localhost:8481/
+1791726099.09 w1 start shown   
+1791726099.09 w1 fail  shown  -102 http://localhost:8481/
+1791726099.10 w1 ok    shown   http://localhost:8481/
+1791726103.10 w1 start shown   
+1791726103.11 w1 fail  shown  -102 http://localhost:8481/
+1791726103.11 w1 ok    shown   http://localhost:8481/
+1791726107.39 w2 start shown   
+1791726107.65 w2 ok    shown   about:blank
+fails per webview: {"1":16}

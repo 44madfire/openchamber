@@ -1,0 +1,49 @@
+   0.00 w1 start shown   
+   0.14 w1 fail  shown  -102 http://localhost:8481/
+   0.14 w1 ok    shown   http://localhost:8481/
+   0.65 w1 start shown   
+   0.65 w1 fail  shown  -102 http://localhost:8481/
+   0.66 w1 ok    shown   http://localhost:8481/
+   1.17 w1 start shown   
+   1.18 w1 fail  shown  -102 http://localhost:8481/
+   1.18 w1 ok    shown   http://localhost:8481/
+   1.71 w1 start shown   
+   1.72 w1 fail  shown  -102 http://localhost:8481/
+   1.72 w1 ok    shown   http://localhost:8481/
+   2.53 w1 start shown   
+   2.53 w1 fail  shown  -102 http://localhost:8481/
+   2.54 w1 ok    shown   http://localhost:8481/
+   3.74 w1 start shown   
+   3.75 w1 fail  shown  -102 http://localhost:8481/
+   3.75 w1 ok    shown   http://localhost:8481/
+   5.57 w1 start shown   
+   5.61 w1 fail  shown  -102 http://localhost:8481/
+   5.61 w1 ok    shown   http://localhost:8481/
+   8.43 w1 start shown   
+   8.44 w1 fail  shown  -102 http://localhost:8481/
+   8.44 w1 ok    shown   http://localhost:8481/
+  12.46 w1 start shown   
+  12.49 w1 fail  shown  -102 http://localhost:8481/
+  12.49 w1 ok    shown   http://localhost:8481/
+  16.54 w1 start shown   
+  16.55 w1 fail  shown  -102 http://localhost:8481/
+  16.55 w1 ok    shown   http://localhost:8481/
+  20.58 w1 start shown   
+  20.63 w1 fail  shown  -102 http://localhost:8481/
+  20.63 w1 ok    shown   http://localhost:8481/
+  24.69 w1 start shown   
+  24.74 w1 fail  shown  -102 http://localhost:8481/
+  24.74 w1 ok    shown   http://localhost:8481/
+  28.84 w1 start shown   
+  28.88 w1 fail  shown  -102 http://localhost:8481/
+  28.88 w1 ok    shown   http://localhost:8481/
+  32.95 w1 start shown   
+  32.98 w1 fail  shown  -102 http://localhost:8481/
+  32.99 w1 ok    shown   http://localhost:8481/
+  37.01 w1 start shown   
+  37.02 w1 fail  shown  -102 http://localhost:8481/
+  37.02 w1 ok    shown   http://localhost:8481/
+  41.04 w1 start shown   
+  41.07 w1 fail  shown  -102 http://localhost:8481/
+  41.07 w1 ok    shown   http://localhost:8481/
+fails per webview: {"1":16}

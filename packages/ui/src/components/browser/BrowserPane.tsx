@@ -9,6 +9,7 @@ import { cn } from '@/lib/utils';
 import { openExternalUrl } from '@/lib/url';
 import { normalizeContextPanelDirectoryKey, useUIStore } from '@/stores/useUIStore';
 import { BLANK_URL, browserUrlLabel, isLoopbackUrl, normalizeBrowserUrl } from '@/lib/browser/url';
+import type { BrowserNavStatus } from '@/lib/browser/contract';
 import {
   acceptsBrowserTabLoadRequest,
   forgetBrowserTabOpenedWithAddress,
@@ -67,7 +68,15 @@ export type BrowserPaneProps = {
   tabID: string;
   /** The session whose agent opened this tab; null for the user's own tab. */
   ownerSessionId: string | null;
+  /** Whether the tab is the one shown in an open panel of the project on screen. */
+  visible: boolean;
 };
+
+const subscribeDocumentVisibility = (onChange: () => void): (() => void) => {
+  document.addEventListener('visibilitychange', onChange);
+  return () => document.removeEventListener('visibilitychange', onChange);
+};
+const isDocumentVisible = (): boolean => document.visibilityState === 'visible';
 
 /**
  * Chromium is the only host that can give us a real page: cookies, service
@@ -105,7 +114,7 @@ const browserPartitionOf = (directory: string): string => {
 };
 /** Kept small: this rides along with every snapshot. */
 const CONSOLE_PROBLEM_LIMIT = 20;
-const DEV_SERVER_RETRY_DELAY_MS = 600;
+const GATEWAY_RETRY_DELAY_MS = 600;
 /**
  * A shorter budget for a server that *answers* but with a 5xx, which is what a
  * dev gateway does while the app behind it is still starting. Kept short and
@@ -139,7 +148,7 @@ const revealStageForCapture = (stage: HTMLElement | null): (() => void) => {
   return () => { stage.style.cssText = previousStyle; };
 };
 
-const WebviewBrowser: React.FC<BrowserPaneProps> = ({ initialUrl, directory, tabID, ownerSessionId }) => {
+const WebviewBrowser: React.FC<BrowserPaneProps> = ({ initialUrl, directory, tabID, ownerSessionId, visible }) => {
   const { t } = useI18n();
   const { currentTheme } = useThemeSystem();
   const webviewRef = React.useRef<WebviewElement | null>(null);
@@ -194,6 +203,7 @@ const WebviewBrowser: React.FC<BrowserPaneProps> = ({ initialUrl, directory, tab
    */
   const tabDirectory = normalizeContextPanelDirectoryKey(directory);
   const restoredLoadRef = React.useRef(Boolean(startUrl) && !wasBrowserTabOpenedWithAddress(tabDirectory, tabID));
+  const restoredSettleRef = React.useRef<BrowserNavStatus | null>(null);
   React.useEffect(() => {
     // Consumed by the first mount, so a later remount counts as restored.
     forgetBrowserTabOpenedWithAddress(tabDirectory, tabID);
@@ -586,12 +596,15 @@ const WebviewBrowser: React.FC<BrowserPaneProps> = ({ initialUrl, directory, tab
 
   // The agent works this page while the user types elsewhere in the app.
   const guardAgentAction = useWebviewFocusGuard(webviewElement, stageRef);
-  const runControlAction = React.useCallback((action: string, parameters: Record<string, unknown>) => (
-    guardAgentAction(
+  /** Set once an agent has acted on this tab: from then on it waits for its server out of sight too. */
+  const [agentDriven, setAgentDriven] = React.useState(false);
+  const runControlAction = React.useCallback((action: string, parameters: Record<string, unknown>) => {
+    setAgentDriven(true);
+    return guardAgentAction(
       action === 'browser.click' || action === 'browser.type',
       () => performControlAction(action, parameters),
-    )
-  ), [guardAgentAction, performControlAction]);
+    );
+  }, [guardAgentAction, performControlAction]);
 
   const describeTab = React.useCallback(() => {
     const webview = webviewRef.current;
@@ -813,8 +826,13 @@ const WebviewBrowser: React.FC<BrowserPaneProps> = ({ initialUrl, directory, tab
   // behind it is still starting. Neither is an error the user can act on, and
   // both used to leave them pressing reload. Both are waited out here.
   const status = navigation.status;
+  // A tab the agent opened or works is watched by the agent even when the user
+  // is not looking: it opens pages in the background, often right after
+  // starting the server, and reads them once that server is up.
+  const documentVisible = React.useSyncExternalStore(subscribeDocumentVisibility, isDocumentVisible);
+  const watched = (visible && documentVisible) || ownerSessionId !== null || agentDriven;
   React.useEffect(() => {
-    const reloadSoon = (): (() => void) => {
+    const reloadSoon = (delayMs: number): (() => void) => {
       setIsWaitingForServer(true);
       const timer = setTimeout(() => {
         try {
@@ -822,7 +840,7 @@ const WebviewBrowser: React.FC<BrowserPaneProps> = ({ initialUrl, directory, tab
         } catch {
           // View went away; the next mount starts over.
         }
-      }, DEV_SERVER_RETRY_DELAY_MS);
+      }, delayMs);
       return () => clearTimeout(timer);
     };
 
@@ -831,18 +849,23 @@ const WebviewBrowser: React.FC<BrowserPaneProps> = ({ initialUrl, directory, tab
     if (status.kind === 'loading') return;
 
     // Only a settled page ends the restored load; a blank settle can precede it.
-    const restored = restoredLoadRef.current;
-    if (status.kind === 'failed' || (status.kind === 'ready' && status.url)) restoredLoadRef.current = false;
+    // The settle it ended is kept, so deciding about it again when the tab is
+    // shown or hidden still treats it as restored.
+    const restored = restoredLoadRef.current || restoredSettleRef.current === status;
+    if (restoredLoadRef.current && (status.kind === 'failed' || (status.kind === 'ready' && status.url))) {
+      restoredLoadRef.current = false;
+      restoredSettleRef.current = status;
+    }
 
     // Nothing is listening yet.
     if (status.kind === 'failed') {
-      const plan = planFailedLoadRetry(status, { run: retryRef.current, restored, now: Date.now() });
+      const plan = planFailedLoadRetry(status, { run: retryRef.current, restored, watched, now: Date.now() });
       retryRef.current = plan.run;
-      if (!plan.retry) {
-        setIsWaitingForServer(false);
-        return;
-      }
-      return reloadSoon();
+      if (plan.next === 'retry') return reloadSoon(plan.delayMs);
+      // A held-back retry keeps the waiting screen, so the tab shows it, not
+      // the error, when it comes back on screen and retries.
+      setIsWaitingForServer(plan.next === 'pause');
+      return;
     }
 
     retryRef.current = null;
@@ -877,13 +900,13 @@ const WebviewBrowser: React.FC<BrowserPaneProps> = ({ initialUrl, directory, tab
         setIsWaitingForServer(false);
         return;
       }
-      cancelReload = reloadSoon();
+      cancelReload = reloadSoon(GATEWAY_RETRY_DELAY_MS);
     });
     return () => {
       cancelled = true;
       cancelReload?.();
     };
-  }, [directory, status]);
+  }, [directory, status, watched]);
 
   const failed = navigation.status.kind === 'failed' && !isWaitingForServer ? navigation.status : null;
   const layout = fitViewport(viewport, stageSize);

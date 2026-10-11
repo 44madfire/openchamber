@@ -575,6 +575,7 @@ export const ContextSurfacePanes: React.FC = () => {
                 directory={tab.directory}
                 tabID={tab.id}
                 ownerSessionId={tab.ownerSessionId}
+                visible={shown && browserZone.isOpen}
               />
             </div>
           </ZonePane>
