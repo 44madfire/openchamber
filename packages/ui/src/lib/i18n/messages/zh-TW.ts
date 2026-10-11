@@ -702,6 +702,7 @@ export const dict: Record<I18nKey, string> = {
   'chat.work.reviewHint.text': '變更已可檢視。',
   'chat.work.reviewHint.aiReview': 'AI 審查',
   'chat.backgroundShells.aria': '背景指令',
+  'chat.backgroundShells.stopAll': '全部停止',
   'chat.backgroundShells.count': '背景指令：{count}',
   'chat.backgroundShells.subagent': '子代理',
   'chat.backgroundShells.stop': '停止',

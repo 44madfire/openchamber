@@ -61,7 +61,7 @@ import {
   type Vcs,
 } from "./model"
 import { ascendingId } from "./ids"
-import { runningShellFromWire, shellCancellationNote, type RunningShell } from "./background-shell"
+import { runningShellFromWire, shellCancellationNote, type RunningShell, type ShellToStop } from "./background-shell"
 import { subagentCancellationNote } from "./subagent-run"
 import { toJsonRecord } from "./json"
 import {
@@ -1644,20 +1644,20 @@ class OpencodeService {
   }
 
   /**
-   * Stops a background command the agent started. The agent is told first,
-   * in a note that does not wake it, that the error OpenCode is about to
-   * report is the user's stop (see `shellCancellationNote`); the command is
-   * killed only once the note is in. Throws when either step fails, and
-   * nothing is killed when the note could not be delivered.
+   * Stops background commands one session started. The agent is told first,
+   * in one note that does not wake it, that the errors OpenCode is about to
+   * report are the user's stop (see `shellCancellationNote`); the commands
+   * are killed together only once the note is in, so their completions reach
+   * the agent at about the same time. Throws when the note or any kill
+   * fails; nothing is killed when the note could not be delivered, and a
+   * failed kill leaves the other commands stopped.
    */
-  async stopBackgroundShell(params: {
+  async stopBackgroundShells(params: {
     sessionID: string
     sessionDirectory?: string | null
-    shellID: string
-    shellDirectory: string
-    command: string
+    shells: readonly [ShellToStop, ...ShellToStop[]]
   }): Promise<void> {
-    const note = shellCancellationNote({ shellID: params.shellID, command: params.command })
+    const note = shellCancellationNote(params.shells)
     await call("session.synthetic", () =>
       this.clientFor(params.sessionDirectory).session.synthetic({
         sessionID: params.sessionID,
@@ -1667,7 +1667,11 @@ class OpencodeService {
         resume: false,
       }),
     )
-    await call("shell.remove", () => this.clientFor(params.shellDirectory).shell.remove({ id: params.shellID }))
+    const removals = await Promise.allSettled(params.shells.map((shell) =>
+      call("shell.remove", () => this.clientFor(shell.shellDirectory).shell.remove({ id: shell.shellID })),
+    ))
+    const failure = removals.find((result) => result.status === "rejected")
+    if (failure) throw failure.reason
   }
 
   /**

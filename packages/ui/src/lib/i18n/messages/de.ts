@@ -604,6 +604,7 @@ export const dict = {
   'chat.work.reviewHint.text': 'Die Änderungen sind bereit zur Durchsicht.',
   'chat.work.reviewHint.aiReview': 'KI-Review',
   'chat.backgroundShells.aria': 'Hintergrundbefehle',
+  'chat.backgroundShells.stopAll': 'Alle stoppen',
   'chat.backgroundShells.count': 'Hintergrundbefehle: {count}',
   'chat.backgroundShells.subagent': 'Subagent',
   'chat.backgroundShells.stop': 'Stoppen',

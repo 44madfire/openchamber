@@ -683,6 +683,7 @@ export const dict: Record<I18nKey, string> = {
   "chat.work.reviewHint.text": "Зміни готові до перегляду.",
   "chat.work.reviewHint.aiReview": "AI-ревʼю",
   "chat.backgroundShells.aria": "Фонові команди",
+  "chat.backgroundShells.stopAll": "Зупинити всі",
   "chat.backgroundShells.count": "Фонові команди: {count}",
   "chat.backgroundShells.subagent": "субагент",
   "chat.backgroundShells.stop": "Зупинити",

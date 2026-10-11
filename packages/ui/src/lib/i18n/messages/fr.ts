@@ -506,6 +506,7 @@ export const dict = {
   'chat.work.reviewHint.aiReview': 'Revue IA',
   'chat.backgroundShells.aria': 'Commandes en arrière-plan',
   'chat.backgroundShells.count': 'Commandes en arrière-plan : {count}',
+  'chat.backgroundShells.stopAll': 'Tout arrêter',
   'chat.backgroundShells.subagent': 'sous-agent',
   'chat.backgroundShells.stop': 'Arrêter',
   'chat.backgroundShells.stopAria': 'Arrêter {command}',

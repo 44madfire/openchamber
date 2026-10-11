@@ -125,10 +125,13 @@ a turn is waiting for, see `background` in `sync/background-shells.ts`) of
 the session and of its
 subagents at any depth (`sessionsInTree` over the global sessions store, a
 subagent missing from it keeps its commands out), each with its command,
-elapsed time and Stop through `opencodeClient.stopBackgroundShell`, the same
+elapsed time and Stop through `opencodeClient.stopBackgroundShells`, the same
 flow as the command's row in the chat. One command is one row; several
 collapse into a count that expands in place, collapsed again on a session
-switch. It shows whether the session runs or idles, and hides in BTW and
+switch, and the count row carries Stop all. Stop all sends one call per owning
+session, so each agent gets one note for all of its commands and their
+completions arrive together; a stopping row stays disabled until OpenCode
+reports its command ended, and a failed call makes its commands stoppable again. It shows whether the session runs or idles, and hides in BTW and
 new-session drafts. The elapsed text is a leaf on the shared one-second
 ticker, and the tree is compared as a string, so neither the tick nor
 session-list updates re-render the composer.

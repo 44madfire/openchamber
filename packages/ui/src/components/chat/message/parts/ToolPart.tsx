@@ -2188,12 +2188,10 @@ const BackgroundShellToolPartContent: React.FC<ToolPartProps & { shellID: string
     const stop = React.useCallback(() => {
         if (!running) return;
         setStopping(true);
-        opencodeClient.stopBackgroundShell({
+        opencodeClient.stopBackgroundShells({
             sessionID: props.part.sessionID,
             sessionDirectory: directory,
-            shellID,
-            shellDirectory: running.directory,
-            command: running.command,
+            shells: [{ shellID, shellDirectory: running.directory, command: running.command }],
         }).catch(() => {
             setStopping(false);
             toast.error(t('chat.toolPart.background.stopFailed'));

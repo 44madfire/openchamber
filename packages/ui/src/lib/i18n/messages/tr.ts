@@ -591,6 +591,7 @@ export const dict = {
   'chat.work.reviewHint.text': 'Değişiklikler incelenmeye hazır.',
   'chat.work.reviewHint.aiReview': 'Yapay zekâ incelemesi',
   'chat.backgroundShells.aria': 'Arka plan komutları',
+  'chat.backgroundShells.stopAll': 'Tümünü durdur',
   'chat.backgroundShells.count': 'Arka plan komutları: {count}',
   'chat.backgroundShells.subagent': 'alt ajan',
   'chat.backgroundShells.stop': 'Durdur',

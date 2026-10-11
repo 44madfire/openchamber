@@ -681,6 +681,7 @@ export const dict = {
   'chat.work.reviewHint.text': 'Changes are ready to look over.',
   'chat.work.reviewHint.aiReview': 'AI Review',
   'chat.backgroundShells.aria': 'Background commands',
+  'chat.backgroundShells.stopAll': 'Stop all',
   'chat.backgroundShells.count': 'Background commands: {count}',
   'chat.backgroundShells.subagent': 'subagent',
   'chat.backgroundShells.stop': 'Stop',

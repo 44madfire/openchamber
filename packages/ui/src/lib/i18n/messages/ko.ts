@@ -682,6 +682,7 @@ export const dict: Record<I18nKey, string> = {
   'chat.work.reviewHint.text': '변경 사항을 검토할 준비가 되었습니다.',
   'chat.work.reviewHint.aiReview': 'AI 리뷰',
   'chat.backgroundShells.aria': '백그라운드 명령',
+  'chat.backgroundShells.stopAll': '모두 중지',
   'chat.backgroundShells.count': '백그라운드 명령: {count}',
   'chat.backgroundShells.subagent': '서브에이전트',
   'chat.backgroundShells.stop': '중지',

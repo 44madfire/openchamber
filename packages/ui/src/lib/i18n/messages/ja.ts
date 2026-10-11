@@ -682,6 +682,7 @@ export const dict: Record<I18nKey, string> = {
   'chat.work.reviewHint.text': '変更を確認する準備ができました。',
   'chat.work.reviewHint.aiReview': 'AIレビュー',
   'chat.backgroundShells.aria': 'バックグラウンドコマンド',
+  'chat.backgroundShells.stopAll': 'すべて停止',
   'chat.backgroundShells.count': 'バックグラウンドコマンド: {count}',
   'chat.backgroundShells.subagent': 'サブエージェント',
   'chat.backgroundShells.stop': '停止',

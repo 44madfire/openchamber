@@ -673,6 +673,7 @@ export const dict = {
   'chat.work.reviewHint.text': 'De wijzigingen zijn klaar om te bekijken.',
   'chat.work.reviewHint.aiReview': 'AI-review',
   'chat.backgroundShells.aria': 'Achtergrondopdrachten',
+  'chat.backgroundShells.stopAll': 'Alles stoppen',
   'chat.backgroundShells.count': 'Achtergrondopdrachten: {count}',
   'chat.backgroundShells.subagent': 'subagent',
   'chat.backgroundShells.stop': 'Stoppen',
