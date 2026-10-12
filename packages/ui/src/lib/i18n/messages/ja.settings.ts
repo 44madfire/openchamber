@@ -2311,8 +2311,6 @@ export const settingsDict = {
   'settings.openchamber.visual.field.expandReasoningWhileStreamingInfo': 'モデルの思考と会話圧縮の要約を届いたそばから表示します。オフのときはブロックが折りたたまれ、クリックで開けます。',
   'settings.openchamber.visual.field.collapsibleUserMessagesAria': '長いユーザーメッセージを折りたたむ',
   'settings.openchamber.visual.field.collapsibleUserMessages': '長いユーザーメッセージを折りたたむ',
-  'settings.openchamber.visual.field.stickyUserHeaderAria': 'ユーザーヘッダー固定',
-  'settings.openchamber.visual.field.stickyUserHeader': 'ユーザーヘッダー固定',
   'settings.openchamber.visual.field.promptNavigatorEnabledAria': 'プロンプトナビゲーター',
   'settings.openchamber.visual.field.promptNavigatorEnabled': 'プロンプトナビゲーター',
   'settings.openchamber.visual.field.autoSaveEnabledAria': 'ファイルの自動保存',

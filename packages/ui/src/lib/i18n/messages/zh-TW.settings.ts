@@ -2167,8 +2167,6 @@ export const settingsDict = {
   'settings.openchamber.visual.field.expandReasoningWhileStreamingInfo': '在內容到達時即時顯示模型的推理和對話壓縮摘要。關閉後這些區塊保持摺疊，點擊即可展開。',
   'settings.openchamber.visual.field.collapsibleUserMessagesAria': '收合較長的使用者訊息',
   'settings.openchamber.visual.field.collapsibleUserMessages': '收合較長的使用者訊息',
-  'settings.openchamber.visual.field.stickyUserHeaderAria': '固定使用者訊息標頭',
-  'settings.openchamber.visual.field.stickyUserHeader': '固定使用者訊息標頭',
   'settings.openchamber.visual.field.promptNavigatorEnabledAria': '提示詞導覽',
   'settings.openchamber.visual.field.promptNavigatorEnabled': '提示詞導覽',
   'settings.openchamber.visual.field.autoSaveEnabledAria': '自動儲存檔案',

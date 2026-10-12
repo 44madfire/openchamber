@@ -794,9 +794,6 @@ export const createSettingsHelpers = (dependencies) => {
     if (typeof candidate.collapsibleUserMessages === 'boolean') {
       result.collapsibleUserMessages = candidate.collapsibleUserMessages;
     }
-    if (typeof candidate.stickyUserHeader === 'boolean') {
-      result.stickyUserHeader = candidate.stickyUserHeader;
-    }
     if (typeof candidate.promptNavigatorEnabled === 'boolean') {
       result.promptNavigatorEnabled = candidate.promptNavigatorEnabled;
     }

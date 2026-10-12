@@ -2178,8 +2178,6 @@ export const settingsDict = {
   'settings.openchamber.visual.field.expandReasoningWhileStreamingInfo': 'Affiche le raisonnement du modèle et le résumé de compaction au fil de l\'eau. Désactivé, ces blocs restent repliés et s\'ouvrent d\'un clic.',
   'settings.openchamber.visual.field.collapsibleUserMessagesAria': 'Réduire les longs messages utilisateur',
   'settings.openchamber.visual.field.collapsibleUserMessages': 'Réduire les longs messages utilisateur',
-  'settings.openchamber.visual.field.stickyUserHeaderAria': 'En-tête utilisateur collant',
-  'settings.openchamber.visual.field.stickyUserHeader': 'En-tête utilisateur collant',
   'settings.openchamber.visual.field.promptNavigatorEnabledAria': 'Navigateur de prompts',
   'settings.openchamber.visual.field.promptNavigatorEnabled': 'Navigateur de prompts',
   'settings.openchamber.visual.field.autoSaveEnabledAria': 'Enregistrement automatique des fichiers',

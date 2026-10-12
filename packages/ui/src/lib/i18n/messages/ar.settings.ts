@@ -2299,8 +2299,6 @@ export const settingsDict = {
   'settings.openchamber.visual.field.expandReasoningWhileStreamingInfo': 'يعرض تفكير النموذج وملخص الضغط فور وصولهما. عند التعطيل، يبقيان مطويين ويُفتحان بنقرة.',
   'settings.openchamber.visual.field.collapsibleUserMessagesAria': 'طي رسائل المستخدم الطويلة',
   'settings.openchamber.visual.field.collapsibleUserMessages': 'طي رسائل المستخدم الطويلة',
-  'settings.openchamber.visual.field.stickyUserHeaderAria': 'تثبيت رأس رسالة المستخدم',
-  'settings.openchamber.visual.field.stickyUserHeader': 'تثبيت رأس رسالة المستخدم',
   'settings.openchamber.visual.field.promptNavigatorEnabledAria': 'متصفح الطلبات',
   'settings.openchamber.visual.field.promptNavigatorEnabled': 'متصفح الطلبات',
   'settings.openchamber.visual.field.autoSaveEnabledAria': 'الحفظ التلقائي للملفات',

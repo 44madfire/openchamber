@@ -2202,8 +2202,6 @@ export const settingsDict = {
   'settings.openchamber.visual.field.expandReasoningWhileStreamingInfo': 'Modelin düşüncelerini ve sıkıştırma özetini geldikçe gösterir. Kapalıyken bloklar daraltılmış kalır ve tıklayınca açılır.',
   'settings.openchamber.visual.field.collapsibleUserMessagesAria': 'Uzun kullanıcı mesajlarını daralt',
   'settings.openchamber.visual.field.collapsibleUserMessages': 'Uzun Kullanıcı Mesajlarını Daralt',
-  'settings.openchamber.visual.field.stickyUserHeaderAria': 'Yapışkan kullanıcı üstbilgisi',
-  'settings.openchamber.visual.field.stickyUserHeader': 'Yapışkan Kullanıcı Üstbilgisi',
   'settings.openchamber.visual.field.promptNavigatorEnabledAria': 'Prompt gezgini',
   'settings.openchamber.visual.field.promptNavigatorEnabled': 'Prompt Gezgini',
   'settings.openchamber.visual.field.autoSaveEnabledAria': 'Dosyaları otomatik kaydet',

@@ -860,7 +860,6 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
         () => (pinned ? { expanded: pinnedExpandedInput, setExpanded: setPinnedExpandedInput } : null),
         [pinned, pinnedExpandedInput],
     );
-    const stickyUserHeader = useUIStore((state) => state.stickyUserHeader);
     const promptNavigatorEnabled = useUIStore((state) => state.promptNavigatorEnabled);
     const allowPromptingSubagentSessions = useUIStore((state) => state.allowPromptingSubagentSessions);
     // The timeline dialog of the main chat is app state (a global shortcut
@@ -1429,57 +1428,6 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
         };
     }, [currentSessionId, isDesktopExpandedInput, navigation, scrollRef]);
 
-    React.useLayoutEffect(() => {
-        const container = scrollRef.current;
-        if (!container) return;
-
-        // Read by the transcript's sticky user messages, which inherit it from
-        // here: a new value restyles the transcript, so it is written only when
-        // the height changed.
-        const updateChatScrollHeight = () => {
-            const value = `${container.clientHeight}px`;
-            if (container.style.getPropertyValue('--chat-scroll-height') !== value) {
-                container.style.setProperty('--chat-scroll-height', value);
-            }
-        };
-
-        updateChatScrollHeight();
-
-        let rafId = 0;
-        const scheduleUpdate = () => {
-            if (rafId) return;
-            rafId = requestAnimationFrame(() => {
-                rafId = 0;
-                updateChatScrollHeight();
-            });
-        };
-
-        if (typeof ResizeObserver === 'undefined') {
-            window.addEventListener('resize', scheduleUpdate);
-            return () => {
-                if (rafId) cancelAnimationFrame(rafId);
-                window.removeEventListener('resize', scheduleUpdate);
-            };
-        }
-
-        // A width change (the sidebar or the context panel animating) leaves
-        // the height alone; it is skipped before anything reads layout. Inside
-        // the callback layout is current, so the read forces none.
-        let observedHeight: number | null = null;
-        const resizeObserver = new ResizeObserver((entries) => {
-            const height = entries[entries.length - 1]?.contentRect.height;
-            if (height === undefined || height === observedHeight) return;
-            observedHeight = height;
-            updateChatScrollHeight();
-        });
-        resizeObserver.observe(container);
-
-        return () => {
-            if (rafId) cancelAnimationFrame(rafId);
-            resizeObserver.disconnect();
-        };
-    }, [currentSessionId, isDesktopExpandedInput, scrollRef]);
-
     const lastScrolledSessionKeyRef = React.useRef<string | null>(null);
 
     const isSessionHydrating =
@@ -1593,7 +1541,6 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
     const scrollNodeRef = React.useMemo(() => ({ current: scrollNode }), [scrollNode]);
     useScrollShadow(scrollNodeRef, {
         observeMutations: false,
-        hideTopShadow: isMobile && stickyUserHeader,
         // The glass composer is the visible end of the transcript.
         hideBottomShadow: floatingComposer,
     });

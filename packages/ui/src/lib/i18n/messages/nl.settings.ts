@@ -2301,8 +2301,6 @@ export const settingsDict = {
   'settings.openchamber.visual.field.expandReasoningWhileStreamingInfo': 'Toont de redenering van het model en de samenvatting bij het inkorten terwijl die binnenkomen. Uit: de blokken blijven ingeklapt en openen met een klik.',
   'settings.openchamber.visual.field.collapsibleUserMessagesAria': 'Vouw lange gebruikersberichten samen',
   'settings.openchamber.visual.field.collapsibleUserMessages': 'Lange gebruikersberichten samenvouwen',
-  'settings.openchamber.visual.field.stickyUserHeaderAria': 'Vaste gebruikerskop',
-  'settings.openchamber.visual.field.stickyUserHeader': 'Vaste gebruikerskop',
   'settings.openchamber.visual.field.promptNavigatorEnabledAria': 'Promptnavigator',
   'settings.openchamber.visual.field.promptNavigatorEnabled': 'Promptnavigator',
   'settings.openchamber.visual.field.autoSaveEnabledAria': 'Bestanden automatisch opslaan',

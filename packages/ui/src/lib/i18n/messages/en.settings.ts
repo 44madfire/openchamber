@@ -2301,8 +2301,6 @@ export const settingsDict = {
   'settings.openchamber.visual.field.expandReasoningWhileStreamingInfo': 'Shows the model\'s thinking and the compaction summary as they arrive. When off, they stay folded and open with a click.',
   'settings.openchamber.visual.field.collapsibleUserMessagesAria': 'Collapse long user messages',
   'settings.openchamber.visual.field.collapsibleUserMessages': 'Collapse long user messages',
-  'settings.openchamber.visual.field.stickyUserHeaderAria': 'Sticky user header',
-  'settings.openchamber.visual.field.stickyUserHeader': 'Sticky user header',
   'settings.openchamber.visual.field.promptNavigatorEnabledAria': 'Prompt navigator',
   'settings.openchamber.visual.field.promptNavigatorEnabled': 'Prompt navigator',
   'settings.openchamber.visual.field.autoSaveEnabledAria': 'Auto-save files',

@@ -267,8 +267,8 @@ interface MessageBodyProps {
     errorMessage?: string;
     /** Raw provider response behind `errorMessage`, shown as collapsed details. */
     errorResponseBody?: string;
-    userActionsMode?: 'inline' | 'external-content' | 'external-actions';
-    stickyUserHeaderEnabled?: boolean;
+    /** A user message renders as two siblings: the bubble, and the actions row under it. */
+    userMessagePart?: 'bubble' | 'actions';
     reviewTransferDirection?: ReviewTransferDirection | null;
     contextPinned?: boolean;
     contextPinPending?: boolean;
@@ -377,7 +377,7 @@ const CopyMessageLinkButton: React.FC<{ onCopyLink: () => void }> = ({ onCopyLin
     );
 };
 
-const UserMessageBody = React.memo(({ messageId, parts, messageCreatedAt, isMobile, alwaysShowActions = isMobile, hasTouchInput, hasTextContent, onCopyMessage, copiedMessage, onShowPopup, agentMention, onRevert, onFork, contextPinned, contextPinPending, onToggleContextPin, userActionsMode = 'inline', stickyUserHeaderEnabled = true, extraActions }: {
+const UserMessageBody = React.memo(({ messageId, parts, messageCreatedAt, isMobile, alwaysShowActions = isMobile, hasTouchInput, hasTextContent, onCopyMessage, copiedMessage, onShowPopup, agentMention, onRevert, onFork, contextPinned, contextPinPending, onToggleContextPin, userMessagePart = 'bubble', extraActions }: {
     messageId: string;
     parts: Part[];
     messageCreatedAt?: number | null;
@@ -394,8 +394,7 @@ const UserMessageBody = React.memo(({ messageId, parts, messageCreatedAt, isMobi
     contextPinned?: boolean;
     contextPinPending?: boolean;
     onToggleContextPin?: () => void;
-    userActionsMode?: 'inline' | 'external-content' | 'external-actions';
-    stickyUserHeaderEnabled?: boolean;
+    userMessagePart?: 'bubble' | 'actions';
     extraActions?: MessageExtraAction[];
 }) => {
     const { locale, t } = useI18n();
@@ -449,9 +448,6 @@ const UserMessageBody = React.memo(({ messageId, parts, messageCreatedAt, isMobi
     const isMessageCopied = Boolean(copiedMessage);
     const isTouchContext = Boolean(hasTouchInput ?? isMobile);
     const hasCopyableText = Boolean(hasTextContent);
-    const showUserContent = userActionsMode !== 'external-actions';
-    const showUserActions = userActionsMode !== 'external-content';
-    const useStickyScrollableUserContent = stickyUserHeaderEnabled && userActionsMode === 'inline';
 
     const clearCopyHintTimeout = React.useCallback(() => {
         if (copyHintTimeoutRef.current !== null && typeof window !== 'undefined') {
@@ -553,29 +549,14 @@ const UserMessageBody = React.memo(({ messageId, parts, messageCreatedAt, isMobi
         return formatted.length > 0 ? formatted : null;
     }, [locale, messageCreatedAt, timeFormatPreference]);
     const hasExtraActions = Boolean(extraActions && extraActions.length > 0);
-    const actionsBlock = chatSurfaceMode !== 'peek' && ((canCopyMessage && hasCopyableText) || onRevert || effectiveOnFork || onToggleContextPin || hasExtraActions) && showUserActions ? (
+    const actionsBlock = chatSurfaceMode !== 'peek' && ((canCopyMessage && hasCopyableText) || onRevert || effectiveOnFork || onToggleContextPin || hasExtraActions) ? (
         <div className={cn(
-            'group/user-actions',
-            isMobile
-                ? userActionsMode === 'inline'
-                    ? 'flex items-center justify-end pt-2 pb-3'
-                    : stickyUserHeaderEnabled
-                        ? 'flex h-9 items-start justify-end pt-0'
-                        : 'flex h-11 items-start justify-end pt-0'
-                : userActionsMode === 'inline'
-                    ? 'absolute top-full inset-s-0 inset-e-0 z-10 pt-5'
-                    : 'flex h-8 items-start justify-end pt-2'
+            'group/user-actions flex items-start justify-end',
+            isMobile ? 'h-11 pt-0' : 'h-8 pt-2'
         )}>
             <div
                 className={cn(
                     'flex items-center justify-end gap-1.5 [&_button]:!h-[26px] [&_button]:!w-[26px] [&_svg]:!size-3.5',
-                    isMobile
-                        ? userActionsMode === 'inline'
-                            ? 'translate-x-5 rtl:-translate-x-5'
-                            : 'translate-x-0'
-                        : userActionsMode === 'inline'
-                            ? 'translate-x-5 rtl:-translate-x-5'
-                            : 'translate-x-0',
                     alwaysShowActions
                         ? 'pointer-events-auto opacity-100'
                         : 'pointer-events-none opacity-0 transition-opacity duration-150 group-hover/message:pointer-events-auto group-hover/message:opacity-100 group-hover/user-actions:pointer-events-auto group-hover/user-actions:opacity-100 group-hover/user-shell:pointer-events-auto group-hover/user-shell:opacity-100'
@@ -750,7 +731,7 @@ const UserMessageBody = React.memo(({ messageId, parts, messageCreatedAt, isMobi
         </div>
     ) : null;
 
-    if (!showUserContent) {
+    if (userMessagePart === 'actions') {
         return <>{actionsBlock}</>;
     }
 
@@ -767,15 +748,7 @@ const UserMessageBody = React.memo(({ messageId, parts, messageCreatedAt, isMobi
                 compact
                 className={userContentParts.length > 0 ? 'mb-2' : 'mt-0'}
             />
-            <div
-                className={cn(
-                    'leading-relaxed text-foreground/90 text-base overflow-x-hidden',
-                    useStickyScrollableUserContent
-                        ? 'overflow-y-auto overscroll-contain scrollbar-none'
-                        : 'overflow-y-hidden'
-                )}
-                style={useStickyScrollableUserContent ? { maxHeight: 'calc(var(--chat-scroll-height, 100dvh) * 0.4)' } : undefined}
-            >
+            <div className="leading-relaxed text-foreground/90 text-base overflow-hidden">
                 {/* Positional keys, not part ids: the server echo of a just-sent
                     message swaps the optimistic part id, and id-based keys would
                     remount the text subtree (blank frame + height jump). */}
@@ -819,7 +792,6 @@ const UserMessageBody = React.memo(({ messageId, parts, messageCreatedAt, isMobi
                     {t(messageExpanded ? 'chat.message.userText.showLess' : 'chat.message.userText.showFullMessage')}
                 </button>
             )}
-            {actionsBlock}
         </div>
     );
 });
@@ -2351,8 +2323,7 @@ const MessageBody = React.memo(({ isUser, ...props }: MessageBodyProps) => {
                 contextPinned={props.contextPinned}
                 contextPinPending={props.contextPinPending}
                 onToggleContextPin={props.onToggleContextPin}
-                userActionsMode={props.userActionsMode}
-                stickyUserHeaderEnabled={props.stickyUserHeaderEnabled}
+                userMessagePart={props.userMessagePart}
                 extraActions={props.extraActions}
             />
         );

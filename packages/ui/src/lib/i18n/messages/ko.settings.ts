@@ -2278,8 +2278,6 @@ export const settingsDict = {
   'settings.openchamber.visual.field.expandReasoningWhileStreamingInfo': '모델의 생각과 대화 압축 요약을 도착하는 대로 보여줍니다. 끄면 블록이 접힌 채로 있고 클릭하면 열립니다.',
   'settings.openchamber.visual.field.collapsibleUserMessagesAria': '긴 사용자 메시지 접기',
   'settings.openchamber.visual.field.collapsibleUserMessages': '긴 사용자 메시지 접기',
-  'settings.openchamber.visual.field.stickyUserHeaderAria': '고정 사용자 헤더',
-  'settings.openchamber.visual.field.stickyUserHeader': '고정 사용자 헤더',
   'settings.openchamber.visual.field.promptNavigatorEnabledAria': '프롬프트 탐색기',
   'settings.openchamber.visual.field.promptNavigatorEnabled': '프롬프트 탐색기',
   'settings.openchamber.visual.field.autoSaveEnabledAria': '파일 자동 저장',

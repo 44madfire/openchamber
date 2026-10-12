@@ -571,12 +571,12 @@ describe('settings runtime: per-surface profile keys', () => {
   it('a per-surface key set only from one surface has no base and stays absent elsewhere', async () => {
     const { runtime, tempRoot, cleanup } = await createMergingRuntime();
     try {
-      await runtime.persistSettings({ stickyUserHeader: false }, { surface: 'mobile' });
+      await runtime.persistSettings({ promptNavigatorEnabled: false }, { surface: 'mobile' });
       const stored = await readJson(path.join(tempRoot, 'preferences.json'));
-      expect(stored.fields.stickyUserHeader).not.toHaveProperty('value');
-      expect(stored.fields.stickyUserHeader.surfaces.mobile.value).toBe(false);
-      expect((await runtime.readSettingsFromDisk({ surface: 'desktop' })).stickyUserHeader).toBeUndefined();
-      expect((await runtime.readSettingsFromDisk({ surface: 'mobile' })).stickyUserHeader).toBe(false);
+      expect(stored.fields.promptNavigatorEnabled).not.toHaveProperty('value');
+      expect(stored.fields.promptNavigatorEnabled.surfaces.mobile.value).toBe(false);
+      expect((await runtime.readSettingsFromDisk({ surface: 'desktop' })).promptNavigatorEnabled).toBeUndefined();
+      expect((await runtime.readSettingsFromDisk({ surface: 'mobile' })).promptNavigatorEnabled).toBe(false);
     } finally {
       await cleanup();
     }

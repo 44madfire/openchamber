@@ -9,7 +9,6 @@ export type StreamingTailEntry =
         kind: 'ungrouped';
         key: string;
         message: ChatMessageEntry;
-        previousMessage?: ChatMessageEntry;
         nextMessage?: ChatMessageEntry;
     }
     | { kind: 'turn'; key: string; turn: TurnRecord; isLastTurn: boolean };

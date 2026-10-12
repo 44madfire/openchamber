@@ -2278,8 +2278,6 @@ export const settingsDict = {
   'settings.openchamber.visual.field.expandReasoningWhileStreamingInfo': '在内容到达时实时显示模型的推理和对话压缩摘要。关闭后这些块保持折叠，点击即可展开。',
   'settings.openchamber.visual.field.collapsibleUserMessagesAria': '折叠较长的用户消息',
   'settings.openchamber.visual.field.collapsibleUserMessages': '折叠较长的用户消息',
-  'settings.openchamber.visual.field.stickyUserHeaderAria': '固定用户消息头',
-  'settings.openchamber.visual.field.stickyUserHeader': '固定用户消息头',
   'settings.openchamber.visual.field.promptNavigatorEnabledAria': '提示词导航',
   'settings.openchamber.visual.field.promptNavigatorEnabled': '提示词导航',
   'settings.openchamber.visual.field.autoSaveEnabledAria': '自动保存文件',

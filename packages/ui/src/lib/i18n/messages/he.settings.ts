@@ -2299,8 +2299,6 @@ export const settingsDict = {
   'settings.openchamber.visual.field.expandReasoningWhileStreamingInfo': 'מציג את החשיבה של המודל ואת סיכום הדחיסה בזמן שהם מגיעים. כשהאפשרות כבויה, הם נשארים מקופלים ונפתחים בלחיצה.',
   'settings.openchamber.visual.field.collapsibleUserMessagesAria': 'קיפול הודעות משתמש ארוכות',
   'settings.openchamber.visual.field.collapsibleUserMessages': 'קיפול הודעות משתמש ארוכות',
-  'settings.openchamber.visual.field.stickyUserHeaderAria': 'כותרת משתמש נצמדת',
-  'settings.openchamber.visual.field.stickyUserHeader': 'כותרת משתמש נצמדת',
   'settings.openchamber.visual.field.promptNavigatorEnabledAria': 'ניווט בין הנחיות',
   'settings.openchamber.visual.field.promptNavigatorEnabled': 'ניווט בין הנחיות',
   'settings.openchamber.visual.field.autoSaveEnabledAria': 'שמירה אוטומטית של קבצים',

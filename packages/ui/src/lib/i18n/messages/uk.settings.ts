@@ -2278,8 +2278,6 @@ export const settingsDict = {
   "settings.openchamber.visual.field.expandReasoningWhileStreamingInfo": "Показує міркування моделі та підсумок стиснення розмови, поки вони надходять. Коли вимкнено, блоки згорнуті й відкриваються кліком.",
   "settings.openchamber.visual.field.collapsibleUserMessagesAria": "Згортати довгі повідомлення користувача",
   "settings.openchamber.visual.field.collapsibleUserMessages": "Згортати довгі повідомлення користувача",
-  "settings.openchamber.visual.field.stickyUserHeaderAria": "Закріплений заголовок користувача",
-  "settings.openchamber.visual.field.stickyUserHeader": "Закріплений заголовок користувача",
   "settings.openchamber.visual.field.promptNavigatorEnabledAria": "Навігатор промптів",
   "settings.openchamber.visual.field.promptNavigatorEnabled": "Навігатор промптів",
   "settings.openchamber.visual.field.autoSaveEnabledAria": "Автозбереження файлів",

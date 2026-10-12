@@ -2227,8 +2227,6 @@ export const settingsDict = {
   'settings.openchamber.visual.field.expandReasoningWhileStreamingInfo': 'Zeigt die Gedanken des Modells und die Zusammenfassung beim Komprimieren, während sie eintreffen. Wenn aus, bleiben die Blöcke eingeklappt und öffnen sich per Klick.',
   'settings.openchamber.visual.field.collapsibleUserMessagesAria': 'Lange Benutzernachrichten einklappen',
   'settings.openchamber.visual.field.collapsibleUserMessages': 'Lange Benutzernachrichten einklappen',
-  'settings.openchamber.visual.field.stickyUserHeaderAria': 'Fixierter Benutzerheader',
-  'settings.openchamber.visual.field.stickyUserHeader': 'Fixierter Benutzerkopf',
   'settings.openchamber.visual.field.promptNavigatorEnabledAria': 'Prompt-Navigator',
   'settings.openchamber.visual.field.promptNavigatorEnabled': 'Prompt-Navigator',
   'settings.openchamber.visual.field.wideChatLayoutAria': 'Breites Chat-Layout',

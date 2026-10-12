@@ -320,12 +320,6 @@ const SETTINGS_SEARCH_ITEMS: readonly SettingsSearchItem[] = [
     keywords: ['autoscroll', 'auto-scroll', 'follow', 'stick to bottom', 'streaming'],
   },
   {
-    id: 'chat.sticky-user-header',
-    page: 'chat',
-    titleKey: 'settings.openchamber.visual.field.stickyUserHeader',
-    keywords: ['messages', 'header'],
-  },
-  {
     id: 'chat.prompt-navigator',
     page: 'chat',
     titleKey: 'settings.openchamber.visual.field.promptNavigatorEnabled',

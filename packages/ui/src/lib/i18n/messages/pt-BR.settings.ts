@@ -2278,8 +2278,6 @@ export const settingsDict = {
   "settings.openchamber.visual.field.expandReasoningWhileStreamingInfo": "Mostra o raciocínio do modelo e o resumo da compactação enquanto chegam. Desativado, os blocos ficam recolhidos e abrem com um clique.",
   "settings.openchamber.visual.field.collapsibleUserMessagesAria": "Recolher mensagens longas do usuário",
   "settings.openchamber.visual.field.collapsibleUserMessages": "Recolher mensagens longas do usuário",
-  "settings.openchamber.visual.field.stickyUserHeaderAria": "Cabeçalho do usuário fixo",
-  "settings.openchamber.visual.field.stickyUserHeader": "Cabeçalho do usuário fixo",
   "settings.openchamber.visual.field.promptNavigatorEnabledAria": "Navegador de prompts",
   "settings.openchamber.visual.field.promptNavigatorEnabled": "Navegador de prompts",
   "settings.openchamber.visual.field.autoSaveEnabledAria": "Salvamento automático de arquivos",

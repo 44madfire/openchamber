@@ -4,7 +4,7 @@ import { LegendList, type LegendListRef } from '@legendapp/list/react';
 import ChatMessage from './ChatMessage';
 import { TimelineNotice } from './message/TimelineNotice';
 import { useRunningSubagentRuns, withRunningSubagentRuns } from './lib/runningSubagentRuns';
-import { isSkippedTimelineMessage, isBackgroundReportEntry, isTimelineNoticeRole, isTurnOpeningNotice } from './lib/timelineRoles';
+import { isSkippedTimelineMessage, isBackgroundReportEntry, isTimelineNoticeRole } from './lib/timelineRoles';
 import { earlierAssistantText } from './lib/turns/earlierAssistantText';
 import { areOptionalRenderRelevantMessagesEqual, areRelevantTurnGroupingContextsEqual, areRenderRelevantMessagesEqual } from './message/renderCompare';
 import TurnItem from './components/TurnItem';
@@ -19,7 +19,6 @@ import { FULL_MESSAGE_WINDOW, TurnMessageWindowContext, createTurnMessageWindowS
 import { getNormalizedMessageForDisplay } from './lib/messageDisplayNormalization';
 import { attachSyntheticContext } from './lib/attachSyntheticContext';
 import { useUIStore } from '@/stores/useUIStore';
-import { isHiddenUserMessage } from './message/hiddenUserMessage';
 import { FadeInDisabledProvider } from './message/FadeInOnReveal';
 import { hasPendingUserSendAnimation, consumePendingUserSendAnimation } from '@/lib/userSendAnimation';
 import { streamPerfCount, streamPerfMark, streamPerfMeasure } from '@/stores/utils/streamDebug';
@@ -181,7 +180,6 @@ const writeTurnExpansionCache = (turnId: string, expanded: boolean): void => {
 
 interface MessageRowProps {
     message: ChatMessageEntry;
-    previousMessage?: ChatMessageEntry;
     nextMessage?: ChatMessageEntry;
     turnGroupingContext?: TurnGroupingContext;
     assistantHeaderMessageId?: string;
@@ -195,7 +193,6 @@ interface MessageRowProps {
 
 const MessageRow = React.memo<MessageRowProps>(({ 
     message,
-    previousMessage,
     nextMessage,
     turnGroupingContext,
     assistantHeaderMessageId,
@@ -215,7 +212,6 @@ const MessageRow = React.memo<MessageRowProps>(({
     return (
         <ChatMessage
             message={message}
-            previousMessage={previousMessage}
             nextMessage={nextMessage}
             animateUserOnMount={animateUserOnMount}
             onUserAnimationConsumed={onUserAnimationConsumed}
@@ -232,7 +228,6 @@ const MessageRow = React.memo<MessageRowProps>(({
     const nextTurn = next.turnGroupingContext;
 
     return areRenderRelevantMessagesEqual(prev.message, next.message)
-        && areOptionalRenderRelevantMessagesEqual(prev.previousMessage, next.previousMessage)
         && areOptionalRenderRelevantMessagesEqual(prev.nextMessage, next.nextMessage)
         && prev.animateUserOnMount === next.animateUserOnMount
         && prev.onUserAnimationConsumed === next.onUserAnimationConsumed
@@ -256,7 +251,6 @@ interface TurnBlockProps {
     turnExpansion: Map<string, boolean>;
     onToggleTurnActivity: ToggleTurnActivity;
     scrollToBottom?: () => void;
-    stickyUserHeader?: boolean;
     shouldAnimateUserMessage: (message: ChatMessageEntry) => boolean;
     onUserAnimationConsumed: (messageId: string) => void;
     activeStreamingMessageId?: string | null;
@@ -274,7 +268,6 @@ const TurnBlock = React.memo(({
     turnExpansion,
     onToggleTurnActivity,
     scrollToBottom,
-    stickyUserHeader = true,
     shouldAnimateUserMessage,
     onUserAnimationConsumed,
     activeStreamingMessageId,
@@ -283,25 +276,10 @@ const TurnBlock = React.memo(({
 }: TurnBlockProps) => {
 
     const showReasoningTraces = useUIStore((state) => state.showReasoningTraces);
-    // A hidden prompt has nothing to pin, and a background report or a
-    // compaction opens its turn as a notice row, which never sticks.
-    const turnHeaderCanStick = React.useMemo(
-        () => !isHiddenUserMessage(turn.userMessage) && !isTurnOpeningNotice(turn.userMessage.info),
-        [turn.userMessage]
-    );
     const isActivityExpanded = turnExpansion.get(turn.turnId) === true;
     const handleToggleActivity = React.useCallback(() => {
         onToggleTurnActivity(turn.turnId);
     }, [onToggleTurnActivity, turn.turnId]);
-
-    const messageOrder = React.useMemo(() => {
-        const ordered = [turn.userMessage, ...turn.assistantMessages];
-        const lookup = new Map<string, number>();
-        ordered.forEach((message, index) => {
-            lookup.set(message.info.id, index);
-        });
-        return { ordered, lookup };
-    }, [turn.assistantMessages, turn.userMessage]);
 
     const streamingAssistantMessageId = React.useMemo(() => {
         if (activeStreamingMessageId && turn.assistantMessages.some((assistant) => assistant.info.id === activeStreamingMessageId)) {
@@ -373,9 +351,6 @@ const TurnBlock = React.memo(({
 
     const renderMessage = React.useCallback(
         (message: ChatMessageEntry) => {
-            const messageRole = resolveMessageRole(message);
-            const isUserMessage = messageRole === 'user';
-            const messageIndex = messageOrder.lookup.get(message.info.id);
             const assistantIndex = assistantIndexById.get(message.info.id) ?? -1;
             const isAssistantMessage = assistantIndex >= 0;
             const isFirstAssistant = assistantIndex === 0;
@@ -384,15 +359,6 @@ const TurnBlock = React.memo(({
             const shouldAttachFullTurnContext = isActivityOwner || isFirstAssistant || isLastAssistant;
             const assistantHeaderMessageId = turn.assistantMessages[0]?.info.id ?? turn.headerMessageId;
 
-            const previousMessage = isUserMessage
-                ? undefined
-                : (isAssistantMessage
-                    ? (isFirstAssistant
-                        ? turn.userMessage
-                        : undefined)
-                    : (typeof messageIndex === 'number' && messageIndex > 0
-                        ? messageOrder.ordered[messageIndex - 1]
-                        : undefined));
             const nextMessage = isAssistantMessage && isLastAssistant ? nextEntryFirstMessage : undefined;
 
             const turnGroupingContext = isAssistantMessage
@@ -420,7 +386,6 @@ const TurnBlock = React.memo(({
                 <MessageRow
                     key={message.info.id}
                     message={message}
-                    previousMessage={previousMessage}
                     nextMessage={nextMessage}
                     turnGroupingContext={turnGroupingContext}
                     assistantHeaderMessageId={assistantHeaderMessageId}
@@ -436,8 +401,6 @@ const TurnBlock = React.memo(({
         [
             isLastTurn,
             nextEntryFirstMessage,
-            messageOrder.lookup,
-            messageOrder.ordered,
             scrollToBottom,
             sessionIsWorking,
             turn.assistantMessages,
@@ -445,7 +408,6 @@ const TurnBlock = React.memo(({
             turn.hasReasoning,
             turn.hasTools,
             turn.turnId,
-            turn.userMessage,
             turnGroupingContextBase,
             streamingAssistantMessageId,
             activeStreamingPhase,
@@ -461,7 +423,6 @@ const TurnBlock = React.memo(({
     return (
         <TurnItem
             turn={turn}
-            stickyUserHeader={stickyUserHeader && turnHeaderCanStick}
             renderMessage={renderMessage}
             assistantContent={!defaultActivityExpanded && hasLiveActivity(turn, showReasoningTraces) ? (
                 <LiveTurnActivity
@@ -480,7 +441,6 @@ TurnBlock.displayName = 'TurnBlock';
 
 interface UngroupedMessageRowProps {
     message: ChatMessageEntry;
-    previousMessage?: ChatMessageEntry;
     nextMessage?: ChatMessageEntry;
     scrollToBottom?: () => void;
     shouldAnimateUserMessage: (message: ChatMessageEntry) => boolean;
@@ -492,7 +452,6 @@ interface UngroupedMessageRowProps {
 
 const UngroupedMessageRow = React.memo(({
     message,
-    previousMessage,
     nextMessage,
     scrollToBottom,
     shouldAnimateUserMessage,
@@ -504,7 +463,6 @@ const UngroupedMessageRow = React.memo(({
     return (
         <MessageRow
             message={message}
-            previousMessage={previousMessage}
             nextMessage={nextMessage}
             animateUserOnMount={shouldAnimateUserMessage(message)}
             onUserAnimationConsumed={onUserAnimationConsumed}
@@ -521,7 +479,6 @@ UngroupedMessageRow.displayName = 'UngroupedMessageRow';
 interface MessageListEntryProps {
     entry: RenderEntry;
     scrollToBottom?: () => void;
-    stickyUserHeader?: boolean;
     sessionIsWorking: boolean;
     defaultActivityExpanded: boolean;
     turnExpansion: Map<string, boolean>;
@@ -548,7 +505,6 @@ const turnContainsMessageId = (turn: TurnRecord, messageId: string | null | unde
 const MessageListEntry = React.memo(({
     entry,
     scrollToBottom,
-    stickyUserHeader,
     sessionIsWorking,
     defaultActivityExpanded,
     turnExpansion,
@@ -564,7 +520,6 @@ const MessageListEntry = React.memo(({
         return (
             <UngroupedMessageRow
                 message={entry.message}
-                previousMessage={entry.previousMessage}
                 nextMessage={entry.nextMessage}
                 scrollToBottom={scrollToBottom}
                 shouldAnimateUserMessage={shouldAnimateUserMessage}
@@ -592,7 +547,6 @@ const MessageListEntry = React.memo(({
             activeStreamingPhase={activeStreamingPhase}
             reviewTransferDirection={reviewTransferDirection}
             scrollToBottom={scrollToBottom}
-            stickyUserHeader={stickyUserHeader}
         />
     );
 });
@@ -604,7 +558,6 @@ MessageListEntry.displayName = 'MessageListEntry';
 // `renderItem` makes the list re-render every mounted row on every commit.
 type TimelineRowContextValue = {
     scrollToBottom?: () => void;
-    stickyUserHeader: boolean;
     defaultActivityExpanded: boolean;
     turnExpansion: Map<string, boolean>;
     onToggleTurnActivity: ToggleTurnActivity;
@@ -634,7 +587,6 @@ const TimelineRow = React.memo(({ entry }: { entry: RenderEntry }) => {
             live={live}
             directory={context.directory}
             scrollToBottom={context.scrollToBottom}
-            stickyUserHeader={context.stickyUserHeader}
             sessionIsWorking={live && context.sessionIsWorking}
             defaultActivityExpanded={context.defaultActivityExpanded}
             turnExpansion={context.turnExpansion}
@@ -769,7 +721,6 @@ const TimelineRowContent: React.FC<{
     live: boolean;
     directory?: string;
     scrollToBottom?: () => void;
-    stickyUserHeader: boolean;
     sessionIsWorking: boolean;
     defaultActivityExpanded: boolean;
     turnExpansion: Map<string, boolean>;
@@ -785,7 +736,6 @@ const TimelineRowContent: React.FC<{
     live,
     directory,
     scrollToBottom,
-    stickyUserHeader,
     sessionIsWorking,
     defaultActivityExpanded,
     turnExpansion,
@@ -818,7 +768,6 @@ const TimelineRowContent: React.FC<{
         <MessageListEntry
             entry={rowEntry}
             scrollToBottom={scrollToBottom}
-            stickyUserHeader={stickyUserHeader}
             sessionIsWorking={sessionIsWorking}
             defaultActivityExpanded={defaultActivityExpanded}
             turnExpansion={turnExpansion}
@@ -855,7 +804,6 @@ const MessageList = React.forwardRef<MessageListHandle, MessageListProps>(({
 }, ref) => {
     streamPerfMark('react.message_list_render');
     streamPerfCount('ui.message_list.render');
-    const stickyUserHeader = useUIStore(state => state.stickyUserHeader);
     const activityRenderMode = useUIStore((state) => state.activityRenderMode);
     const showTurnChangedFiles = useUIStore((state) => state.showTurnChangedFiles);
     const defaultActivityExpanded = activityRenderMode === 'summary';
@@ -985,7 +933,6 @@ const MessageList = React.forwardRef<MessageListHandle, MessageListProps>(({
             kind: 'ungrouped',
             key: `msg:${lastMessage.info.id}`,
             message: lastMessage,
-            previousMessage: displayMessages.length > 1 ? displayMessages[displayMessages.length - 2] : undefined,
             nextMessage: undefined,
         } satisfies RenderEntry;
     }, [displayMessages, projection.lastTurnId, projection.ungroupedMessageIds, streamingTurn]);
@@ -1424,7 +1371,6 @@ const MessageList = React.forwardRef<MessageListHandle, MessageListProps>(({
 
     const rowContext = React.useMemo(() => ({
         scrollToBottom: stableScrollToBottom,
-        stickyUserHeader,
         defaultActivityExpanded,
         turnExpansion,
         onToggleTurnActivity: toggleTurnActivity,
@@ -1448,7 +1394,6 @@ const MessageList = React.forwardRef<MessageListHandle, MessageListProps>(({
         shouldAnimateUserMessage,
         showTurnChangedFiles,
         stableScrollToBottom,
-        stickyUserHeader,
         toggleTurnActivity,
         trailingStreamingEntry?.key,
         turnExpansion,

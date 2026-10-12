@@ -216,13 +216,10 @@ const contentTop = (node: HTMLElement, element: HTMLElement): number => (
     element.getBoundingClientRect().top - node.getBoundingClientRect().top + node.scrollTop
 );
 
-// The scroll offset that puts an element's start at the top of the viewport,
-// just under its turn's sticky user header.
-const readStartUnderHeaderScrollLimit = (node: HTMLElement, element: HTMLElement): number => {
-    const header = element.closest('[data-turn-id]')?.querySelector<HTMLElement>(':scope > [data-turn-sticky-header]');
-    const headerHeight = header ? header.getBoundingClientRect().height : 0;
-    return Math.max(0, contentTop(node, element) - headerHeight - REPLY_START_GAP_PX);
-};
+// The scroll offset that puts an element's start at the top of the viewport.
+const readStartScrollLimit = (node: HTMLElement, element: HTMLElement): number => (
+    Math.max(0, contentTop(node, element) - REPLY_START_GAP_PX)
+);
 
 interface FollowStop {
     readonly element: HTMLElement;
@@ -232,20 +229,19 @@ interface FollowStop {
 
 /**
  * Where the follow of a live turn may stop, top first (see followEnd). With
- * Activity collapsed, the end of the reader's message: it stays on top (in the
- * sticky header) and the compact work and the answer land right under it. Then, in both modes, the
+ * Activity collapsed, the end of the reader's message: the compact work and the
+ * answer land right under it. Then, in both modes, the
  * start of the reply being written (the last streaming text part), so a reader
  * watching all the work follows it until a long answer starts.
  */
 const findFollowStops = (node: HTMLElement, stopAfterUserMessage: boolean): FollowStop[] => {
     const stops: FollowStop[] = [];
-    // The turn's work starts right after the reader's message: the sticky
-    // header, or the message row itself when the header does not stick.
+    // The turn's work starts right after the reader's message row.
     const turn = stopAfterUserMessage ? lastMatch(node, '[data-turn-id]') : null;
     const work = turn?.children[1];
-    if (work instanceof HTMLElement) stops.push({ element: work, limit: readStartUnderHeaderScrollLimit(node, work) });
+    if (work instanceof HTMLElement) stops.push({ element: work, limit: readStartScrollLimit(node, work) });
     const reply = lastMatch(node, '[data-streaming-reply]');
-    if (reply) stops.push({ element: reply, limit: readStartUnderHeaderScrollLimit(node, reply) });
+    if (reply) stops.push({ element: reply, limit: readStartScrollLimit(node, reply) });
     return stops;
 };
 

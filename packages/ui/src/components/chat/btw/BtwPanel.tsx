@@ -446,7 +446,6 @@ const BtwMessages: React.FC<{
                     <ChatMessage
                         key={record.info.id}
                         message={record}
-                        previousMessage={data.messageRecords[index - 1]}
                         nextMessage={data.messageRecords[index + 1]}
                         isInActiveTurn={index === data.messageRecords.length - 1}
                         activeStreamingPhase={
