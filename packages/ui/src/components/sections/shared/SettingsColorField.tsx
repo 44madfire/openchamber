@@ -1,41 +1,45 @@
 import React from 'react';
 import { Icon } from '@/components/icon/Icon';
 import { Input } from '@/components/ui/input';
-import { useI18n } from '@/lib/i18n';
-import { isAgentHexColor } from '@/lib/agentColors';
+import { COLOR_PRESETS, isHexColor } from '@/lib/colorPresets';
 import { cn } from '@/lib/utils';
-
-/**
- * Preset agent colours. These are user data written into the agent's config,
- * not interface styling: the config holds hex only, so presets cannot follow
- * the theme. One distinct mid-tone per hue, readable on dark and light themes.
- */
-const AGENT_COLOR_PRESETS = ['#e5484d', '#f76b15', '#d6a312', '#30a46c', '#12a594', '#3e63dd', '#8e4ec6', '#d6409f'] as const;
 
 const SWATCH_CLASS = 'flex h-6 w-6 shrink-0 items-center justify-center rounded-full transition-shadow focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring';
 const SELECTED_CLASS = 'ring-2 ring-foreground ring-offset-2 ring-offset-background';
 
+type SettingsColorFieldLabels = {
+  /** What an empty value means for this setting ("Automatic", "No color"). */
+  empty: string;
+  swatch: (color: string) => string;
+  custom: string;
+  hex: string;
+};
+
 /**
- * Colour picker for an agent's `color` config: automatic (OpenChamber picks a
- * theme colour), one of the presets, or a custom colour from the system picker
- * with its hex editable next to it. An empty value means automatic.
+ * A user colour stored as six-digit hex: empty, one of the presets, or a
+ * custom colour from the system picker with its hex editable next to it.
+ * `legacy` is a stored value the field cannot express as hex (a project
+ * colour saved by an older build as a theme key); it shows as a selected
+ * swatch painted with `legacyCss` until the user picks something else.
  */
-export const AgentColorField: React.FC<{
+export const SettingsColorField: React.FC<{
   value: string;
   onChange: (value: string) => void;
-}> = ({ value, onChange }) => {
-  const { t } = useI18n();
+  labels: SettingsColorFieldLabels;
+  legacyCss?: string | null;
+}> = ({ value, onChange, labels, legacyCss = null }) => {
   const selected = value.toLowerCase();
-  const isPreset = AGENT_COLOR_PRESETS.some((color) => color === selected);
-  const isCustom = selected !== '' && !isPreset;
+  const isPreset = COLOR_PRESETS.some((color) => color === selected);
+  const isLegacy = selected !== '' && !isHexColor(selected) && legacyCss !== null;
+  const isCustom = selected !== '' && !isPreset && !isLegacy;
   const pickerRef = React.useRef<HTMLInputElement>(null);
   const [draft, setDraft] = React.useState(value);
   React.useEffect(() => setDraft(value), [value]);
 
-  const draftInvalid = draft.trim() !== '' && !isAgentHexColor(draft.trim());
+  const draftInvalid = draft.trim() !== '' && !isHexColor(draft.trim());
   const commitDraft = () => {
     const next = draft.trim();
-    if (next === '' || isAgentHexColor(next)) onChange(next.toLowerCase());
+    if (next === '' || isHexColor(next)) onChange(next.toLowerCase());
   };
 
   return (
@@ -45,12 +49,15 @@ export const AgentColorField: React.FC<{
         onClick={() => onChange('')}
         aria-pressed={selected === ''}
         className={cn(SWATCH_CLASS, 'border border-border text-muted-foreground', selected === '' && SELECTED_CLASS)}
-        title={t('settings.agents.page.field.colorAutomatic')}
-        aria-label={t('settings.agents.page.field.colorAutomatic')}
+        title={labels.empty}
+        aria-label={labels.empty}
       >
         <Icon name="close" className="h-3.5 w-3.5" />
       </button>
-      {AGENT_COLOR_PRESETS.map((color) => (
+      {isLegacy ? (
+        <span aria-hidden="true" className={cn(SWATCH_CLASS, SELECTED_CLASS)} style={{ backgroundColor: legacyCss }} />
+      ) : null}
+      {COLOR_PRESETS.map((color) => (
         <button
           key={color}
           type="button"
@@ -59,7 +66,7 @@ export const AgentColorField: React.FC<{
           className={cn(SWATCH_CLASS, selected === color && SELECTED_CLASS)}
           style={{ backgroundColor: color }}
           title={color}
-          aria-label={t('settings.agents.page.field.colorSwatchAria', { color })}
+          aria-label={labels.swatch(color)}
         />
       ))}
       <button
@@ -71,8 +78,8 @@ export const AgentColorField: React.FC<{
           isCustom ? SELECTED_CLASS : 'border border-dashed border-border text-muted-foreground hover:text-foreground',
         )}
         style={isCustom ? { backgroundColor: selected } : undefined}
-        title={t('settings.agents.page.field.colorCustomAria')}
-        aria-label={t('settings.agents.page.field.colorCustomAria')}
+        title={labels.custom}
+        aria-label={labels.custom}
       >
         {isCustom ? null : <Icon name="add" className="h-3.5 w-3.5" />}
       </button>
@@ -82,7 +89,7 @@ export const AgentColorField: React.FC<{
         type="color"
         tabIndex={-1}
         aria-hidden="true"
-        value={isAgentHexColor(selected) ? selected : '#808080'}
+        value={isHexColor(selected) ? selected : '#808080'}
         onChange={(event) => onChange(event.target.value.toLowerCase())}
         className="sr-only"
       />
@@ -96,7 +103,7 @@ export const AgentColorField: React.FC<{
           }}
           placeholder="#RRGGBB"
           aria-invalid={draftInvalid}
-          aria-label={t('settings.agents.page.field.colorHexAria')}
+          aria-label={labels.hex}
           className="h-7 w-24 rounded-md px-2 font-mono typography-meta"
         />
       ) : null}

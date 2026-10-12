@@ -9,7 +9,7 @@ import { useSettingsDirectory } from '@/hooks/useSettingsDirectory';
 import { selectAgentsForDirectory, useAgentsStore, type AgentConfig, type AgentEntity, type AgentEntityEnvelope, type AgentMutationResult, type AgentRequest, type AgentRequestBody, type AgentScope, type AgentWithExtras } from '@/stores/useAgentsStore';
 import { useShallow } from 'zustand/react/shallow';
 import { ModelSelector } from './ModelSelector';
-import { AgentColorField } from './AgentColorField';
+import { SettingsColorField } from '@/components/sections/shared/SettingsColorField';
 import { configuredAgentColor } from '@/lib/agentColors';
 import { useI18n } from '@/lib/i18n';
 import { formatModelSelection, parseModelIdentifier, parseModelSelection } from '@/lib/modelIdentifier';
@@ -540,8 +540,14 @@ export const AgentsPage: React.FC = () => {
           label={t('settings.agents.page.field.color')}
           info={t('settings.agents.page.field.colorTooltip')}
         >
-          <AgentColorField
+          <SettingsColorField
             value={color}
+            labels={{
+              empty: t('settings.agents.page.field.colorAutomatic'),
+              swatch: (swatch) => t('settings.agents.page.field.colorSwatchAria', { color: swatch }),
+              custom: t('settings.agents.page.field.colorCustomAria'),
+              hex: t('settings.agents.page.field.colorHexAria'),
+            }}
             onChange={(next) => {
               setColor(next);
               requestSave();

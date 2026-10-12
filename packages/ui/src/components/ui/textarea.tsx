@@ -29,6 +29,16 @@ type TextareaProps = React.ComponentProps<"textarea"> & {
 /** Keep in sync with the textarea's `min-h-[82px]` below. */
 const TEXTAREA_MIN_HEIGHT = 82;
 
+/**
+ * The textarea's own minimum as rendered. A caller may raise it with its own
+ * `min-h-*`; clamping to the default instead let the box shrink past the
+ * textarea, which then spilled through the border with the resize handle.
+ */
+const textareaMinHeight = (textarea: HTMLTextAreaElement | null): number => {
+  const rendered = textarea ? Number.parseFloat(window.getComputedStyle(textarea).minHeight) : Number.NaN;
+  return Number.isFinite(rendered) ? Math.max(rendered, TEXTAREA_MIN_HEIGHT) : TEXTAREA_MIN_HEIGHT;
+};
+
 function ResizeHandle({
   onResizeStart,
   ariaLabel,
@@ -99,7 +109,7 @@ const Textarea = React.forwardRef<HTMLTextAreaElement, TextareaProps>(
       const footer = wrapper?.querySelector<HTMLElement>('[data-textarea-footer]');
       if (!wrapper || !column || !footer) return;
       const wrapperStyle = window.getComputedStyle(wrapper);
-      const floor = TEXTAREA_MIN_HEIGHT
+      const floor = textareaMinHeight(wrapper.querySelector('textarea'))
         + footer.offsetHeight
         + (Number.parseFloat(window.getComputedStyle(column).rowGap) || 0)
         + (Number.parseFloat(wrapperStyle.paddingTop) || 0)
@@ -126,7 +136,7 @@ const Textarea = React.forwardRef<HTMLTextAreaElement, TextareaProps>(
       dragStateRef.current = {
         startY: event.clientY,
         startHeight,
-        minHeight: TEXTAREA_MIN_HEIGHT + chromeHeight,
+        minHeight: textareaMinHeight(innerTextarea) + chromeHeight,
       };
       const target = event.currentTarget;
       target.setPointerCapture(event.pointerId);

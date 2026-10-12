@@ -3,7 +3,7 @@ import { RiFolder6Line } from '@remixicon/react';
 
 import { Icon } from '@/components/icon/Icon';
 import { useThemeSystem } from '@/contexts/useThemeSystem';
-import { PROJECT_COLOR_MAP, PROJECT_ICON_MAP, ProjectIconImage } from '@/lib/projectMeta';
+import { PROJECT_ICON_MAP, resolveProjectColor, ProjectIconImage } from '@/lib/projectMeta';
 
 /** The project fields the icon needs — a structural subset of the sheet's
     ProjectMeta, so both the sheet and the timeline list can pass their own
@@ -24,7 +24,7 @@ export const MobileProjectIcon: React.FC<{
   const { currentTheme } = useThemeSystem();
 
   const ProjectIcon = project.icon ? PROJECT_ICON_MAP[project.icon] : null;
-  const iconColor = project.color ? PROJECT_COLOR_MAP[project.color] ?? null : null;
+  const iconColor = resolveProjectColor(project.color);
 
   const glyphClasses = size === 'md' ? 'size-5' : 'size-3.5';
   const fallbackIcon = ProjectIcon ? (

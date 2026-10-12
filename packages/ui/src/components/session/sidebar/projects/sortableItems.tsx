@@ -12,7 +12,7 @@ import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuTrigger } 
 import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip';
 import { Icon } from '@/components/icon/Icon';
 import { cn, getRevealLabelKey } from '@/lib/utils';
-import { PROJECT_COLOR_MAP, PROJECT_ICON_MAP, ProjectIconImage } from '@/lib/projectMeta';
+import { PROJECT_ICON_MAP, resolveProjectColor, ProjectIconImage } from '@/lib/projectMeta';
 import { useThemeSystem } from '@/contexts/useThemeSystem';
 import { useI18n } from '@/lib/i18n';
 import { CrossfadeZoneHeader } from './CrossfadeZoneHeaders';
@@ -53,7 +53,7 @@ const ProjectHeaderIdentity: React.FC<ProjectHeaderIdentityProps> = ({
 }) => {
   const { currentTheme } = useThemeSystem();
   const projectIconName = projectIcon ? PROJECT_ICON_MAP[projectIcon] : null;
-  const iconColor = projectColor ? (PROJECT_COLOR_MAP[projectColor] ?? null) : null;
+  const iconColor = resolveProjectColor(projectColor);
   const hasCollapseControl = isCollapsed !== undefined;
   // The project icon cross-fades into the collapse chevron on hover.
   const iconVisibilityClassName = hasCollapseControl

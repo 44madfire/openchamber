@@ -38,7 +38,7 @@ import {
 } from '@/components/ui/select';
 import { useI18n } from '@/lib/i18n';
 import { matchesRankQuery, rankByQuery } from '@/lib/search/fuzzySearch';
-import { PROJECT_COLOR_MAP, PROJECT_ICON_MAP, ProjectIconImage } from '@/lib/projectMeta';
+import { PROJECT_ICON_MAP, resolveProjectColor, ProjectIconImage } from '@/lib/projectMeta';
 import { createWorktreeDraft } from '@/lib/worktreeSessionCreator';
 import { shortcutRegistry } from '@/lib/shortcuts';
 import { useKeybind } from '@/hooks/useKeybind';
@@ -100,7 +100,7 @@ function WorktreeCreateActions({ onQuick, onCustom, className }: {
 }
 
 const getProjectIconColor = (projectColor?: string | null): string | undefined =>
-    projectColor ? PROJECT_COLOR_MAP[projectColor] ?? undefined : undefined;
+    resolveProjectColor(projectColor) ?? undefined;
 
 /** A project's icon (custom image, configured icon, or a folder) plus its name. */
 export function ProjectLabel({ project, theme }: { project: DraftTargetProject; theme: Theme }) {

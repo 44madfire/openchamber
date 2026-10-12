@@ -34,7 +34,7 @@ export function WorktreesView(): React.ReactNode {
               {t('sessions.sidebar.project.actions.newWorktree')}
             </Button>
           </div>
-          <WorktreeSectionContent projectRef={{ id: project.id, path: project.path }} sections="list-only" />
+          <WorktreeSectionContent projectRef={{ id: project.id, path: project.path }} />
         </div>
       </div>
     </div>

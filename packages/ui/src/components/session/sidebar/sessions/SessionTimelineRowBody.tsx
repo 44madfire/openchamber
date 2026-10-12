@@ -3,7 +3,7 @@ import { RowMarkTooltip } from './RowMarkTooltip';
 import { Icon } from '@/components/icon/Icon';
 import { ProviderLogo } from '@/components/ui/ProviderLogo';
 import { cn } from '@/lib/utils';
-import { PROJECT_COLOR_MAP, PROJECT_ICON_MAP, ProjectIconImage } from '@/lib/projectMeta';
+import { PROJECT_ICON_MAP, resolveProjectColor, ProjectIconImage } from '@/lib/projectMeta';
 import { useThemeSystem } from '@/contexts/useThemeSystem';
 
 type TimelineRowProject = {
@@ -74,7 +74,7 @@ const ProjectImageIcon: React.FC<{ project: TimelineRowProject; fallback: React.
 
 const TimelineProjectIcon: React.FC<{ project: TimelineRowProject; label: string | null }> = ({ project, label }) => {
   const iconName = project.icon ? PROJECT_ICON_MAP[project.icon] : null;
-  const iconColor = project.color ? (PROJECT_COLOR_MAP[project.color] ?? null) : null;
+  const iconColor = resolveProjectColor(project.color);
   const glyph = iconName
     ? <Icon name={iconName} className={cn('h-3 w-3', !iconColor && 'text-muted-foreground/75')} style={iconColor ? { color: iconColor } : undefined} />
     : <Icon name="folder" className="h-3 w-3 text-muted-foreground/75" style={iconColor ? { color: iconColor } : undefined} />;

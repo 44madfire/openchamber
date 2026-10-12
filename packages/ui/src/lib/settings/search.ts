@@ -919,16 +919,17 @@ const SETTINGS_SEARCH_ITEMS: readonly SettingsSearchItem[] = [
     keywords: ['thinking', 'variant', 'reasoning', 'effort', 'model', 'project metadata'],
   },
   {
-    id: 'projects.accent-color',
-    page: 'projects',
-    titleKey: 'settings.projects.page.field.accentColor',
-    keywords: ['color', 'appearance', 'project metadata'],
-  },
-  {
     id: 'projects.icon',
     page: 'projects',
     titleKey: 'settings.projects.page.field.projectIcon',
-    keywords: ['icon', 'favicon', 'upload', 'project metadata'],
+    keywords: ['icon', 'favicon', 'upload', 'color', 'accent color', 'appearance', 'project metadata'],
+  },
+  {
+    id: 'projects.actions',
+    page: 'projects',
+    titleKey: 'settings.projects.actions.title',
+    descriptionKey: 'settings.projects.actions.info',
+    keywords: ['run', 'run button', 'commands', 'dev server', 'scripts', 'project actions'],
   },
   {
     id: 'projects.worktree',
@@ -959,8 +960,8 @@ const SETTINGS_SEARCH_ITEMS: readonly SettingsSearchItem[] = [
   {
     id: 'projects.shared',
     page: 'projects',
-    titleKey: 'settings.projects.shared.title',
-    descriptionKey: 'settings.projects.shared.description',
+    titleKey: 'settings.projects.team.title',
+    descriptionKey: 'settings.projects.team.info',
     keywords: ['shared', 'team', 'repository', '.openchamber', 'project.json', 'trust'],
   },
   {

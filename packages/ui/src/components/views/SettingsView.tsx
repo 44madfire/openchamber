@@ -12,6 +12,7 @@ import { useAgentsStore } from '@/stores/useAgentsStore';
 import { useCommandsStore } from '@/stores/useCommandsStore';
 import { useMcpConfigStore } from '@/stores/useMcpConfigStore';
 import { useSnippetsStore } from '@/stores/useSnippetsStore';
+import { projectSettingsTabForSearchTarget, useProjectSettingsTabStore } from '@/components/sections/projects/projectSettingsTabs';
 import { useSkillsStore } from '@/stores/useSkillsStore';
 import { useSkillsCatalogStore } from '@/stores/useSkillsCatalogStore';
 import { Tooltip, TooltipTrigger } from '@/components/ui/tooltip';
@@ -472,6 +473,11 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onClose, forceMobile
 
     if (result.id === 'plugins.create') {
       return 'plugins.spec';
+    }
+
+    const projectTab = projectSettingsTabForSearchTarget(result.id);
+    if (projectTab) {
+      useProjectSettingsTabStore.getState().setTab(projectTab);
     }
 
     return result.id;

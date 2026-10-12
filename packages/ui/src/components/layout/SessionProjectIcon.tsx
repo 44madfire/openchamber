@@ -2,7 +2,7 @@ import React from 'react';
 import { Icon } from '@/components/icon/Icon';
 import { useThemeSystem } from '@/contexts/useThemeSystem';
 import { isChatDirectoryForHome } from '@/lib/chatDirectories';
-import { PROJECT_COLOR_MAP, PROJECT_ICON_MAP, ProjectIconImage } from '@/lib/projectMeta';
+import { PROJECT_ICON_MAP, resolveProjectColor, ProjectIconImage } from '@/lib/projectMeta';
 import { resolveProjectForSessionDirectory } from '@/lib/projectResolution';
 import { cn } from '@/lib/utils';
 import { useDirectoryStore } from '@/stores/useDirectoryStore';
@@ -35,7 +35,7 @@ export function SessionProjectIcon({ directory, className }: { directory: string
   }
 
   const iconName = project.icon ? PROJECT_ICON_MAP[project.icon] : null;
-  const iconColor = project.color ? PROJECT_COLOR_MAP[project.color] : undefined;
+  const iconColor = resolveProjectColor(project.color) ?? undefined;
   const glyph = iconName ? (
     <Icon name={iconName} className={cn('h-3.5 w-3.5 shrink-0', className)} style={iconColor ? { color: iconColor } : undefined} />
   ) : (
