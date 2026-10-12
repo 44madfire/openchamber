@@ -7,6 +7,7 @@ import { I18nProvider } from '@/lib/i18n';
 import type { CreateTerminalOptions, TerminalHandlers, TerminalStreamEvent } from '@/lib/api/types';
 import { useTerminalStore } from '@/stores/useTerminalStore';
 import type { OpenChamberProjectAction } from '@/lib/openchamberConfig';
+import { getSafeStorage } from '@/stores/utils/safeStorage';
 
 const toastCalls = {
   error: new Array<string>(),
@@ -240,6 +241,7 @@ describe('ProjectActionsButton lifecycle', () => {
     effectiveDirectory = '/repo';
     sessionCounter = 0;
     mockedActionsState.actions = [{ id: 'build', name: 'Build', command: 'echo hello', icon: 'build' }];
+    getSafeStorage().clear();
   });
 
   afterEach(async () => {
@@ -266,6 +268,50 @@ describe('ProjectActionsButton lifecycle', () => {
 
 
 
+
+  const primaryLabel = () => host.querySelector('button')?.getAttribute('aria-label') ?? '';
+  const menuItem = (name: string) => [...host.querySelectorAll('button')]
+    .find((button) => button.textContent === name);
+
+  test('the first project action is the default, with auto-discovery last in the menu', async () => {
+    mockedDeviceInfo.isMobile = false;
+    mockedActionsState.actions = [
+      { id: 'dev', name: 'Dev', command: 'bun run dev' },
+      { id: 'build', name: 'Build', command: 'echo hello' },
+    ];
+    await renderButton();
+
+    expect(primaryLabel()).toContain('Dev');
+    const items = [...host.querySelectorAll('button')].map((button) => button.textContent);
+    expect(items.slice(-3)).toEqual(['Dev', 'Build', 'Auto-discover dev server']);
+  });
+
+  test('auto-discovery is the default when the project has no actions', async () => {
+    mockedDeviceInfo.isMobile = false;
+    mockedActionsState.actions = [];
+    await renderButton();
+
+    expect(primaryLabel()).toContain('Auto-discover dev server');
+  });
+
+  test('the picked action is still selected after the button mounts again', async () => {
+    mockedDeviceInfo.isMobile = false;
+    mockedActionsState.actions = [
+      { id: 'dev', name: 'Dev', command: 'bun run dev' },
+      { id: 'build', name: 'Build', command: 'echo hello' },
+    ];
+    await renderButton();
+    await act(async () => {
+      menuItem('Auto-discover dev server')?.dispatchEvent(new Event('click', { bubbles: true }));
+      await Promise.resolve();
+    });
+
+    await act(async () => root.unmount());
+    root = createRoot(host);
+    await renderButton();
+
+    expect(primaryLabel()).toContain('Auto-discover dev server');
+  });
 
   test('a running action takes the row over the first idle one', async () => {
     mockedDeviceInfo.isMobile = false;
@@ -486,6 +532,7 @@ describe('ProjectActionsButton lifecycle', () => {
 
   test('auto-discover without a preview hint settles on an announced localhost URL in context preview only', async () => {
     mockedDeviceInfo.isMobile = false;
+    mockedActionsState.actions = [];
     detectedDevServer.command = 'bun run dev';
     await renderButton();
 
@@ -522,6 +569,7 @@ describe('ProjectActionsButton lifecycle', () => {
 
   test('auto-discover opens its terminal when no preview URL appears before the fallback timeout', async () => {
     mockedDeviceInfo.isMobile = false;
+    mockedActionsState.actions = [];
     detectedDevServer.command = 'bun run dev';
     effectiveDirectory = '/repo-worktree';
     await renderButton({ projectPath: '/repo', directory: '/repo' });
@@ -544,6 +592,7 @@ describe('ProjectActionsButton lifecycle', () => {
 
   test('unmount closes active subscriptions and cancels pending preview timeouts', async () => {
     mockedDeviceInfo.isMobile = false;
+    mockedActionsState.actions = [];
     detectedDevServer.command = 'bun run dev';
     effectiveDirectory = '/repo-worktree';
     await renderButton({ projectPath: '/repo', directory: '/repo' });

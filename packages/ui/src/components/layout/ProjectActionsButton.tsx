@@ -49,6 +49,7 @@ import {
   stopProjectActionTerminalSession,
 } from '@/lib/projectActionTerminal';
 import { observeTerminalSessions } from '@/lib/terminalSessionObserver';
+import { getSelectedProjectActionId, setSelectedProjectActionId } from '@/lib/projectActionSelection';
 import type { TerminalTab } from '@/stores/useTerminalStore';
 
 type UrlWatchEntry = {
@@ -77,14 +78,6 @@ interface ProjectActionsButtonProps {
 }
 
 const AUTO_DISCOVER_ACTION_ID = '__openchamber_auto_discover_preview__';
-
-/**
- * The action last picked per project. The control lives in the work-status
- * panel, which unmounts on every session switch and whenever the context panel
- * squeezes it out; component state alone forgot the pick each time and fell
- * back to the first action.
- */
-const lastSelectedActionIdByProject = new Map<string, string>();
 const AUTO_DISCOVER_PREVIEW_WAIT_TIMEOUT_MS = 15_000;
 /**
  * How long to keep listening after the first server announces itself. A project
@@ -160,7 +153,7 @@ const ProjectActionsButtonComponent = ({
   // The last merged setup, for the trust check before a shared action runs.
   const setupRef = React.useRef<ProjectSetup | null>(null);
   const [selectedActionId, setSelectedActionId] = React.useState<string | null>(
-    () => (projectRef?.id ? lastSelectedActionIdByProject.get(projectRef.id) ?? null : null),
+    () => (projectRef?.id ? getSelectedProjectActionId(projectRef.id) : null),
   );
   const [isLoading, setIsLoading] = React.useState(false);
   const urlWatchByRunKeyRef = React.useRef<Record<string, UrlWatchEntry>>({});
@@ -174,7 +167,7 @@ const ProjectActionsButtonComponent = ({
   const projectPath = projectRef?.path ?? '';
 
   React.useEffect(() => {
-    setSelectedActionId(projectId ? lastSelectedActionIdByProject.get(projectId) ?? null : null);
+    setSelectedActionId(projectId ? getSelectedProjectActionId(projectId) : null);
   }, [projectId]);
 
   const stableProjectRef = React.useMemo(() => {
@@ -212,15 +205,6 @@ const ProjectActionsButtonComponent = ({
       setupRef.current = setup;
       const filtered = setup.projectActions;
       setActions(filtered);
-      setSelectedActionId((current) => {
-        if (current === AUTO_DISCOVER_ACTION_ID) {
-          return current;
-        }
-        if (current && filtered.some((entry) => entry.id === current)) {
-          return current;
-        }
-        return null;
-      });
     } catch {
       if (loadRequestIdRef.current !== requestId) {
         return;
@@ -395,13 +379,6 @@ const ProjectActionsButtonComponent = ({
     });
   }, []);
 
-  const selectedAction = React.useMemo(() => {
-    if (!selectedActionId) {
-      return null;
-    }
-    return actions.find((entry) => entry.id === selectedActionId) ?? null;
-  }, [actions, selectedActionId]);
-
   const autoDiscoverAction = React.useMemo<OpenChamberProjectAction>(() => ({
     id: AUTO_DISCOVER_ACTION_ID,
     name: t('projectActions.actions.autoDiscover'),
@@ -411,9 +388,18 @@ const ProjectActionsButtonComponent = ({
   }), [t]);
 
   const canUseAutoDiscover = !isMobile;
+  // The project's own actions come first, so with nothing picked yet the
+  // button offers the first of them; auto-discovery is the fallback.
   const displayActions = React.useMemo(
-    () => canUseAutoDiscover ? [autoDiscoverAction, ...actions] : actions,
+    () => canUseAutoDiscover ? [...actions, autoDiscoverAction] : actions,
     [actions, autoDiscoverAction, canUseAutoDiscover]
+  );
+
+  // A stored pick that no longer names an action, or one still loading, is
+  // simply not found, and the button falls back to the first action.
+  const selectedAction = React.useMemo(
+    () => (selectedActionId ? displayActions.find((entry) => entry.id === selectedActionId) ?? null : null),
+    [displayActions, selectedActionId]
   );
 
   React.useEffect(() => {
@@ -474,18 +460,6 @@ const ProjectActionsButtonComponent = ({
       browserWindow.removeEventListener(PROJECT_ACTIONS_UPDATED_EVENT, handler);
     };
   }, [loadActions, projectId]);
-
-  React.useEffect(() => {
-    if (!selectedActionId) {
-      return;
-    }
-    if (selectedActionId === AUTO_DISCOVER_ACTION_ID && canUseAutoDiscover) {
-      return;
-    }
-    if (!actions.some((entry) => entry.id === selectedActionId)) {
-      setSelectedActionId(null);
-    }
-  }, [actions, canUseAutoDiscover, selectedActionId]);
 
   React.useEffect(() => {
     /**
@@ -1060,23 +1034,6 @@ const ProjectActionsButtonComponent = ({
     });
   }, [clearExecutionUi, executionDirectoryFor, matchesActionExecution, projectActionRuns, setTabLifecycle, setTabPurpose, setTabSessionId, terminal]);
 
-  const handlePrimaryClick = React.useCallback(() => {
-    const action = selectedAction ?? displayActions[0];
-    if (!action) {
-      return;
-    }
-    const runKey = toProjectActionRunKey(executionDirectoryFor(action), action.id);
-    const runningEntry = projectActionRuns[runKey];
-    if (runningEntry?.status === 'stopping') {
-      return;
-    }
-    if (runningEntry) {
-      void stopAction(action);
-      return;
-    }
-    void runAction(action);
-  }, [displayActions, executionDirectoryFor, runAction, projectActionRuns, selectedAction, stopAction]);
-
   // A shared action comes from the repo: the first time one would run, the
   // trust prompt shows the team's commands; "not this time" runs nothing.
   const runActionWithTrust = React.useCallback(async (action: OpenChamberProjectAction) => {
@@ -1091,9 +1048,37 @@ const ProjectActionsButtonComponent = ({
     await runAction(action);
   }, [runAction, stableProjectRef]);
 
+  // A running action wins over an idle pick: the row is where it gets stopped,
+  // so it must not hide behind whichever action was chosen last.
+  const isActionRunning = (entry: OpenChamberProjectAction) => Boolean(
+    projectActionRuns[toProjectActionRunKey(executionDirectoryFor(entry), entry.id)],
+  );
+  const resolvedSelected = (selectedAction && isActionRunning(selectedAction) ? selectedAction : null)
+    ?? displayActions.find(isActionRunning)
+    ?? selectedAction
+    ?? displayActions[0]
+    ?? null;
+
+  // The row runs or stops the action it shows.
+  const handlePrimaryClick = React.useCallback(() => {
+    if (!resolvedSelected) {
+      return;
+    }
+    const runKey = toProjectActionRunKey(executionDirectoryFor(resolvedSelected), resolvedSelected.id);
+    const runningEntry = projectActionRuns[runKey];
+    if (runningEntry?.status === 'stopping') {
+      return;
+    }
+    if (runningEntry) {
+      void stopAction(resolvedSelected);
+      return;
+    }
+    void runActionWithTrust(resolvedSelected);
+  }, [executionDirectoryFor, projectActionRuns, resolvedSelected, runActionWithTrust, stopAction]);
+
   const handleSelectAction = React.useCallback((action: OpenChamberProjectAction, toggleStopIfRunning = false) => {
     setSelectedActionId(action.id);
-    if (projectId) lastSelectedActionIdByProject.set(projectId, action.id);
+    if (projectId) setSelectedProjectActionId(projectId, action.id);
 
     if (!toggleStopIfRunning) {
       void runActionWithTrust(action);
@@ -1121,16 +1106,6 @@ const ProjectActionsButtonComponent = ({
     setSettingsDialogOpen(true);
   }, [setSettingsDialogOpen, setSettingsPage, setSettingsProjectsSelectedId, stableProjectRef?.id]);
 
-  // A running action wins over an idle pick: the row is where it gets stopped,
-  // so it must not hide behind whichever action was chosen last.
-  const isActionRunning = (entry: OpenChamberProjectAction) => Boolean(
-    projectActionRuns[toProjectActionRunKey(executionDirectoryFor(entry), entry.id)],
-  );
-  const resolvedSelected = (selectedAction && isActionRunning(selectedAction) ? selectedAction : null)
-    ?? displayActions.find(isActionRunning)
-    ?? selectedAction
-    ?? displayActions[0]
-    ?? null;
   const previewRun = resolvedSelected ? projectActionRuns[toProjectActionRunKey(executionDirectoryFor(resolvedSelected), resolvedSelected.id)] : null;
   const selectedRunPreviewUrl = useTerminalStore((state) => {
     if (!previewRun) return null;
