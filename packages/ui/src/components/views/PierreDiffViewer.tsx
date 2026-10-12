@@ -36,6 +36,7 @@ import { useI18n } from '@/lib/i18n';
 import { cn } from '@/lib/utils';
 import { hideWhitespaceChanges } from '@/lib/diff/hideWhitespaceChanges';
 import type { PatchHunkAnchor } from '@/lib/diff/patchFileDiff';
+import { getDiffLinesText } from '@/lib/diff/selectedDiffLines';
 import { PIERRE_DIFF_TINT_CSS } from '@/lib/shiki/pierreDiffTint';
 
 /**
@@ -430,19 +431,14 @@ const extractSelectedCode = (
 ): string => {
   // Default to modified if side is ambiguous, as users mostly comment on new code
   const isOriginal = range.side === 'deletions';
-  const content = fileDiff
-    ? (isOriginal ? fileDiff.deletionLines : fileDiff.additionLines).join('')
-    : (isOriginal ? original : modified);
-  const lines = content.split('\n');
-
-  // Ensure bounds
   const from = Math.min(range.start, range.end);
   const to = Math.max(range.start, range.end);
+  if (fileDiff) return getDiffLinesText(fileDiff, isOriginal ? 'deletions' : 'additions', from, to);
+
+  const lines = (isOriginal ? original : modified).split('\n');
   const startLine = Math.max(1, from);
   const endLine = Math.min(lines.length, to);
-
   if (startLine > endLine) return '';
-
   return lines.slice(startLine - 1, endLine).join('\n');
 };
 
