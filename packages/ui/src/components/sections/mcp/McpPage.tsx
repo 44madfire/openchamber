@@ -22,7 +22,7 @@ import {
 } from './mcpImport';
 import { useMcpStore } from '@/stores/useMcpStore';
 import { McpOAuthSignIn } from './McpOAuthSignIn';
-import { MCP_DRAFT_OAUTH_UNSET, readCarriedOAuth, type McpOAuthCarried } from './mcpDraft';
+import { MCP_DRAFT_OAUTH_UNSET, normalizeMcpServerName, readCarriedOAuth, type McpOAuthCarried } from './mcpDraft';
 import { useIntegrationPolicyBlock } from '@/components/sections/shared/useIntegrationPolicyBlock';
 import { useSettingsDirectory } from '@/hooks/useSettingsDirectory';
 import { cn } from '@/lib/utils';
@@ -973,20 +973,17 @@ export const McpPage: React.FC = () => {
 
     setIsCreating(true);
     try {
+      // A rejected create throws with the server's reason, shown by the catch below.
       const result = await createMcp(buildDraft(name), currentDirectory);
-      if (result.ok) {
-        setMcpDraft(null);
-        setSelectedMcp(name);
-        await refreshStatus({ directory: currentDirectory, silent: true });
-        if (result.reloadFailed) {
-          toast.warning(result.message || t('settings.mcp.page.toast.serverCreatedReloadFailed'), {
-            description: result.warning || t('settings.mcp.page.toast.retryRefreshHint'),
-          });
-        } else {
-          toast.success(result.message || t('settings.mcp.page.toast.serverCreatedReloading'));
-        }
+      setMcpDraft(null);
+      setSelectedMcp(name);
+      await refreshStatus({ directory: currentDirectory, silent: true });
+      if (result.reloadFailed) {
+        toast.warning(result.message || t('settings.mcp.page.toast.serverCreatedReloadFailed'), {
+          description: result.warning || t('settings.mcp.page.toast.retryRefreshHint'),
+        });
       } else {
-        toast.error(t('settings.mcp.page.toast.saveFailed'));
+        toast.success(result.message || t('settings.mcp.page.toast.serverCreatedReloading'));
       }
     } catch (err) {
       toast.error(err instanceof Error ? err.message : t('settings.mcp.page.toast.unexpectedError'));
@@ -1290,7 +1287,7 @@ export const McpPage: React.FC = () => {
               >
                   <Input
                     value={draftName}
-                    onChange={(e) => setDraftName(e.target.value.toLowerCase().replace(/[^a-z0-9_-]/g, '-'))}
+                    onChange={(e) => setDraftName(normalizeMcpServerName(e.target.value))}
                     placeholder={t('settings.mcp.page.server.namePlaceholder')}
                     className="h-7 w-48 min-w-0 max-w-full shrink font-mono px-2"
                     autoFocus
