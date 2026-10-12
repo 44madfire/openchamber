@@ -16,6 +16,7 @@ import { branchRefLabel } from '@/components/views/git/baseBranch';
 import { useGitStore, useGitStatus, useIsGitRepo, useGitLoadingStatus } from '@/stores/useGitStore';
 import { useGitBaseBranchStore } from '@/stores/useGitBaseBranchStore';
 import { useBranchComparisonBase } from '@/hooks/useBranchComparisonBase';
+import { useDiffToolbarFit } from '@/components/views/useDiffToolbarFit';
 import { coerceDiffScope, isBranchScopeAvailable, isBranchScopeDefinitelyUnavailable, useRangeKeyedCache, useBoundedDirectoryRetry } from './branchDiffScope';
 import { getRuntimeKey } from '@/lib/runtime-switch';
 import { cn } from '@/lib/utils';
@@ -1210,6 +1211,8 @@ export const DiffView: React.FC<DiffViewProps> = ({
 }) => {
     const { t } = useI18n();
     const inPanelHeader = useInContextPanelHeader();
+    const toolbarRef = React.useRef<HTMLDivElement | null>(null);
+    useDiffToolbarFit(toolbarRef);
     const { git, files, sourceControl } = useRuntimeAPIs();
     const rootDirectory = useEffectiveDirectory();
     const runtimeKey = useGitStore((state) => state.runtimeKey);
@@ -2501,7 +2504,7 @@ export const DiffView: React.FC<DiffViewProps> = ({
     return (
         <div className="flex h-full flex-col overflow-hidden bg-background">
             <ContextPanelHeaderToolbar>
-            <div className={cn('@container/diff-toolbar flex min-w-0 items-center gap-2', inPanelHeader ? 'flex-1 py-1 pe-1' : 'px-3 py-2 bg-background')}>
+            <div ref={toolbarRef} className={cn('flex min-w-0 items-center gap-2', inPanelHeader ? 'flex-1 py-1 pe-1' : 'px-3 py-2 bg-background')}>
                 {rootIsGitRepo === false && Array.isArray(nestedRepoOptions) && nestedRepoOptions.length > 0 ? (
                     <NestedRepoPicker
                         repositories={nestedRepoOptions}
@@ -2657,7 +2660,7 @@ export const DiffView: React.FC<DiffViewProps> = ({
                         onClick={() => setDiffFileListMode(diffFileListMode === 'tree' ? 'flat' : 'tree')}
                         aria-pressed={diffFileListMode === 'tree'}
                         className={cn(
-                            'h-5 w-5 p-0 transition-opacity',
+                            'h-5 w-5 flex-shrink-0 p-0 transition-opacity',
                             diffFileListMode === 'tree' ? 'text-foreground opacity-100' : 'text-muted-foreground opacity-60 hover:opacity-100'
                         )}
                         title={diffFileListMode === 'tree' ? t('diffView.fileTree.showAsList') : t('diffView.fileTree.showAsTree')}
@@ -2671,7 +2674,7 @@ export const DiffView: React.FC<DiffViewProps> = ({
                         size="sm"
                         onClick={() => setDiffWrapLines(!diffWrapLinesStore)}
                         className={cn(
-                            'h-5 w-5 p-0 transition-opacity',
+                            'h-5 w-5 flex-shrink-0 p-0 transition-opacity',
                             diffWrapLines ? 'text-foreground opacity-100' : 'text-muted-foreground opacity-60 hover:opacity-100'
                         )}
                         title={diffWrapLines ? t('diffView.actions.disableLineWrap') : t('diffView.actions.enableLineWrap')}
@@ -2686,7 +2689,7 @@ export const DiffView: React.FC<DiffViewProps> = ({
                         onClick={() => setDiffHideWhitespace(!diffHideWhitespace)}
                         aria-pressed={diffHideWhitespace}
                         className={cn(
-                            'h-5 w-5 p-0 transition-opacity',
+                            'h-5 w-5 flex-shrink-0 p-0 transition-opacity',
                             diffHideWhitespace ? 'text-foreground opacity-100' : 'text-muted-foreground opacity-60 hover:opacity-100'
                         )}
                         title={diffHideWhitespace ? t('diffView.whitespace.hidden') : t('diffView.whitespace.shown')}
@@ -2699,6 +2702,7 @@ export const DiffView: React.FC<DiffViewProps> = ({
                     <DiffViewToggle
                         mode={currentLayoutForAllFiles === 'side-by-side' ? 'side-by-side' : 'unified'}
                         onModeChange={handleHeaderLayoutChange}
+                        className="flex-shrink-0"
                     />
                 )}
             </div>
