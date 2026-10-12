@@ -56,6 +56,10 @@ import {
 } from "./session-event-router"
 import { shouldConsumeBulkArchiveEcho } from "./bulk-archive-echo"
 import { applyForkedSession, noteForkedSessionPatched } from "./forked-session"
+import {
+  LOCATION_SCOPED_FORM_SESSION_ID,
+  routeUnlocatedLocationScopedForm,
+} from "./location-scoped-forms"
 import { useUIStore } from "@/stores/useUIStore"
 import { useBtwStore } from "@/stores/useBtwStore"
 import { selectNewChildSessions } from "./child-session-discovery"
@@ -549,14 +553,6 @@ function pruneExternallyViewedSessions(now = Date.now()) {
     }
   }
 }
-/**
- * The session id OpenCode gives a form no session owns: an MCP elicitation is
- * raised by a server of the whole location (directory), not by a turn. See
- * `GLOBAL_ELICITATION_SESSION_ID` in OpenCode's `packages/core/src/mcp/index.ts`.
- * Replies go to `/session/global/form/:id`, so the sentinel is kept as-is.
- */
-export const LOCATION_SCOPED_FORM_SESSION_ID = "global"
-
 const pendingFormToastIds = new Set<string>()
 const pendingPermissionToastIds = new Set<string>()
 const pendingVSCodePermissionEvents = new Map<string, symbol>()
@@ -1868,6 +1864,17 @@ export function handleEvent(
   }
 
   if (shouldConsumeBulkArchiveEcho(payload, expectedRuntimeKey)) return
+
+  const routedAsUnlocatedForm = routeUnlocatedLocationScopedForm(normalizeEventDirectory(rawDirectory), payload, {
+    stores: Array.from(childStores.children, ([dir, store]) => [dir, getDirectoryEventState(store, batch)] as const),
+    activeDirectory: opencodeClient.getDirectory(),
+    redirect: (dir) => handleEvent(dir, payload, childStores, routingIndex, expectedRuntimeKey, false, streamingDirectory, batch),
+    resync: (dir) => {
+      const store = childStores.getChild(dir)
+      if (store) void resyncBlockingRequestsForDirectory(dir, store, [LOCATION_SCOPED_FORM_SESSION_ID], { includePermissions: false })
+    },
+  })
+  if (routedAsUnlocatedForm) return
 
   const directory = resolveDirectoryFromRoutingIndex(routingIndex, rawDirectory, payload, childStores, batch)
 

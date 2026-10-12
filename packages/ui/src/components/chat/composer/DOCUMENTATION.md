@@ -56,7 +56,7 @@ reply: the dock acknowledges it when its step opens, the card (all fields on
 screen) from the start, and an unacknowledged link counts as missing.
 
 An MCP elicitation is a form OpenCode files under the session id `global`
-(`LOCATION_SCOPED_FORM_SESSION_ID` in `sync-context.tsx`): it belongs to the
+(`LOCATION_SCOPED_FORM_SESSION_ID` in `sync/location-scoped-forms.ts`): it belongs to the
 directory, not to a turn. `useScopedBlockingForms` appends the directory's
 `global` forms after the session subtree's own, so the dock (and the BTW
 sheet's inline card) offer it from every session of that directory, and the
