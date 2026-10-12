@@ -327,7 +327,6 @@
         "zod": "^4.3.6",
       },
       "devDependencies": {
-        "@types/adm-zip": "^0.6.0",
         "@types/vscode": "^1.85.0",
         "@vitejs/plugin-react": "^5.0.0",
         "@vscode/vsce": "^3.2.1",
@@ -1485,8 +1484,6 @@
     "@textlint/resolver": ["@textlint/resolver@15.5.2", "", {}, "sha512-YEITdjRiJaQrGLUWxWXl4TEg+d2C7+TNNjbGPHPH7V7CCnXm+S9GTjGAL7Q2WSGJyFEKt88Jvx6XdJffRv4HEA=="],
 
     "@textlint/types": ["@textlint/types@15.5.2", "", { "dependencies": { "@textlint/ast-node-types": "15.5.2" } }, "sha512-sJOrlVLLXp4/EZtiWKWq9y2fWyZlI8GP+24rnU5avtPWBIMm/1w97yzKrAqYF8czx2MqR391z5akhnfhj2f/AQ=="],
-
-    "@types/adm-zip": ["@types/adm-zip@0.6.0", "", { "dependencies": { "adm-zip": "*" } }, "sha512-4BJwT30zsKqyYk+PgJS+LQzVrLh0bHragg9etHGg679uuBbNDbSaLsJy+DaJQZM8AvESHB+t3ruVzbrn6BUsMQ=="],
 
     "@types/babel__core": ["@types/babel__core@7.20.5", "", { "dependencies": { "@babel/parser": "^7.20.7", "@babel/types": "^7.20.7", "@types/babel__generator": "*", "@types/babel__template": "*", "@types/babel__traverse": "*" } }, "sha512-qoQprZvz5wQFJwMDqeseRXWv3rqMvhgpbXFfVyWhbx9X47POIA6i/+dXefEmZKoAgOaTdaIgNSMqMIU61yRyzA=="],
 
