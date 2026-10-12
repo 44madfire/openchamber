@@ -7,18 +7,18 @@
 
 import { asNonEmptyString } from '../../utils/index.js';
 
-export const ANTIGRAVITY_GOOGLE_CLIENT_ID =
+const ANTIGRAVITY_GOOGLE_CLIENT_ID =
   '1071006060591-tmhssin2h21lcre235vtolojh4g403ep.apps.googleusercontent.com';
-export const ANTIGRAVITY_GOOGLE_CLIENT_SECRET =
+const ANTIGRAVITY_GOOGLE_CLIENT_SECRET =
   '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';
 
-export const ANTIGRAVITY_ENDPOINTS = [
+const ANTIGRAVITY_ENDPOINTS = [
   'https://daily-cloudcode-pa.googleapis.com',
   'https://daily-cloudcode-pa.sandbox.googleapis.com',
   'https://cloudcode-pa.googleapis.com'
 ];
 
-export const ANTIGRAVITY_HEADERS = {
+const ANTIGRAVITY_HEADERS = {
   'User-Agent': 'antigravity/1.11.5 windows/amd64',
   'X-Goog-Api-Client': 'google-cloud-sdk vscode_cloudshelleditor/0.1',
   'Client-Metadata':

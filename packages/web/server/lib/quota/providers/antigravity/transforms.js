@@ -14,7 +14,7 @@ import {
 
 export const FIVE_HOUR_WINDOW_SECONDS = 5 * 60 * 60;
 export const WEEKLY_WINDOW_SECONDS = 7 * 24 * 60 * 60;
-export const DAILY_WINDOW_SECONDS = 24 * 60 * 60;
+const DAILY_WINDOW_SECONDS = 24 * 60 * 60;
 
 export const parseBucket = (bucket) => {
   const remainingFraction = toNumber(bucket?.remainingFraction);

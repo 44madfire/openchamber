@@ -15,11 +15,10 @@ import {
 } from './api.js';
 import { transformSummary, transformModels } from './transforms.js';
 
-export { resolveAntigravityAuth, isConfigured } from './auth.js';
+export { isConfigured } from './auth.js';
 
 export const providerId = 'antigravity';
 export const providerName = 'Antigravity';
-export const aliases = ['antigravity', 'antigravity-manager'];
 
 export const fetchQuota = async () => {
   const auth = resolveAntigravityAuth();
