@@ -1787,6 +1787,10 @@ class OpencodeService {
    * host's catalog, and the host refuses its provider routes across the boundary, so they are
    * asked of the host with no directory. Models and the default come from the space as usual.
    *
+   * Models are read before providers. Since OpenCode 2.0.27 the model routes wait for the
+   * directory's plugins to activate, and the provider route does not: asked together in a
+   * directory OpenCode has not started, providers answer empty beside a full model list.
+   *
    * `fresh`: a request already in flight started before the caller's reason to re-read (a
    * catalog event), so it may carry the old catalog. Wait it out and read again.
    */
@@ -1806,11 +1810,11 @@ class OpencodeService {
     const request = (async () => {
       const client = this.clientFor(effectiveDirectory)
       const providerClient = isSpaceDirectory(effectiveDirectory) ? this.client : client
-      const [providers, models, fallback] = await Promise.all([
-        call("provider.list", () => providerClient.provider.list().then((r) => r.data)),
+      const [models, fallback] = await Promise.all([
         call("model.list", () => client.model.list().then((r) => r.data)),
         call("model.default", () => client.model.default().then((r) => r.data)).catch(() => undefined),
       ])
+      const providers = await call("provider.list", () => providerClient.provider.list().then((r) => r.data))
       return compact({
         providers,
         models: models.map((model) => (

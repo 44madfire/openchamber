@@ -766,15 +766,37 @@ describe("messages and config", () => {
   test("a live model catalog keeps variant ids and settings from valid arrays", async () => {
     const variants = [{ id: "high", settings: { reasoningEffort: "high" } }, { id: "low", settings: {} }]
     const model = { id: "opencode-go/glm-5.3-flash", modelID: "glm-5.3-flash", providerID: "opencode-go", variants }
-    responses.push(
-      json({ location: {}, data: [] }),
-      json({ location: {}, data: [model] }),
-      json({ location: {}, data: model }),
-    )
+    const answer = (request: CapturedRequest) =>
+      request.url.pathname === "/api/provider"
+        ? json({ location: {}, data: [] })
+        : request.url.pathname === "/api/model"
+          ? json({ location: {}, data: [model] })
+          : json({ location: {}, data: model })
+    responses.push(answer, answer, answer)
 
     const catalog = await opencodeClient.getProvidersForConfig("/repo/app")
     expect(catalog.models[0]?.variants.map((variant: { id: string }) => variant.id)).toEqual(["high", "low"])
     expect(catalog.models[0]).toEqual(model)
+  })
+
+  test("providers are asked only after the models answered", async () => {
+    // OpenCode 2.0.27+ holds the model routes until the directory's plugins are
+    // active; a provider read sent alongside answers before them, empty.
+    const answer = (request: CapturedRequest) =>
+      request.url.pathname === "/api/provider"
+        ? json({ location: {}, data: [{ id: "openai", name: "OpenAI" }] })
+        : request.url.pathname === "/api/model"
+          ? json({ location: {}, data: [{ id: "openai/x", modelID: "x", providerID: "openai" }] })
+          : json({ location: {}, data: { id: "openai/x", modelID: "x", providerID: "openai" } })
+    responses.push(answer, answer, answer)
+    const before = requests.length
+
+    await opencodeClient.getProvidersForConfig("/repo/app")
+    expect(requests.slice(before).map((request) => request.url.pathname)).toEqual([
+      "/api/model",
+      "/api/model/default",
+      "/api/provider",
+    ])
   })
 
   test("a fresh provider read waits out the one in flight and reads again", async () => {
