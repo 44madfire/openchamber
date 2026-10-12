@@ -123,7 +123,10 @@ the answer and its existing footer outside. Intermediate-text summary fallback
 and compaction summaries never become final answers. An older turn without a
 final answer collapses once a later visible turn has an assistant response;
 a queued user message alone is not enough. Hidden user continuations retain
-the visible-turn mapping established by `projectTurnRecords`.
+the visible-turn mapping established by `projectTurnRecords`. A notice the
+timeline skips that separates a `stop` answer from the next assistant message
+opens a turn there (`createNoticeTurnSplitter`), so each answer keeps its own
+Activity and stays outside it; a notice between steps of one run does not.
 
 Manual expansion survives later metadata updates and timeline virtualization
 within the session. The disclosure uses a finite 180ms height transition,
