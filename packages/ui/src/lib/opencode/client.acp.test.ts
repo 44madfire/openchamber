@@ -383,4 +383,70 @@ describe("OpencodeService ACP routing", () => {
     responses.push(json({ error: "down" }, 500))
     expect(await opencodeClient.getActiveSessionStatuses("/repo/app")).toEqual({ [OPENCODE_ID]: { type: "busy" } })
   })
+
+  test("replyToPermission routes ACP ids to the ACP reply route, OpenCode ids to the SDK", async () => {
+    responses.push(new Response(null, { status: 200 }))
+    expect(await opencodeClient.replyToPermission(ACP_ID, "per_1", "once", { directory: "/repo/app" })).toBe(true)
+    expect(requests[0].url.pathname).toBe(`/api/acp/sessions/${ACP_ID}/permissions/per_1/reply`)
+    expect(requests[0].body).toEqual({ reply: "once" })
+    expect(sdkPathnames()).toHaveLength(0)
+
+    responses.push(new Response(null, { status: 204 }))
+    expect(await opencodeClient.replyToPermission(OPENCODE_ID, "per_2", "reject", { directory: "/repo/app" })).toBe(true)
+    expect(sdkPathnames()).toHaveLength(1)
+  })
+
+  test("fetchPermission maps an ACP 404 to resolved and other failures to unknown", async () => {
+    responses.push(json({ error: "settled", code: "ACP_PERMISSION_UNKNOWN" }, 404))
+    expect(await opencodeClient.fetchPermission(ACP_ID, "per_1", "/repo/app")).toEqual({ state: "resolved" })
+    responses.push(new Response("", { status: 502 }))
+    expect(await opencodeClient.fetchPermission(ACP_ID, "per_1", "/repo/app")).toEqual({ state: "unknown" })
+    const permission = { id: "per_1", sessionID: ACP_ID, action: "shell", resources: ["ls"] }
+    responses.push(json({ permission }))
+    expect(await opencodeClient.fetchPermission(ACP_ID, "per_1", "/repo/app")).toEqual({ state: "ok", permission })
+    expect(sdkPathnames()).toHaveLength(0)
+  })
+
+  test("listPendingPermissions merges ACP requests after OpenCode's per directory", async () => {
+    const openCode = { id: "per_oc", sessionID: OPENCODE_ID, action: "bash", resources: [] }
+    const acp = { id: "per_acp", sessionID: ACP_ID, action: "shell", resources: ["ls"] }
+    responses.push(json({ data: [openCode] }))
+    responses.push(json({ permissions: [acp] }))
+    const merged = await opencodeClient.listPendingPermissions({ directories: ["/repo/app"] })
+    expect(merged).toEqual([openCode, acp])
+    expect(requests[1].url.pathname).toBe("/api/acp/permissions")
+  })
+
+  test("a failed ACP pending-permissions read keeps the OpenCode list", async () => {
+    const openCode = { id: "per_oc", sessionID: OPENCODE_ID, action: "bash", resources: [] }
+    responses.push(json({ data: [openCode] }))
+    responses.push(json({ error: "down" }, 500))
+    expect(await opencodeClient.listPendingPermissions({ directories: ["/repo/app"] })).toEqual([openCode])
+  })
+
+  test("replyToForm and cancelForm route by id shape", async () => {
+    responses.push(new Response(null, { status: 200 }))
+    expect(await opencodeClient.replyToForm(ACP_ID, "frm_1", { choice: "a" }, "/repo/app")).toBe(true)
+    expect(requests[0].url.pathname).toBe(`/api/acp/sessions/${ACP_ID}/forms/frm_1/reply`)
+    expect(requests[0].body).toEqual({ answer: { choice: "a" } })
+
+    responses.push(new Response(null, { status: 200 }))
+    expect(await opencodeClient.cancelForm(ACP_ID, "frm_1", "/repo/app")).toBe(true)
+    expect(requests[1].url.pathname).toBe(`/api/acp/sessions/${ACP_ID}/forms/frm_1/cancel`)
+    expect(sdkPathnames()).toHaveLength(0)
+
+    responses.push(new Response(null, { status: 204 }))
+    await opencodeClient.replyToForm(OPENCODE_ID, "frm_2", { choice: "b" }, "/repo/app")
+    responses.push(new Response(null, { status: 204 }))
+    await opencodeClient.cancelForm(OPENCODE_ID, "frm_2", "/repo/app")
+    expect(sdkPathnames()).toHaveLength(2)
+  })
+
+  test("listPendingForms merges ACP forms after OpenCode's", async () => {
+    const openCode = { id: "frm_oc", sessionID: OPENCODE_ID, title: "Q", fields: [] }
+    const acp = { id: "frm_acp", sessionID: ACP_ID, title: "Q", fields: [] }
+    responses.push(json({ data: [openCode] }))
+    responses.push(json({ forms: [acp] }))
+    expect(await opencodeClient.listPendingForms({ directories: ["/repo/app"] })).toEqual([openCode, acp])
+  })
 })

@@ -17,6 +17,7 @@ import { WorkStatusPinnedSection } from './WorkStatusPinnedSection';
 import { WorkStatusContextSection } from './WorkStatusContextSection';
 import { WorkStatusSectionsDialog } from './WorkStatusSectionsDialog';
 import { WorkStatusExtensionSection } from './WorkStatusExtensionSection';
+import { AcpPlanPanel } from '../acp/AcpPlanPanel';
 import {
   areAllWorkStatusSectionsHidden,
   getWorkStatusPanelPresentation,
@@ -205,6 +206,7 @@ export const WorkStatusPanel: React.FC<Props> = ({ sessionId, directory, visible
     mcp: <WorkStatusMcpSection directory={directory} />,
     pinned: <WorkStatusPinnedSection sessionId={sessionId} directory={directory} />,
     contextSources: <WorkStatusContextSection sessionId={sessionId} directory={directory} />,
+    acpPlan: <AcpPlanPanel sessionId={sessionId} directory={directory} />,
   } satisfies Record<Exclude<WorkStatusSectionId, 'session' | 'repository'>, React.ReactNode>;
 
   return (

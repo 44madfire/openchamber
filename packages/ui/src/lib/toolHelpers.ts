@@ -252,6 +252,17 @@ const TOOL_METADATA: Record<string, ToolMetadata> = {
       category: 'ai',
       outputLanguage: 'json',
       inputFields: []
+    },
+
+    // ACP generic tool (§3.4: kinds the spec leaves unmapped — think,
+    // switch_mode, other — land here). The title comes from the call's own
+    // metadata (`toolDescription` reads `acpTitle`/`acpKind`); the fallback
+    // below covers a part that carries neither.
+    acp: {
+      displayName: 'Agent Action',
+      category: 'ai',
+      outputLanguage: 'text',
+      inputFields: []
     }
   };
 

@@ -3,6 +3,8 @@ import { cn } from '@/lib/utils';
 import { useSessionUIStore } from '@/sync/session-ui-store';
 import { useChatSessionSelection } from './chatColumnSession';
 import { selectCommandsForDirectory, useCommandsStore } from '@/stores/useCommandsStore';
+import { selectAcpCommandsForSession, useAcpCommandsStore } from '@/stores/useAcpCommandsStore';
+import { isAcpSessionId } from '@/lib/acp/session-key';
 import { useEffectiveDirectory } from '@/hooks/useEffectiveDirectory';
 import { ScrollableOverlay } from '@/components/ui/ScrollableOverlay';
 import { Icon } from "@/components/icon/Icon";
@@ -89,6 +91,14 @@ export const CommandAutocomplete = React.forwardRef<CommandAutocompleteHandle, C
   const commandsWithMetadata = useCommandsStore((s) => selectCommandsForDirectory(s, effectiveDirectory));
   const loadCommandsForDirectory = useCommandsStore((s) => s.loadCommands);
   const refreshCommands = React.useCallback(() => loadCommandsForDirectory(effectiveDirectory), [effectiveDirectory, loadCommandsForDirectory]);
+  // ACP sessions list the agent's own commands instead of OpenCode's: the
+  // two registries describe different agents and never mix.
+  const isAcpSession = currentSessionId !== null && isAcpSessionId(currentSessionId);
+  const acpCommands = useAcpCommandsStore((s) => selectAcpCommandsForSession(s, isAcpSession ? currentSessionId : null));
+  const acpCacheMissing = useAcpCommandsStore((s) =>
+    isAcpSession && currentSessionId !== null ? !(currentSessionId in s.commandsBySession) : false,
+  );
+  const loadAcpCommands = useAcpCommandsStore((s) => s.loadCommands);
   const [selectedIndex, setSelectedIndex] = React.useState(0);
   const selectedIndexRef = React.useRef(0);
   const keyboardNavigationRef = React.useRef(false);
@@ -119,19 +129,40 @@ export const CommandAutocomplete = React.forwardRef<CommandAutocompleteHandle, C
 
   React.useEffect(() => {
     // Force refresh to get latest project context when mounting
-    void refreshCommands();
-  }, [refreshCommands]);
+    if (isAcpSession && currentSessionId) void loadAcpCommands(currentSessionId, effectiveDirectory);
+    else void refreshCommands();
+  }, [currentSessionId, effectiveDirectory, isAcpSession, loadAcpCommands, refreshCommands]);
+
+  // ACP commands arrive over the agent connection and may land after the
+  // picker opened (`catalog.updated{command}` invalidates the cache entry):
+  // an open picker re-reads whenever its entry goes missing.
+  React.useEffect(() => {
+    if (acpCacheMissing && currentSessionId) void loadAcpCommands(currentSessionId, effectiveDirectory);
+  }, [acpCacheMissing, currentSessionId, effectiveDirectory, loadAcpCommands]);
 
   const reservedCommandNames = React.useMemo(() => {
     const names = new Set<string>(LOCAL_COMMAND_NAMES);
     for (const command of commandsWithMetadata) names.add(command.name.toLowerCase());
+    for (const command of acpCommands) names.add(command.name.toLowerCase());
     return names;
-  }, [commandsWithMetadata]);
+  }, [acpCommands, commandsWithMetadata]);
   const guestCommands = useGuestCommands(reservedCommandNames);
 
   // The list depends on the registries, not on what is typed: it is built
   // once per registry change, and only the ranking follows the query.
   const allCommands = React.useMemo<CommandInfo[]>(() => {
+    // ACP sessions: only the agent's commands. OpenChamber's local commands
+    // (undo/compact/fork/...) act on OpenCode session state the agent does
+    // not share, and OpenCode custom commands expand server-side templates
+    // the ACP path never runs — offering either would send text that fails.
+    if (isAcpSession) {
+      return acpCommands.map((cmd, index) => ({
+        id: `acp:${currentSessionId}:${cmd.name}:${index}`,
+        name: cmd.name,
+        source: 'opencode',
+        description: cmd.description,
+      }));
+    }
     const customCommands: CommandInfo[] = commandsWithMetadata.map((cmd, index) => ({
       id: `opencode:${cmd.scope ?? 'global'}:${cmd.name}:${cmd.agent ?? ''}:${cmd.model ?? ''}:${index}`,
       name: cmd.name,
@@ -142,7 +173,6 @@ export const CommandAutocomplete = React.forwardRef<CommandAutocompleteHandle, C
       isBuiltIn: cmd.name === 'init' || cmd.name === 'review',
       scope: cmd.scope,
     }));
-
     const builtInCommands: CommandInfo[] = [
       ...(hasSession
         ? [{ id: 'openchamber:init', name: 'init', source: 'openchamber' as const, description: t('chat.commandAutocomplete.command.initDescription'), isBuiltIn: true }]
@@ -217,7 +247,7 @@ export const CommandAutocomplete = React.forwardRef<CommandAutocompleteHandle, C
       ...mergeCommandAutocompleteItems(builtInCommands, customCommands),
       ...extensionCommands,
     ];
-  }, [hasSession, canStartSessionCommand, canUseReviewHandoffFlow, commandsWithMetadata, guestCommands, t]);
+  }, [acpCommands, currentSessionId, hasSession, canStartSessionCommand, canUseReviewHandoffFlow, commandsWithMetadata, guestCommands, isAcpSession, t]);
   const commands = React.useMemo(
     () => rankCommandAutocompleteItems(allCommands, searchQuery),
     [allCommands, searchQuery],

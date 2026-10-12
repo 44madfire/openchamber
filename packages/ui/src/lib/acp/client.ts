@@ -16,7 +16,7 @@ import { z } from "zod"
 import { runtimeFetch } from "@/lib/runtime-fetch"
 import { normalizePath } from "@/lib/pathNormalization"
 import type { MessagePage } from "@/lib/opencode/client"
-import type { Message, Metadata, Part, PermissionRequest, Session, SessionStatus } from "@/lib/opencode/model"
+import type { FormRequest, Message, Metadata, Part, PermissionRequest, Session, SessionStatus } from "@/lib/opencode/model"
 
 // ---------------------------------------------------------------------------
 // Response schemas (parse once at the boundary)
@@ -53,6 +53,21 @@ const sessionStatusSchema = z.custom<SessionStatus>(
 )
 const statusesEnvelopeSchema = z.object({ statuses: z.record(z.string(), sessionStatusSchema) })
 
+const permissionSchema = z.custom<PermissionRequest>(domainRecord)
+const permissionEnvelopeSchema = z.object({ permission: permissionSchema })
+const permissionsEnvelopeSchema = z.object({ permissions: z.array(permissionSchema) })
+
+const formSchema = z.custom<FormRequest>(domainRecord)
+const formsEnvelopeSchema = z.object({ forms: z.array(formSchema) })
+
+const commandSchema = z.looseObject({ name: z.string(), description: z.string().optional() })
+const commandsEnvelopeSchema = z.object({ commands: z.array(commandSchema) })
+
+/** A slash command of one ACP session (`metadata`-free `CommandInfo`-compatible shape). */
+export type AcpCommandInfo = z.infer<typeof commandSchema>
+/** One filled-in form: every field the agent declared, keyed by field key. */
+export type AcpFormAnswer = Record<string, string | number | boolean | string[]>
+
 const errorBodySchema = z.looseObject({ error: z.unknown(), message: z.unknown(), code: z.unknown() })
 
 const acpBackendStatusSchema = z.looseObject({
@@ -85,12 +100,23 @@ const acpConfigOptionSchema = z.looseObject({
 /** An ACP config option as the session's `metadata.acp` carries it. */
 export type AcpConfigOption = z.infer<typeof acpConfigOptionSchema>
 
+const configCacheEnvelopeSchema = z.object({ configOptions: z.array(acpConfigOptionSchema) })
+const acpPlanEntrySchema = z.looseObject({
+  content: z.string().optional(),
+  priority: z.string().optional(),
+  status: z.string().optional(),
+})
+
+/** One entry of the agent's plan (`session.metadata.acp.plan`), rendered read-only by `AcpPlanPanel`. */
+export type AcpPlanEntry = z.infer<typeof acpPlanEntrySchema>
+
 const acpSessionMetaSchema = z.looseObject({
   backendId: z.string().min(1),
   capabilities: z.record(z.string(), z.unknown()).optional(),
   configOptions: z.array(acpConfigOptionSchema).optional(),
   modes: z.array(z.looseObject({ id: z.string(), name: z.string().optional() })).optional(),
   contextSize: z.number().optional(),
+  plan: z.looseObject({ entries: z.array(acpPlanEntrySchema).optional(), updatedAt: z.number().optional() }).optional(),
 })
 
 /** The `metadata.acp` block the server attaches to every ACP session. */
@@ -100,6 +126,7 @@ export type AcpSessionMeta = {
   configOptions: AcpConfigOption[]
   modes: Array<{ id: string; name?: string }>
   contextSize?: number
+  plan?: { entries: AcpPlanEntry[]; updatedAt?: number }
 }
 
 /** A prompt part in `POST /api/acp/sessions/:key/prompt`. */
@@ -321,6 +348,109 @@ export class AcpClient {
     if (!parsed.success) throw invalidEnvelope(operation, "statuses")
     return parsed.data.statuses
   }
+
+  /**
+   * Last-seen config options of a backend (D9 pre-session picker). Empty when
+   * the backend never reported options; the draft picker then renders nothing
+   * and the session reconciles from its own `metadata.acp` after create.
+   */
+  async getBackendConfigCache(backendId: string): Promise<AcpConfigOption[]> {
+    const operation = "acp.backends.configCache"
+    const response = await runtimeFetch(`/api/acp/backends/${encodeURIComponent(backendId)}/config-cache`, {
+      headers: { Accept: "application/json" },
+    })
+    const parsed = configCacheEnvelopeSchema.safeParse(await readJson(operation, response))
+    if (!parsed.success) throw invalidEnvelope(operation, "configOptions")
+    return parsed.data.configOptions
+  }
+
+  /**
+   * Answers one pending permission. 404 `ACP_PERMISSION_UNKNOWN` when the
+   * request already settled; callers read that as "nothing left to answer".
+   */
+  async replyToPermission(
+    key: string,
+    requestId: string,
+    reply: "once" | "always" | "reject",
+    options?: { message?: string; directory?: string | null },
+  ): Promise<void> {
+    const response = await runtimeFetch(
+      `/api/acp/sessions/${encodeURIComponent(key)}/permissions/${encodeURIComponent(requestId)}/reply`,
+      {
+        method: "POST",
+        headers: { "content-type": "application/json", Accept: "application/json", ...directoryHeader(options?.directory) },
+        body: JSON.stringify({ reply, ...(options?.message !== undefined ? { message: options.message } : {}) }),
+      },
+    )
+    await throwForStatus("acp.permissions.reply", response)
+  }
+
+  /** Fetches one pending permission; 404 `ACP_PERMISSION_UNKNOWN` when settled. */
+  async fetchPermission(key: string, requestId: string, directory?: string | null): Promise<PermissionRequest> {
+    const operation = "acp.permissions.get"
+    const response = await runtimeFetch(
+      `/api/acp/sessions/${encodeURIComponent(key)}/permissions/${encodeURIComponent(requestId)}`,
+      { headers: { Accept: "application/json", ...directoryHeader(directory) } },
+    )
+    const parsed = permissionEnvelopeSchema.safeParse(await readJson(operation, response))
+    if (!parsed.success) throw invalidEnvelope(operation, "permission")
+    return parsed.data.permission
+  }
+
+  /** Pending permissions of one directory, for bootstrap merge. */
+  async listPendingPermissions(directory: string): Promise<PermissionRequest[]> {
+    const operation = "acp.permissions.list"
+    const response = await runtimeFetch(buildUrl("/api/acp/permissions", { directory }), {
+      headers: { Accept: "application/json", ...directoryHeader(directory) },
+    })
+    const parsed = permissionsEnvelopeSchema.safeParse(await readJson(operation, response))
+    if (!parsed.success) throw invalidEnvelope(operation, "permissions")
+    return parsed.data.permissions
+  }
+
+  /** Answers an elicitation or choice-prompt form. */
+  async replyToForm(key: string, formId: string, answer: AcpFormAnswer, directory?: string | null): Promise<void> {
+    const response = await runtimeFetch(
+      `/api/acp/sessions/${encodeURIComponent(key)}/forms/${encodeURIComponent(formId)}/reply`,
+      {
+        method: "POST",
+        headers: { "content-type": "application/json", Accept: "application/json", ...directoryHeader(directory) },
+        body: JSON.stringify({ answer }),
+      },
+    )
+    await throwForStatus("acp.forms.reply", response)
+  }
+
+  /** Dismisses an elicitation or choice-prompt form. */
+  async cancelForm(key: string, formId: string, directory?: string | null): Promise<void> {
+    const response = await runtimeFetch(`/api/acp/sessions/${encodeURIComponent(key)}/forms/${encodeURIComponent(formId)}/cancel`, {
+      method: "POST",
+      headers: { "content-type": "application/json", Accept: "application/json", ...directoryHeader(directory) },
+    })
+    await throwForStatus("acp.forms.cancel", response)
+  }
+
+  /** Pending forms of one directory, for bootstrap merge. */
+  async listPendingForms(directory: string): Promise<FormRequest[]> {
+    const operation = "acp.forms.list"
+    const response = await runtimeFetch(buildUrl("/api/acp/forms", { directory }), {
+      headers: { Accept: "application/json", ...directoryHeader(directory) },
+    })
+    const parsed = formsEnvelopeSchema.safeParse(await readJson(operation, response))
+    if (!parsed.success) throw invalidEnvelope(operation, "forms")
+    return parsed.data.forms
+  }
+
+  /** Cached slash commands of one session. Empty when the agent reported none. */
+  async getSessionCommands(key: string, directory?: string | null): Promise<AcpCommandInfo[]> {
+    const operation = "acp.sessions.commands"
+    const response = await runtimeFetch(`/api/acp/sessions/${encodeURIComponent(key)}/commands`, {
+      headers: { Accept: "application/json", ...directoryHeader(directory) },
+    })
+    const parsed = commandsEnvelopeSchema.safeParse(await readJson(operation, response))
+    if (!parsed.success) throw invalidEnvelope(operation, "commands")
+    return parsed.data.commands
+  }
 }
 
 export const acpClient = new AcpClient()
@@ -336,7 +466,8 @@ export const readAcpSessionMeta = (session: Pick<Session, "metadata"> | null | u
     configOptions: parsed.data.configOptions ?? [],
     modes: parsed.data.modes ?? [],
     ...(parsed.data.contextSize !== undefined ? { contextSize: parsed.data.contextSize } : {}),
+    ...(parsed.data.plan ? { plan: { entries: parsed.data.plan.entries ?? [], ...(parsed.data.plan.updatedAt !== undefined ? { updatedAt: parsed.data.plan.updatedAt } : {}) } } : {}),
   }
 }
 
-export type { Message, Metadata, Part, PermissionRequest, Session }
+export type { FormRequest, Message, Metadata, Part, PermissionRequest, Session }

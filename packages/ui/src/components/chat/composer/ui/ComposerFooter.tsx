@@ -24,6 +24,9 @@ import { useConfigStore } from '@/stores/useConfigStore';
 import { isVSCodeRuntime } from '@/lib/desktop';
 import { isDictationCaptureSupported } from '@/lib/dictation/use-dictation-audio-source';
 import { ModelControls } from '../../ModelControls';
+import { AcpSessionControls } from '../../acp/AcpSessionControls';
+import { isAcpSessionId } from '@/lib/acp/session-key';
+import { useSessionUIStore } from '@/sync/session-ui-store';
 import { ComposerActionButtons } from './ComposerActionButtons';
 import { ComposerAttachmentControls } from './ComposerAttachmentControls';
 import { FocusModeButton } from './FocusModeButton';
@@ -32,8 +35,8 @@ import type { PermissionMode } from '@/stores/utils/permissionAutoAccept';
 import type { BtwSelection } from '@/stores/useBtwStore';
 
 const MemoModelControls = React.memo(ModelControls);
+const MemoAcpSessionControls = React.memo(AcpSessionControls);
 const MemoComposerDictation = React.memo(ComposerDictation);
-
 interface ComposerFooterProps {
     isMobile: boolean;
     isVSCode: boolean;
@@ -106,6 +109,33 @@ function OpenCodeStartupNote({ className }: { className?: string }) {
             {t('chat.chatInput.waitingForOpenCode')}
         </span>
     );
+}
+
+/**
+ * True when the composer should show the ACP config-option selects instead of
+ * the OpenCode pickers: a live ACP session, or an ACP draft with no session
+ * yet. Shared by the desktop footer and the mobile model/agent row so both
+ * switch together (also covered by the AcpSessionControls draft tests).
+ */
+export const shouldShowAcpSessionControls = (
+  sessionId: string | null,
+  draftOpen: boolean,
+  draftBackendId: string | null | undefined,
+): boolean =>
+  (sessionId !== null && isAcpSessionId(sessionId))
+  || (sessionId === null && draftOpen && (draftBackendId ?? null) !== null)
+
+/**
+ * The main chat's model controls: ACP sessions and ACP drafts get the generic
+ * config-option selects; everything else keeps the OpenCode pickers.
+ */
+function SessionModelControls({ className, sessionId, onRunInParallel }: { className?: string; sessionId: string | null; onRunInParallel?: () => void }) {
+    const directory = useSessionUIStore((state) => sessionId ? state.getDirectoryForSession(sessionId) : null);
+    const draftOpen = useSessionUIStore((state) => state.newSessionDraft.open);
+    const draftBackendId = useSessionUIStore((state) => state.newSessionDraft.open ? state.newSessionDraft.acpBackendId ?? null : null);
+    const isAcp = shouldShowAcpSessionControls(sessionId, draftOpen, draftBackendId);
+    if (isAcp) return <MemoAcpSessionControls className={className} sessionId={sessionId} directory={directory} />;
+    return <MemoModelControls className={className} onRunInParallel={onRunInParallel} />;
 }
 
 function ComposerFooterView(props: ComposerFooterProps) {
@@ -300,7 +330,7 @@ function ComposerFooterView(props: ComposerFooterProps) {
                     </div>
                     <div className={cn('flex items-center flex-1 justify-end', footerGapClass, 'md:gap-x-3')} data-dictation-chain="true">
                         {waitingForOpenCode ? <OpenCodeStartupNote className="flex-shrink-0" /> : null}
-                        {parallelRun ? <div className="flex-1" /> : isBtw ? <ModelControls className="flex-1 min-w-0 justify-end" sessionId={modelSessionId ?? null} selection={btwSelection} /> : pinnedSelection ? <ModelControls className="flex-1 min-w-0 justify-end" sessionId={currentSessionId} selection={pinnedSelection} agentSelectable /> : <MemoModelControls className={cn('flex-1 min-w-0 justify-end')} onRunInParallel={onRunInParallel} />}
+                        {parallelRun ? <div className="flex-1" /> : isBtw ? <ModelControls className="flex-1 min-w-0 justify-end" sessionId={modelSessionId ?? null} selection={btwSelection} /> : pinnedSelection ? <ModelControls className="flex-1 min-w-0 justify-end" sessionId={currentSessionId} selection={pinnedSelection} agentSelectable /> : <SessionModelControls className={cn('flex-1 min-w-0 justify-end')} sessionId={currentSessionId} onRunInParallel={onRunInParallel} />}
                         {!isBtw ? <MemoComposerDictation
                             radius={chatInputRadius}
                             isMobile={isMobile}
