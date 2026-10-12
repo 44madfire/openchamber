@@ -10,6 +10,7 @@ import { createRequire } from 'module';
 import crypto from 'node:crypto';
 import { fingerprintRemoteUrl } from '../source-control/url-redaction.js';
 import { readWorktreeDirectorySetting } from '../opencode/shared.js';
+import { readProjectStartCommand } from '../opencode/project-start-command.js';
 import { normalizeGitOutputPath } from './output-path.js';
 import { overlayEnvironment } from '../environment/variables.js';
 import { primaryWorktreeRootFromGitDir, unsupportedRepositoryRootReason } from './repository-root.js';
@@ -1408,7 +1409,7 @@ export const inspectContributorCheckoutActions = async (directory, provenance) =
   const head = String((await runGitCommandOrThrow(directory, ['rev-parse', 'HEAD'], 'Failed to inspect worktree HEAD')).stdout || '').trim().toLowerCase();
   if (head !== provenance.sourceSha) throw Object.assign(new Error('Contributor worktree HEAD changed'), { code: 'STALE_CONFIG', status: 409 });
   const hook = await inspectPostCheckoutHook(directory);
-  const projectCommand = await loadProjectStartCommand(provenance.projectId);
+  const projectCommand = await readProjectStartCommand((await resolvePrimaryWorktreeRoot(directory)).root);
   const setupCommand = String(provenance.setupCommand || '').trim();
   const actions = [];
   if (hook) actions.push(hook);
@@ -1977,6 +1978,7 @@ const resolveWorktreeProjectContext = async (directory, options = {}) => {
 
   return {
     projectID,
+    requestedDirectory: directoryPath,
     sandbox,
     primaryWorktree,
     worktreeRoot,
@@ -2121,18 +2123,6 @@ const runWorktreeStartCommand = async (directory, command) => {
   return result;
 };
 
-const loadProjectStartCommand = async (projectID) => {
-  const storagePath = path.join(getOpenCodeDataPath(), 'storage', 'project', `${projectID}.json`);
-  try {
-    const raw = await fsp.readFile(storagePath, 'utf8');
-    const parsed = JSON.parse(raw);
-    const start = typeof parsed?.commands?.start === 'string' ? parsed.commands.start.trim() : '';
-    return start || '';
-  } catch {
-    return '';
-  }
-};
-
 // OpenCode owns its own project/sandbox registry. It records a worktree as a
 // sandbox itself when an instance boots for that directory, and filters entries
 // whose directory no longer exists when reading them back. OpenChamber used to
@@ -2172,8 +2162,10 @@ const cleanupFailedFastWorktreeCreate = async (context, candidate) => {
   }
 };
 
-const runWorktreeStartScripts = async (directory, projectID, startCommand) => {
-  const projectStart = await loadProjectStartCommand(projectID);
+// `projectDirectory` is the directory the worktree was requested from: the user
+// already works there, so OpenCode answers without starting another location.
+const runWorktreeStartScripts = async (directory, projectDirectory, startCommand) => {
+  const projectStart = await readProjectStartCommand(projectDirectory);
   if (projectStart) {
     const projectResult = await runWorktreeStartCommand(directory, projectStart);
     if (!projectResult.success) {
@@ -2195,7 +2187,7 @@ const runWorktreeStartScripts = async (directory, projectID, startCommand) => {
 const queueWorktreeBootstrap = (args) => {
   const {
     directory,
-    projectID,
+    projectDirectory,
     primaryWorktree,
     localBranch,
     setUpstream,
@@ -2250,7 +2242,7 @@ const queueWorktreeBootstrap = (args) => {
         bootstrapStore,
       );
       if (!contributorFork) {
-        await runWorktreeStartScripts(directory, projectID, startCommand).catch((error) => {
+        await runWorktreeStartScripts(directory, projectDirectory, startCommand).catch((error) => {
           console.warn('Worktree start script task failed:', error instanceof Error ? error.message : String(error));
         });
       }
@@ -5295,7 +5287,7 @@ async function attachGitWorktreeToCandidateWithoutRemoteRollback(context, candid
   if (bootstrapStatus.status === WORKTREE_BOOTSTRAP_PENDING) {
     queueWorktreeBootstrap({
       directory: candidate.directory,
-      projectID: context.projectID,
+      projectDirectory: context.requestedDirectory,
       primaryWorktree: context.primaryWorktree,
       localBranch,
       setUpstream: shouldSetUpstream,

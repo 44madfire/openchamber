@@ -402,7 +402,7 @@ The following functions are internal helpers used by exported functions:
 - `normalizeDirectoryPath(value)`: Normalize directory paths (supports ~ expansion).
 - `cleanBranchName(branch)`: Remove refs/heads/ or refs/ prefixes.
 - `parseWorktreePorcelain(raw)`: Parse `git worktree list --porcelain` output.
-- `resolveWorktreeProjectContext(directory)`: Resolve project context (projectID, primaryWorktree, worktreeRoot, legacyWorktreeRoot); `worktreeRoot` honors OpenCode's `worktree.directory` and falls back to the data-dir folder keyed by project ID.
+- `resolveWorktreeProjectContext(directory)`: Resolve project context (projectID, requestedDirectory, primaryWorktree, worktreeRoot, legacyWorktreeRoot); `requestedDirectory` is the folder the worktree was requested from, where the project start command is read; `worktreeRoot` honors OpenCode's `worktree.directory` and falls back to the data-dir folder keyed by project ID.
 - `resolveCandidateDirectory(...)`: Generate unique worktree directory candidates.
 - `resolveBranchForExistingMode(...)`: Resolve branch for existing-mode worktree creation.
 - `applyUpstreamConfiguration(...)`: Set upstream tracking for new branches.

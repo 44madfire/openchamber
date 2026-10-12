@@ -6,6 +6,7 @@ This module provides OpenCode server integration utilities for the web server ru
 ## Entrypoints and structure
 - `packages/web/server/lib/opencode/index.js`: public entrypoint (currently baseline placeholder).
 - `packages/web/server/lib/opencode/auth.js`: provider authentication file operations.
+- `packages/web/server/lib/opencode/project-start-command.js`: the project's start command (`commands.start`) that the web server and the VS Code extension host run in every worktree they create. OpenCode 2.x keeps it on its project record, so the reader asks the running OpenCode in the directory the worktree is requested from (the contributor trust prompt asks in the primary checkout, never inside the fork's checkout): `GET /api/location` names the project, whose ID 2.x derives from the origin remote and so differs from OpenChamber's root-commit worktree ID, and `GET /api/project` holds the record. A failed read runs no command and logs a warning; the worktree is still created. Wired once per runtime with `configureProjectStartCommandSource`, the way `auth.js` is.
 - `packages/web/server/lib/opencode/auth-state-runtime.js`: managed OpenCode server auth password/header runtime.
 - `packages/web/server/lib/opencode/cli-options.js`: CLI/environment option parsing for server startup arguments.
 - `packages/web/server/lib/opencode/cli-entry-runtime.js`: CLI entrypoint runtime that detects direct execution, parses CLI options, and starts server bootstrap.
