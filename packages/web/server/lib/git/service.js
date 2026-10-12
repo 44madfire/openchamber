@@ -2052,9 +2052,9 @@ const resolveBranchForExistingMode = async (primaryWorktree, existingBranch, pre
     throw new Error(`Branch not found: ${requested}`);
   }
 
-  const remoteExists = await runGitCommand(primaryWorktree, ['show-ref', '--verify', '--quiet', remoteRef.fullRef]);
-  if (!remoteExists.success) {
-    throw new Error(`Remote branch is not available locally: ${requested}. Fetch it explicitly and retry.`);
+  const remoteCheck = await ensureLocalRemoteBranchRef(primaryWorktree, remoteRef.remote, remoteRef.branch);
+  if (!remoteCheck.found) {
+    throw new Error(`Remote branch not found: ${requested}`);
   }
 
   const localBranch = cleanBranchName(preferredBranchName || remoteRef.branch || requested);
@@ -2449,6 +2449,16 @@ const resolveExistingWorktreeSource = async (primaryWorktree, input = {}, intent
     setUpstream: wantUpstream && Boolean(upstream),
     upstream,
   };
+};
+
+// The branch list offers remote branches that were never fetched (it asks
+// each remote with `ls-remote`), so a worktree from one of them fetches that
+// single branch first. A failed fetch reports the branch as missing.
+const ensureLocalRemoteBranchRef = async (primaryWorktree, remoteName, branchName) => {
+  const localCheck = await checkLocalRemoteBranchExists(primaryWorktree, remoteName, branchName);
+  if (localCheck.found || !localCheck.success) return localCheck;
+  await fetchRemoteBranchRef(primaryWorktree, remoteName, branchName).catch(() => undefined);
+  return checkLocalRemoteBranchExists(primaryWorktree, remoteName, branchName);
 };
 
 const checkLocalRemoteBranchExists = async (primaryWorktree, remoteName, branchName) => {
@@ -4979,7 +4989,7 @@ export async function validateWorktreeCreate(directory, input = {}) {
             });
           }
         } else if (parsedRemoteRef) {
-          const remoteCheck = await checkLocalRemoteBranchExists(
+          const remoteCheck = await ensureLocalRemoteBranchRef(
             context.primaryWorktree,
             parsedRemoteRef.remote,
             parsedRemoteRef.branch
@@ -4987,7 +4997,7 @@ export async function validateWorktreeCreate(directory, input = {}) {
           if (!remoteCheck.found) {
             errors.push({
               code: 'start_ref_not_found',
-              message: `Remote branch is not available locally: ${parsedRemoteRef.remoteRef}`,
+              message: `Remote branch not found: ${parsedRemoteRef.remoteRef}`,
             });
           }
         } else {

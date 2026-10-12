@@ -2113,20 +2113,21 @@ describe('createWorktree', () => {
     }
   }, 30_000);
 
-  describe('from a local base branch', () => {
-    const withDataHome = async (run) => {
-      const previousXdgDataHome = process.env.XDG_DATA_HOME;
-      process.env.XDG_DATA_HOME = createTempDir();
-      try {
-        await run();
-      } finally {
-        if (previousXdgDataHome === undefined) {
-          delete process.env.XDG_DATA_HOME;
-        } else {
-          process.env.XDG_DATA_HOME = previousXdgDataHome;
-        }
+  const withDataHome = async (run) => {
+    const previousXdgDataHome = process.env.XDG_DATA_HOME;
+    process.env.XDG_DATA_HOME = createTempDir();
+    try {
+      await run();
+    } finally {
+      if (previousXdgDataHome === undefined) {
+        delete process.env.XDG_DATA_HOME;
+      } else {
+        process.env.XDG_DATA_HOME = previousXdgDataHome;
       }
-    };
+    }
+  };
+
+  describe('from a local base branch', () => {
 
     // The repository sits on `next` with a local `main` tracking origin/main;
     // a teammate then pushes one commit to main that was never pulled.
@@ -2204,6 +2205,71 @@ describe('createWorktree', () => {
       });
     }, 30_000);
   });
+
+  // A collaborator pushes straight to the remote; the repository never
+  // fetches, so the branch list offers `remotes/origin/collab` with no local ref.
+  const pushCollaboratorBranch = (remote) => {
+    const collaborator = createTempDir();
+    runGit(collaborator, ['clone', remote, '.']);
+    runGit(collaborator, ['config', 'user.email', 'test@example.com']);
+    runGit(collaborator, ['config', 'user.name', 'Test']);
+    runGit(collaborator, ['checkout', '-b', 'collab']);
+    fs.writeFileSync(path.join(collaborator, 'collab.txt'), 'collab\n');
+    runGit(collaborator, ['add', 'collab.txt']);
+    runGit(collaborator, ['commit', '-m', 'collab']);
+    runGit(collaborator, ['push', 'origin', 'collab']);
+    return runGit(collaborator, ['rev-parse', 'HEAD']).trim();
+  };
+
+  it('fetches a never-fetched remote branch for an existing-branch worktree', async () => {
+    if (!canRunGit()) return;
+    await withDataHome(async () => {
+      const { repository, remote } = createRepositoryWithRemote();
+      const collabHead = pushCollaboratorBranch(remote);
+      const input = { mode: 'existing', existingBranch: 'remotes/origin/collab', worktreeName: 'collab-wt' };
+
+      const validation = await validateWorktreeCreate(repository, input);
+      expect(validation.errors).toEqual([]);
+
+      const created = await createWorktree(repository, input);
+      expect(runGit(created.path, ['rev-parse', 'HEAD']).trim()).toBe(collabHead);
+      expect(runGit(created.path, ['rev-parse', '--abbrev-ref', 'HEAD']).trim()).toBe('collab');
+    });
+  }, 30_000);
+
+  it('fetches a never-fetched remote start ref for a new-branch worktree', async () => {
+    if (!canRunGit()) return;
+    await withDataHome(async () => {
+      const { repository, remote } = createRepositoryWithRemote();
+      const collabHead = pushCollaboratorBranch(remote);
+      const input = {
+        mode: 'new',
+        branchName: 'openchamber/from-collab',
+        worktreeName: 'from-collab',
+        startRef: 'remotes/origin/collab',
+      };
+
+      const validation = await validateWorktreeCreate(repository, input);
+      expect(validation.errors).toEqual([]);
+
+      const created = await createWorktree(repository, input);
+      expect(runGit(created.path, ['rev-parse', 'HEAD']).trim()).toBe(collabHead);
+    });
+  }, 30_000);
+
+  it('reports a remote branch that cannot be fetched as not found', async () => {
+    if (!canRunGit()) return;
+    await withDataHome(async () => {
+      const { repository } = createRepositoryWithRemote();
+      const validation = await validateWorktreeCreate(repository, {
+        mode: 'existing',
+        existingBranch: 'remotes/origin/never-pushed',
+        worktreeName: 'never-pushed-wt',
+      });
+      expect(validation.ok).toBe(false);
+      expect(validation.errors.some((error) => /Remote branch not found/.test(error.message))).toBe(true);
+    });
+  }, 30_000);
 
   it('rejects creation from a remote start ref that was never fetched and cannot be fetched', async () => {
     if (!canRunGit()) return;
