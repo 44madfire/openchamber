@@ -188,7 +188,7 @@ export function SidebarHeader(props: Props): React.ReactNode {
       <DropdownMenuSub>
         <DropdownMenuSubTrigger>
           <span className="flex-1">{t(labelKey)}</span>
-          {currentLabelKey ? <span className="ml-4 text-muted-foreground">{t(currentLabelKey)}</span> : null}
+          {currentLabelKey ? <span className="ms-4 text-muted-foreground">{t(currentLabelKey)}</span> : null}
         </DropdownMenuSubTrigger>
         <DropdownMenuSubContent className="min-w-[160px]">
           {options.map(([value, optionLabelKey]) => (

@@ -58,10 +58,10 @@ export const StatusRow: React.FC<StatusRowProps> = ({
       {/* The chip lives here, not on the container: the root above is
           an inline-size query container, whose width ignores its children —
           a shrink-to-fit wrapper around it always collapsed to zero. */}
-      {/* Same left inset the arrow slot gives the icon: 1px border + 6px.
+      {/* Same start inset the arrow slot gives the icon: 1px border + 6px.
           The logo box is 16px like the arrow icon, its mark normalized in
           WorkingPlaceholder, so the visible marks land on the same line. */}
-      <div className="oc-surface-floating inline-flex w-max max-w-full items-center gap-2 h-7 whitespace-nowrap rounded-full [corner-shape:round] pl-1.5 pr-3">
+      <div className="oc-surface-floating inline-flex w-max max-w-full items-center gap-2 h-7 whitespace-nowrap rounded-full [corner-shape:round] ps-1.5 pe-3">
         <div className="flex items-center min-w-0 gap-2 overflow-x-hidden">
           {shouldRenderPlaceholder ? (
             <WorkingPlaceholder
