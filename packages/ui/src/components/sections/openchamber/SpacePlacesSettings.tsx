@@ -50,7 +50,8 @@ const formatDiskSize = (bytes: number): string => {
     unit += 1;
   }
   const number = new Intl.NumberFormat(getCurrentIntlLocale(), { maximumFractionDigits: unit === 0 ? 0 : 1 }).format(value);
-  return `${number} ${SIZE_UNITS[unit]}`;
+  // A no-break space, so a narrow screen never puts the unit alone on the next line.
+  return `${number}\u00a0${SIZE_UNITS[unit]}`;
 };
 
 type Read<T> = { kind: 'reading' } | { kind: 'read'; value: T } | { kind: 'failed'; error: Error };
