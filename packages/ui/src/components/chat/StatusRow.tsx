@@ -60,8 +60,10 @@ export const StatusRow: React.FC<StatusRowProps> = ({
           a shrink-to-fit wrapper around it always collapsed to zero. */}
       {/* Same start inset the arrow slot gives the icon: 1px border + 6px.
           The logo box is 16px like the arrow icon, its mark normalized in
-          WorkingPlaceholder, so the visible marks land on the same line. */}
-      <div className="oc-surface-floating inline-flex w-max max-w-full items-center gap-2 h-7 whitespace-nowrap rounded-full [corner-shape:round] ps-1.5 pe-3">
+          WorkingPlaceholder, so the visible marks land on the same line.
+          pe-2 evens out the far side: text glyph to edge lands ~10px, the
+          same optical gap as the start. */}
+      <div className="oc-surface-floating inline-flex w-max max-w-full items-center gap-2 h-7 whitespace-nowrap rounded-full [corner-shape:round] ps-1.5 pe-2">
         <div className="flex items-center min-w-0 gap-2 overflow-x-hidden">
           {shouldRenderPlaceholder ? (
             <WorkingPlaceholder
@@ -77,7 +79,9 @@ export const StatusRow: React.FC<StatusRowProps> = ({
             />
           ) : null}
         </div>
-        {onBackground ? <BackgroundWorkButton onClick={onBackground} className="-me-2.5 h-6 w-6" /> : null}
+        {/* -me-1.5 keeps the button's right edge 3px inside the border now
+            that the chip's pe shrank to 8px. */}
+        {onBackground ? <BackgroundWorkButton onClick={onBackground} className="-me-1.5 h-6 w-6" /> : null}
       </div>
     </div>
   );

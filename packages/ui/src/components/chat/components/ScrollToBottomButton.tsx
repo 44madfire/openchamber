@@ -61,7 +61,7 @@ const WorkingPillBody: React.FC<{ onClick: () => void }> = ({ onClick }) => {
     return (
         <>
             <ScrollAction onClick={onClick}>
-                <span className={cn('-ms-px min-w-0 truncate text-[13px] leading-4 text-muted-foreground', working.canBackground ? 'pe-1' : 'pe-3')}>
+                <span className={cn('-ms-px min-w-0 truncate text-[13px] leading-4 text-muted-foreground', working.canBackground ? 'pe-1' : 'pe-2')}>
                     {label}
                 </span>
             </ScrollAction>
