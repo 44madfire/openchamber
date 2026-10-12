@@ -212,7 +212,9 @@ reporting assistant turn is the answer, not a sum across turns.
 
 Which message is "latest" is decided by `findLatestContextFill` in
 `stores/utils/tokenUtils.ts`, shared with the VS Code header, mini chat,
-mobile metadata and context sidebar. A finished compaction's own record (a
+mobile metadata, context sidebar and the context rail's ring icon
+(`layout/ContextRailUsage.tsx`, which re-renders only when the reading changes
+and reads cost only while its tooltip is open). A finished compaction's own record (a
 `compaction` message with `status: 'completed'`) is not a reading: its tokens
 describe the summarizing request,
 whose input is the pre-compaction history. Until a later response reports
