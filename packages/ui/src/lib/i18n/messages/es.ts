@@ -886,6 +886,7 @@ export const dict: Record<I18nKey, string> = {
   "gitView.branch.detachedHead": "HEAD desvinculado",
   "gitView.branch.dialogDescriptionPrefix": "Elige cómo traer otra rama a",
   "gitView.branch.empty": "No se encontraron ramas.",
+  "gitView.branch.comparisonBaseAutomatic": "Automático",
   "gitView.branch.localBranches": "Ramas locales",
   "gitView.branch.mergeDescription": "Crea un commit de merge y conserva el historial.",
   "gitView.branch.mergeRebase": "Merge/Rebase",

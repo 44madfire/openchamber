@@ -885,6 +885,7 @@ export const dict: Record<I18nKey, string> = {
   'gitView.branch.detachedHead': 'Detached HEAD',
   'gitView.branch.dialogDescriptionPrefix': '선택한 브랜치:',
   'gitView.branch.empty': '브랜치를 찾을 수 없습니다',
+  'gitView.branch.comparisonBaseAutomatic': '자동',
   'gitView.branch.localBranches': '로컬 브랜치',
   'gitView.branch.mergeDescription': '선택한 브랜치를 현재 브랜치로 병합합니다.',
   'gitView.branch.mergeRebase': '병합/리베이스',

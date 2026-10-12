@@ -791,6 +791,7 @@ export const dict = {
   'gitView.branch.detachedHead': 'Detached HEAD',
   'gitView.branch.dialogDescriptionPrefix': 'Wählen Sie, wie Sie einen anderen Branch in',
   'gitView.branch.empty': 'Keine Branches gefunden.',
+  'gitView.branch.comparisonBaseAutomatic': 'Automatisch',
   'gitView.branch.localBranches': 'Lokale Branches',
   'gitView.branch.mergeDescription': 'Erstellt einen Merge-Commit und erhält den Branch-Verlauf.',
   'gitView.branch.mergeRebase': 'Merge/Rebase',

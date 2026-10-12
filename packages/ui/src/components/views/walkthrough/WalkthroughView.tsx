@@ -15,7 +15,6 @@ import { isRightToLeft, type Locale, useI18n } from '@/lib/i18n';
 import { changeRequestCopy } from '@/lib/source-control/changeRequestCopy';
 import { openExternalUrl } from '@/lib/url';
 import { buildWalkthroughView } from '@/lib/walkthrough/model';
-import { qualifyBaseRef } from '@/components/views/git/baseBranch';
 import type { WalkthroughSource, WalkthroughTarget, WalkthroughWorkingTreeScope } from '@/lib/walkthrough/types';
 import { ModelSelector } from '@/components/sections/agents/ModelSelector';
 import { useBranchComparisonBase } from '@/hooks/useBranchComparisonBase';
@@ -217,6 +216,7 @@ export const WalkthroughView = ({ directory: rootDirectory, visible = true }: Wa
   }), [directory, runtimeKey]);
   const branches = useGitBranches(directory || null);
   const setBaseOverride = useGitBaseBranchStore((state) => state.setOverride);
+  const clearBaseOverride = useGitBaseBranchStore((state) => state.clearOverride);
   const ensureAll = useGitStore((state) => state.ensureAll);
   const { sourceControl, git } = useRuntimeAPIs();
   const binding = useRepositoryBinding(directory, sourceControl);
@@ -226,33 +226,24 @@ export const WalkthroughView = ({ directory: rootDirectory, visible = true }: Wa
   }, [directory, ensureAll, git, visible]);
 
   // Changes and the walkthrough share one base: the person's explicit choice,
-  // else what the branch's own reflog says it was created from.
+  // else the open pull request's base, the reflog, then the default branch.
   const currentBranch = status?.current ?? null;
   const choosingCommit = pendingSourceSelection?.directory === directory && pendingSourceSelection.kind === 'commit' && !requestedTarget;
   const isCommitScope = choosingCommit || requestedTarget?.source.kind === 'commit';
   const requestedCommitHash = requestedTarget?.source.kind === 'commit' ? requestedTarget.source.hash : undefined;
   const commitComparison = useCommitComparison(directory || null, currentBranch, visible && isCommitScope, requestedCommitHash);
   const selectedCommitHash = commitComparison.selectedCommit?.hash ?? requestedCommitHash ?? null;
-  const { base: comparisonBase, resolved: comparisonBaseResolved, revision: branchRevision } =
-    useBranchComparisonBase(directory || null, currentBranch, visible);
-  const branchSource = useMemo<Extract<WalkthroughSource, { kind: 'branch' }> | null>(() => {
-    const headRef = currentBranch;
-    // A branch is never its own base, and the check belongs before the ref is
-    // qualified: afterwards `refs/heads/main` never equals a plain `main`.
-    if (!headRef || !comparisonBase || comparisonBase === headRef) return null;
-    const all = branches?.all ?? [];
-    // A base is named literally by the range API and must belong to the remote
-    // this repository is bound to, so whatever was chosen or detected is
-    // qualified here before it becomes a comparison.
-    const baseRef = qualifyBaseRef(comparisonBase, {
-      localBranches: all.filter((name) => !name.startsWith('remotes/')),
-      remoteBranches: all.filter((name) => name.startsWith('remotes/')).map((name) => name.slice('remotes/'.length)),
-      remoteNames: new Set(binding.read?.repository.remotes.map((remote) => remote.name) ?? []),
-      primaryRemote: binding.contexts[0]?.primaryRemote,
+  const remoteNames = useMemo(
+    () => new Set(binding.read?.repository.remotes.map((remote) => remote.name) ?? []),
+    [binding.read],
+  );
+  const { base: comparisonBase, source: comparisonBaseSource, resolved: comparisonBaseResolved, revision: branchRevision } =
+    useBranchComparisonBase(directory || null, currentBranch, visible, {
+      branches, remoteNames, primaryRemote: binding.contexts[0]?.primaryRemote, readContext: binding.contexts[0] ?? null,
     });
-    if (!baseRef) return null;
-    return { kind: 'branch', baseRef, headRef };
-  }, [binding.contexts, binding.read, branches, comparisonBase, currentBranch]);
+  const branchSource = useMemo<Extract<WalkthroughSource, { kind: 'branch' }> | null>(() => (
+    currentBranch && comparisonBase ? { kind: 'branch', baseRef: comparisonBase, headRef: currentBranch } : null
+  ), [comparisonBase, currentBranch]);
 
   // The pull request for this branch used to appear only after visiting the PR
   // panel, because nothing else asked GitHub about it. Ask here too: the status
@@ -693,8 +684,12 @@ export const WalkthroughView = ({ directory: rootDirectory, visible = true }: Wa
             branches={branches?.all ?? []}
             currentBranch={currentBranch}
             base={comparisonBase}
+            automatic={comparisonBaseSource !== 'chosen'}
             onSelect={(base) => {
               if (directory && currentBranch) setBaseOverride(directory, currentBranch, base);
+            }}
+            onSelectAutomatic={() => {
+              if (directory && currentBranch) clearBaseOverride(directory, currentBranch);
             }}
           />
         )}

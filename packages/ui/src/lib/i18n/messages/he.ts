@@ -862,6 +862,7 @@ export const dict = {
   'gitView.branch.detachedHead': 'HEAD מנותק',
   'gitView.branch.dialogDescriptionPrefix': 'יש לבחור איך להכניס ענף אחר אל',
   'gitView.branch.empty': 'לא נמצאו ענפים.',
+  'gitView.branch.comparisonBaseAutomatic': 'אוטומטי',
   'gitView.branch.localBranches': 'ענפים מקומיים',
   'gitView.branch.mergeDescription': 'יצירת קומיט מיזוג ושמירה על היסטוריית הענף.',
   'gitView.branch.mergeRebase': 'מיזוג/rebase',

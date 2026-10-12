@@ -885,6 +885,7 @@ export const dict: Record<I18nKey, string> = {
   'gitView.branch.detachedHead': '分離HEAD',
   'gitView.branch.dialogDescriptionPrefix': '別のブランチを取り込む方法を選択',
   'gitView.branch.empty': 'ブランチが見つかりません。',
+  'gitView.branch.comparisonBaseAutomatic': '自動',
   'gitView.branch.localBranches': 'ローカルブランチ',
   'gitView.branch.mergeDescription': 'マージコミットを作成しブランチ履歴を保持します。',
   'gitView.branch.mergeRebase': 'マージ/リベース',

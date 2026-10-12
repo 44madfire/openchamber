@@ -104,6 +104,15 @@ describe('useUIStore context panel tabs', () => {
     expect(useUIStore.getState().contextPanelByDirectory['/repo'].activeTabId).toBe(diffTabs[0].id);
   });
 
+  test('leaves the scope to the view when Changes opens without one', () => {
+    useUIStore.getState().openContextPanelTab('/repo', { mode: 'diff' });
+    useUIStore.getState().openContextPanelTab('/repo', { mode: 'file', targetPath: '/repo/README.md' });
+    expect(getContextPanelTabs('/repo').find((tab) => tab.mode === 'diff')?.diffScope).toBeNull();
+
+    useUIStore.getState().openContextPanelTab('/repo', { mode: 'diff', stagedDiff: true });
+    expect(getContextPanelTabs('/repo').find((tab) => tab.mode === 'diff')?.diffScope).toBe('staged');
+  });
+
   test('preserves Commit mode when context tabs are normalized', () => {
     useUIStore.getState().openContextPanelTab('/repo', { mode: 'diff', diffScope: 'commit' });
     useUIStore.getState().openContextPanelTab('/repo', { mode: 'file', targetPath: '/repo/README.md' });

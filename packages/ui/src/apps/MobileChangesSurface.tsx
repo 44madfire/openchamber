@@ -277,15 +277,23 @@ export const MobileChangesPane: React.FC<MobileChangesPaneProps> = ({ rootDirect
   }, []);
 
   const currentBranch = status?.current ?? null;
-  const trackingRemote = status?.tracking?.trim().split('/')[0];
-  const defaultBranch = (trackingRemote && branches?.defaultBranches?.[trackingRemote]) ?? branches?.defaultBranches?.origin ?? null;
-  const showBranchOption = isBranchScopeAvailable(currentBranch, defaultBranch);
-  const branchUnavailable = isGitRepo === false || isBranchScopeDefinitelyUnavailable(currentBranch, defaultBranch, status !== null, branches !== null);
   const setBaseOverride = useGitBaseBranchStore((state) => state.setOverride);
-  const branchComparison = useBranchComparisonBase(currentDirectory || null, currentBranch, visible && mode === 'branch' && showBranchOption);
+  const clearBaseOverride = useGitBaseBranchStore((state) => state.clearOverride);
   const commitComparison = useCommitComparison(currentDirectory || null, currentBranch, visible && mode === 'commit' && isGitRepo === true);
   const selectedCommitHash = commitComparison.selectedCommit?.hash ?? null;
   const binding = useRepositoryBinding(currentDirectory || null, sourceControl);
+  const remoteNames = React.useMemo(
+    () => new Set(binding.read?.repository.remotes.map((remote) => remote.name) ?? []),
+    [binding.read],
+  );
+  // Resolved in every mode: whether a base exists decides whether the Branch
+  // mode is offered at all.
+  const branchComparison = useBranchComparisonBase(currentDirectory || null, currentBranch, visible && isGitRepo === true, {
+    branches, remoteNames, primaryRemote: binding.contexts[0]?.primaryRemote, readContext: binding.contexts[0] ?? null,
+  });
+  const showBranchOption = isBranchScopeAvailable(currentBranch, branchComparison.base);
+  const branchUnavailable = isGitRepo === false
+    || isBranchScopeDefinitelyUnavailable(currentBranch, branchComparison.base, status !== null, branchComparison.resolved);
   // The remote an identity is judged against and applied to: the bound
   // primary remote, resolved the way the desktop Git view resolves it.
   const bindingRemoteName = binding.read?.binding?.remotes[0]?.name
@@ -1085,7 +1093,9 @@ export const MobileChangesPane: React.FC<MobileChangesPaneProps> = ({ rootDirect
         {visible && mode === 'branch' && (
           <BranchComparisonSelector mobile key={JSON.stringify([ownerKey, currentBranch])}
             branches={branches?.all ?? []} currentBranch={currentBranch} base={branchComparison.base}
-            onSelect={(base) => { if (currentBranch) setBaseOverride(currentDirectory, currentBranch, base); }} />
+            automatic={branchComparison.source !== 'chosen'}
+            onSelect={(base) => { if (currentBranch) setBaseOverride(currentDirectory, currentBranch, base); }}
+            onSelectAutomatic={() => { if (currentBranch) clearBaseOverride(currentDirectory, currentBranch); }} />
         )}
         {visible && mode === 'commit' && (
           <CommitComparisonSelector mobile key={JSON.stringify([ownerKey, currentBranch])}

@@ -794,6 +794,7 @@ export const dict = {
   'gitView.branch.detachedHead': 'Detached HEAD',
   'gitView.branch.dialogDescriptionPrefix': 'Başka bir branch\'i içine getirmek için bir yöntem seçin:',
   'gitView.branch.empty': 'Branch bulunamadı.',
+  'gitView.branch.comparisonBaseAutomatic': 'Otomatik',
   'gitView.branch.localBranches': 'Yerel branch\'ler',
   'gitView.branch.mergeDescription': 'Merge commit oluşturur ve branch geçmişini korur.',
   'gitView.branch.mergeRebase': 'Merge/Rebase',

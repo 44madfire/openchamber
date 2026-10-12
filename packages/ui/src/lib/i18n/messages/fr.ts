@@ -708,6 +708,7 @@ export const dict = {
   'gitView.branch.detachedHead': 'HEAD détaché',
   'gitView.branch.dialogDescriptionPrefix': 'Choisissez comment intégrer une autre branche',
   'gitView.branch.empty': 'Aucune branche trouvée.',
+  'gitView.branch.comparisonBaseAutomatic': 'Automatique',
   'gitView.branch.localBranches': 'Branches locales',
   'gitView.branch.mergeDescription': 'Créez un commit de fusion et conservez l’historique des branches.',
   'gitView.branch.mergeRebase': 'Fusionner/Rebase',

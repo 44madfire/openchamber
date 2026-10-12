@@ -367,7 +367,8 @@ const createContextPanelTab = (descriptor: ContextPanelTabDescriptor): ContextPa
     sessionTitleFallback: normalizeContextTabLabel(descriptor.sessionTitleFallback),
     readOnly: descriptor.readOnly === true,
     stagedDiff: descriptor.stagedDiff === true,
-    diffScope: normalizePendingDiffScope(descriptor.diffScope) ?? (descriptor.stagedDiff === true ? 'staged' : 'working'),
+    // No scope means the view's default, which depends on the branch.
+    diffScope: normalizePendingDiffScope(descriptor.diffScope) ?? (descriptor.stagedDiff === true ? 'staged' : null),
     preview: descriptor.mode === 'file' && descriptor.preview === true,
     ownerSessionId: normalizeBrowserTabOwner(descriptor.mode, descriptor.ownerSessionId),
     touchedAt: Date.now(),
@@ -490,7 +491,7 @@ const sanitizeContextPanelTabs = (tabs: unknown): ContextPanelTab[] => {
       sessionTitleFallback: normalizeContextTabLabel(typeof candidate.sessionTitleFallback === 'string' ? candidate.sessionTitleFallback : null),
       readOnly: candidate.readOnly === true,
       stagedDiff: candidate.stagedDiff === true,
-      diffScope: normalizePendingDiffScope(candidate.diffScope) ?? (candidate.stagedDiff === true ? 'staged' : 'working'),
+      diffScope: normalizePendingDiffScope(candidate.diffScope) ?? (candidate.stagedDiff === true ? 'staged' : null),
       preview: candidate.mode === 'file' && candidate.preview === true,
       ownerSessionId: normalizeBrowserTabOwner(
         candidate.mode,

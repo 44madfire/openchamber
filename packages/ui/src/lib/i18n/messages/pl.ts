@@ -2308,6 +2308,7 @@ export const dict: Record<I18nKey, string> = {
   'gitView.branch.detachedHead': 'Odłączony HEAD',
   'gitView.branch.dialogDescriptionPrefix': 'Opis okna dialogowego',
   'gitView.branch.empty': 'Nie znaleziono gałęzi.',
+  'gitView.branch.comparisonBaseAutomatic': 'Automatycznie',
   'gitView.branch.localBranches': 'Lokalne gałęzie',
   'gitView.branch.mergeDescription': 'Opis scalania',
   'gitView.branch.mergeRebase': 'Scal/Rebase',

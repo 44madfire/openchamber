@@ -862,6 +862,7 @@ export const dict = {
   'gitView.branch.detachedHead': 'HEAD منفصل',
   'gitView.branch.dialogDescriptionPrefix': 'اختر طريقة جلب فرع آخر إلى',
   'gitView.branch.empty': 'لم يُعثر على فروع.',
+  'gitView.branch.comparisonBaseAutomatic': 'تلقائي',
   'gitView.branch.localBranches': 'الفروع المحلية',
   'gitView.branch.mergeDescription': 'إنشاء إيداع دمج مع الحفاظ على سجل الفرع.',
   'gitView.branch.mergeRebase': 'دمج/إعادة تأسيس',

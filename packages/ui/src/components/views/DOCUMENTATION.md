@@ -26,6 +26,19 @@ paths and requests fresh status. Completed range diffs remain cached while
 pending reservations are cancelled and retried on resume. Hidden tabs never
 consume another tab's pending navigation request.
 
+A Changes tab opened without a scope (the context rail, multirun) stores
+`diffScope: null`, and `DiffView` opens it on Branch whenever the Branch scope
+is offered, else on the working tree. The Branch scope is offered whenever the
+checked-out branch has a comparison base (chosen, the open pull request's, the
+one it was created from, or the default branch; never the branch itself), so a
+repository without a remote gets it from the reflog and the default branch
+does not get it at all. The default follows the branch until the person picks a scope,
+which is persisted on the tab; coercing a default Branch view back to the
+working tree is not persisted either. Entry points that name what they show keep
+their scope: the work-status Changes row counts working-tree changes and opens
+`working`, and a file opened from the Git panel or a tool card opens its own
+working or staged diff.
+
 `WalkthroughView` gates discovery and source loading while retaining generated
 results and any explicitly started generation job.
 

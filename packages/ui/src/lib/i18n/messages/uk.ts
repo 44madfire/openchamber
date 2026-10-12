@@ -886,6 +886,7 @@ export const dict: Record<I18nKey, string> = {
   "gitView.branch.detachedHead": "Відокремлено HEAD",
   "gitView.branch.dialogDescriptionPrefix": "Виберіть, як підтягнути іншу гілку в",
   "gitView.branch.empty": "Гілок не знайдено.",
+  "gitView.branch.comparisonBaseAutomatic": "Автоматично",
   "gitView.branch.localBranches": "Локальні гілки",
   "gitView.branch.mergeDescription": "Створити merge commit і зберегти історію гілок.",
   "gitView.branch.mergeRebase": "Злити/перебазувати",

@@ -599,7 +599,7 @@ export const ContextSurfacePanes: React.FC = () => {
                   stackedDefaultCollapsedAll
                   pinSelectedFileHeaderToTopOnNavigate
                   showOpenInEditorAction
-                  diffScope={tab.diffScope ?? (tab.stagedDiff ? 'staged' : 'working')}
+                  diffScope={tab.diffScope ?? (tab.stagedDiff ? 'staged' : null)}
                   onDiffScopeChange={handleDiffScopeChange}
                   targetFilePath={tab.targetPath}
                   flushContent

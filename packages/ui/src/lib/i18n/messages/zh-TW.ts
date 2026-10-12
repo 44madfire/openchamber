@@ -905,6 +905,7 @@ export const dict: Record<I18nKey, string> = {
   'gitView.branch.detachedHead': '分離的 HEAD',
   'gitView.branch.dialogDescriptionPrefix': '選擇如何將另一個分支的變更帶入',
   'gitView.branch.empty': '找不到分支。',
+  'gitView.branch.comparisonBaseAutomatic': '自動',
   'gitView.branch.localBranches': '本地分支',
   'gitView.branch.mergeDescription': '使用合併提交合併分支，並保留歷史紀錄。',
   'gitView.branch.mergeRebase': '合併 / Rebase',
