@@ -199,10 +199,12 @@ const EMPTY_FOLDERS: readonly SessionFolder[] = [];
 const EMPTY_WORK_SESSION_IDS: ReadonlySet<string> = new Set();
 const SESSION_ESTIMATE = 32;
 const TIMELINE_SESSION_ESTIMATE = 52;
-const TIMELINE_CHATS_INITIAL_LIMIT = 3;
-const TIMELINE_CHATS_INCREMENT = 7;
-const TIMELINE_PROJECT_INITIAL_LIMIT = 7;
-const TIMELINE_PROJECT_INCREMENT = 7;
+// Chats open on a short page in both views, with pinned chats on top of it.
+const CHATS_INITIAL_LIMIT = 3;
+const CHATS_INCREMENT = 7;
+// Project and worktree lists reveal 7 sessions per page in both views.
+const SESSIONS_INITIAL_LIMIT = 7;
+const SESSIONS_INCREMENT = 7;
 
 /** Show more / Show fewer state of a project's session list in the timeline. */
 export const timelineProjectContainerKey = (projectId: string): string => `timeline-project:${projectId}`;
@@ -572,8 +574,8 @@ export const buildSessionSidebarRowModel = (args: SessionSidebarRowModelArgs): S
     for (const folder of roots) appendFolder(folder, '');
 
     const sessionBatchSize = projectId ? args.sessionBatchSize : undefined;
-    const initialLimit = limits?.initial ?? sessionBatchSize ?? (args.hideDirectoryControls ? 10 : 5);
-    const increment = limits?.increment ?? sessionBatchSize ?? 7;
+    const initialLimit = limits?.initial ?? sessionBatchSize ?? (args.hideDirectoryControls ? 10 : SESSIONS_INITIAL_LIMIT);
+    const increment = limits?.increment ?? sessionBatchSize ?? SESSIONS_INCREMENT;
     const requested = Math.max(initialLimit, args.visibleCountByContainer.get(groupKey) ?? initialLimit);
     // Pinned sessions are the user's own always-on shortlist: they stay
     // visible whatever the reveal limit is, and they do not spend it.
@@ -694,11 +696,11 @@ export const buildSessionSidebarRowModel = (args: SessionSidebarRowModelArgs): S
     if (!search || groupSearchMatches(args.chatGroup) > 0) {
       const collapsed = appendActivityHeader('chats');
       if (!collapsed) {
-        // Chats are one-line timeline rows in both views; the list view opens
-        // with a shorter page and keeps pinned chats outside it.
-        appendGroup(args.chatGroup, 'activity:chats', null, true, timelineMode
-          ? { initial: TIMELINE_CHATS_INITIAL_LIMIT, increment: TIMELINE_CHATS_INCREMENT, pinnedAlwaysVisible: true, renderContext: 'timeline-chat' }
-          : { renderContext: 'timeline-chat' });
+        // Chats are one-line timeline rows in both views, on a short page
+        // that pinned chats do not spend.
+        appendGroup(args.chatGroup, 'activity:chats', null, true, {
+          initial: CHATS_INITIAL_LIMIT, increment: CHATS_INCREMENT, pinnedAlwaysVisible: true, renderContext: 'timeline-chat',
+        });
       }
     }
   }
@@ -756,7 +758,7 @@ export const buildSessionSidebarRowModel = (args: SessionSidebarRowModelArgs): S
       stickyHeaders.push(Object.freeze({ rowIndex, kind: 'project', id: projectId }));
       if (collapsed) continue;
       if (items.length > 0) {
-        appendRevealedItems(items, timelineProjectContainerKey(projectId), 'timeline', TIMELINE_PROJECT_INITIAL_LIMIT, TIMELINE_PROJECT_INCREMENT);
+        appendRevealedItems(items, timelineProjectContainerKey(projectId), 'timeline', SESSIONS_INITIAL_LIMIT, SESSIONS_INCREMENT);
         continue;
       }
       const mainGroup = section.groups.find((group) => group.isMain);

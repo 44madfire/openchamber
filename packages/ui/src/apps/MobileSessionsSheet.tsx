@@ -200,8 +200,9 @@ type ProjectNode = {
 
 const SESSIONS_PER_BUCKET = 7;
 
-// The timeline opens with the project list, so chats show a short page above it.
-const TIMELINE_CHAT_PAGE_SIZE = 3;
+// Chats show a short page above the projects in both views; pinned chats ride
+// along outside it.
+const CHAT_PAGE_SIZE = 3;
 
 // The Tree view is the desktop's file tree geometry: 12px per level, a 14px
 // chevron slot and a 6px gap before the text, without level guides. Its base
@@ -1347,7 +1348,7 @@ export const MobileSessionsSheet: React.FC<MobileSessionsSheetProps> = ({ open, 
           ? <MobileRunRow key={`run:${entry.run.key}`} run={entry.run} laneNodes={runLaneNodesByKey.get(entry.run.key) ?? EMPTY_SESSION_NODES} depth={depth ?? 0} />
           : renderNode(entry.session, depth)))}
         {remaining > 0 ? (
-          <ShowMoreRow indent={controlIndent} onClick={() => showMoreBucketSessions(bucketKey, visiblePagedRoots.length, pageSize)} />
+          <ShowMoreRow indent={controlIndent} onClick={() => showMoreBucketSessions(bucketKey, visiblePagedRoots.length, SESSIONS_PER_BUCKET)} />
         ) : null}
         {canShowFewer ? (
           <ShowFewerRow indent={controlIndent} onClick={() => resetBucketVisibleCount(bucketKey)} />
@@ -1979,15 +1980,11 @@ export const MobileSessionsSheet: React.FC<MobileSessionsSheetProps> = ({ open, 
                     <MobileDisclosure open={chatsExpanded}>{() => (
                       <div className="pb-2">
                         {chatsBucket.sessions.length > 0 ? (
-                          // The timeline leads with chats, so it shows a short
-                          // page of them; pinned chats always ride along.
                           renderBucketSessions(
                             chatsBucketKey,
                             chatsBucket,
                             null,
-                            timelineActive
-                              ? { pageSize: TIMELINE_CHAT_PAGE_SIZE, alwaysVisibleIds: pinnedChatIds }
-                              : undefined,
+                            { pageSize: CHAT_PAGE_SIZE, alwaysVisibleIds: pinnedChatIds },
                           )
                         ) : (
                           <p className="px-3 pb-1 typography-micro text-muted-foreground" style={{ paddingInlineStart: TIMELINE_CHAT_INDENT }}>

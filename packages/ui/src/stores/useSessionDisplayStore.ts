@@ -1,6 +1,5 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import { getSettingsSurface } from '@/lib/settings/surface';
 
 type ProjectSortOrder = 'manual' | 'a-z' | 'z-a' | 'date-added' | 'recent';
 // Worktree groups inside a project. 'recent' floats worktrees with the latest
@@ -13,12 +12,6 @@ type WorktreeSortOrder = 'recent' | 'manual' | 'a-z';
 // across every project, with three-line rows carrying project and branch.
 export type SidebarViewMode = 'projects' | 'timeline';
 type ProjectDisplayMode = 'all' | 'single';
-
-// The phone starts on the timeline: its sheet has no room for nested project
-// trees. Every other surface keeps the grouped sidebar people know.
-export const defaultSidebarViewMode = (): SidebarViewMode => (
-  getSettingsSurface() === 'mobile' ? 'timeline' : 'projects'
-);
 
 type SessionDisplayStore = {
   projectDisplayMode: ProjectDisplayMode;
@@ -101,7 +94,9 @@ export const useSessionDisplayStore = create<SessionDisplayStore>()(
       singleProjectId: null,
       setProjectDisplayMode: (mode) => set({ projectDisplayMode: mode }),
       setSingleProjectId: (projectId) => set({ singleProjectId: projectId }),
-      sidebarViewMode: defaultSidebarViewMode(),
+      // New installs start on the timeline. Stored state keeps an earlier
+      // choice, and VS Code always renders the grouped view.
+      sidebarViewMode: 'timeline',
       setSidebarViewMode: (mode) => set({ sidebarViewMode: mode }),
       showChatsSection: true,
       showWorkSection: true,

@@ -4,7 +4,7 @@ import { Window } from 'happy-dom';
 const previousStorage = Object.getOwnPropertyDescriptor(globalThis, 'window');
 const testWindow = new Window();
 Object.defineProperty(globalThis, 'window', { configurable: true, value: testWindow });
-const { defaultSidebarViewMode, migrateSessionDisplayState, useSessionDisplayStore } = await import('./useSessionDisplayStore');
+const { migrateSessionDisplayState, useSessionDisplayStore } = await import('./useSessionDisplayStore');
 afterAll(() => {
   testWindow.close();
   if (previousStorage) Object.defineProperty(globalThis, 'window', previousStorage);
@@ -61,23 +61,23 @@ describe('useSessionDisplayStore project display', () => {
   test('stores the single-project mode independently from the view mode', () => {
     useSessionDisplayStore.getState().setProjectDisplayMode('single');
     useSessionDisplayStore.getState().setSingleProjectId('project-alpha');
-    useSessionDisplayStore.getState().setSidebarViewMode('timeline');
+    useSessionDisplayStore.getState().setSidebarViewMode('projects');
 
     expect(useSessionDisplayStore.getState().projectDisplayMode).toBe('single');
     expect(useSessionDisplayStore.getState().singleProjectId).toBe('project-alpha');
-    expect(useSessionDisplayStore.getState().sidebarViewMode).toBe('timeline');
+    expect(useSessionDisplayStore.getState().sidebarViewMode).toBe('projects');
 
     useSessionDisplayStore.setState({
       projectDisplayMode: 'all',
       singleProjectId: null,
-      sidebarViewMode: 'projects',
+      sidebarViewMode: 'timeline',
     });
   });
 });
 
 describe('useSessionDisplayStore view mode', () => {
-  test('defaults to the grouped projects view outside the phone surface', () => {
-    expect(defaultSidebarViewMode()).toBe('projects');
+  test('starts new installs on the timeline view', () => {
+    expect(useSessionDisplayStore.getState().sidebarViewMode).toBe('timeline');
   });
 
   test('v9→v10 drops the removed Recent toggle and keeps the rest', () => {

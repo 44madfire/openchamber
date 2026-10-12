@@ -447,7 +447,7 @@ function SessionGroupSectionBase(props: SessionGroupSectionProps): React.ReactNo
       setIsRequestingBootstrapAccess(false);
     }
   }, [canGrantBootstrapAccess, failedBootstrapDirectory, isRequestingBootstrapAccess, retryFailedBootstrap]);
-  const maxVisible = sessionBatchSize ?? (hideDirectoryControls ? 10 : 5);
+  const maxVisible = sessionBatchSize ?? (hideDirectoryControls ? 10 : 7);
   const nonArchivedVisibleCount = Math.max(maxVisible, visibleSessionCount ?? maxVisible);
   const groupMatchesSearch = hasSessionSearchQuery ? searchData?.groupMatches === true : false;
   const shouldFilterGroupContents = hasSessionSearchQuery;

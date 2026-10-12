@@ -308,7 +308,7 @@ describe('buildSessionSidebarRowModel', () => {
     const sessions = Array.from({ length: 25_000 }, (_, index) => node(`session-${index}`));
     const model = buildSessionSidebarRowModel(args([project([group(sessions)])]));
 
-    expect(model.rows.filter((row) => row.kind === 'session')).toHaveLength(5);
+    expect(model.rows.filter((row) => row.kind === 'session')).toHaveLength(7);
     expect(model.rows.some((row) => row.kind === 'show-control' && row.control === 'more')).toBe(true);
   });
 
@@ -322,7 +322,7 @@ describe('buildSessionSidebarRowModel', () => {
     for (const count of [20, 40, 45]) {
       const model = buildSessionSidebarRowModel(input);
       expect(model.rows.filter((row) => row.kind === 'session' && row.projectId === 'project-a')).toHaveLength(count);
-      expect(model.rows.filter((row) => row.kind === 'session' && row.projectId === null)).toHaveLength(5);
+      expect(model.rows.filter((row) => row.kind === 'session' && row.projectId === null)).toHaveLength(3);
       const control = model.rows.find((row) => row.kind === 'show-control' && row.containerKey === 'project-a:main');
       if (!control || control.kind !== 'show-control') throw new Error('Missing reveal control');
       expect(control.increment).toBe(20);
@@ -453,21 +453,31 @@ describe('buildSessionSidebarRowModel', () => {
     expect(model.rows.some((row) => row.kind === 'show-control')).toBe(false);
   });
 
-  test('timeline mode reveals three chats and never counts pinned chats against that limit', () => {
-    const chats = [node('pinned-1'), node('pinned-2'), ...Array.from({ length: 6 }, (_, index) => node(`chat-${index}`))];
-    const input = args([]);
-    input.viewMode = 'timeline';
-    input.chatGroup = group(chats, { id: 'managed-chats' });
+  for (const viewMode of ['projects', 'timeline'] as const) {
+    test(`${viewMode} mode reveals three chats and never counts pinned chats against that limit`, () => {
+      const chats = [node('pinned-1'), node('pinned-2'), ...Array.from({ length: 6 }, (_, index) => node(`chat-${index}`))];
+      const input = args([]);
+      input.viewMode = viewMode;
+      input.chatGroup = group(chats, { id: 'managed-chats' });
+      input.pinnedSessionIds = pinnedIds('pinned-1', 'pinned-2');
+
+      const model = buildSessionSidebarRowModel(input);
+      const shown = model.rows.filter((row) => row.kind === 'session').map((row) => row.node.session.id);
+
+      expect(shown).toContain('pinned-1');
+      expect(shown).toContain('pinned-2');
+      expect(shown.filter((id) => id.startsWith('chat-'))).toHaveLength(3);
+      const control = model.rows.find((row) => row.kind === 'show-control');
+      expect(control).toMatchObject({ control: 'more', currentCount: 3, increment: 7 });
+    });
+  }
+
+  test('pinned project sessions spend the reveal limit', () => {
+    const nodes = [node('pinned-1'), node('pinned-2'), ...Array.from({ length: 8 }, (_, index) => node(`s${index}`))];
+    const input = args([project([group(nodes)])]);
     input.pinnedSessionIds = pinnedIds('pinned-1', 'pinned-2');
 
-    const model = buildSessionSidebarRowModel(input);
-    const shown = model.rows.filter((row) => row.kind === 'session').map((row) => row.node.session.id);
-
-    expect(shown).toContain('pinned-1');
-    expect(shown).toContain('pinned-2');
-    expect(shown.filter((id) => id.startsWith('chat-'))).toHaveLength(3);
-    const control = model.rows.find((row) => row.kind === 'show-control');
-    expect(control).toMatchObject({ control: 'more', currentCount: 3, increment: 7 });
+    expect(buildSessionSidebarRowModel(input).rows.filter((row) => row.kind === 'session')).toHaveLength(7);
   });
 
   test('timeline search counts one match per listed session', () => {
@@ -559,13 +569,13 @@ describe('buildSessionSidebarRowModel', () => {
     });
 
     test('a run spends one slot of the reveal limit', () => {
-      const nodes = [node('lane-1'), node('lane-2'), ...Array.from({ length: 5 }, (_, index) => node(`s${index}`))];
+      const nodes = [node('lane-1'), node('lane-2'), ...Array.from({ length: 7 }, (_, index) => node(`s${index}`))];
       const input = args([project([group(nodes)])]);
       input.runIndex = runIndex;
       const model = buildSessionSidebarRowModel(input);
 
       expect(model.rows.filter((row) => row.kind === 'run')).toHaveLength(1);
-      expect(model.rows.filter((row) => row.kind === 'session')).toHaveLength(4);
+      expect(model.rows.filter((row) => row.kind === 'session')).toHaveLength(6);
     });
 
     test('an In work run row never expands and carries the sessions that block its lanes', () => {

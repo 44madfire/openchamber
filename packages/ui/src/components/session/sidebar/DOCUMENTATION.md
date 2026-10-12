@@ -255,10 +255,12 @@ toggles, then Collapse all / Expand all.
 - Chats rows render with `renderContext: 'timeline-chat'` in both views: one
   line, no left gutter, pin marker and status icon on the right beside the
   time; the goal glyph and badges ride in the same cluster. Its Show more and
-  empty rows carry `flat`, so they line up with that text. The List view opens
-  Chats with a reveal of 3 instead of the usual Chats limit; pinned chats are
-  always shown there and never spend that limit, so Show more/Show fewer count
-  only unpinned rows. Collapsing a zone header resets its Show more state.
+  empty rows carry `flat`, so they line up with that text. Both views, on
+  every surface, open Chats with a reveal of 3 and 7 more per Show more;
+  pinned chats are always shown and never spend that limit, so Show more/Show
+  fewer count only unpinned rows. Pinned sessions under a project do spend
+  its limit, so a project or worktree list never opens with more than 7.
+  Collapsing a zone header resets its Show more state.
 - Zone collapse state lives in `useSessionProjectViewState` next to project
   collapse and lasts for the mount only. The display menu's Collapse all /
   Expand all set every project and the zones (`SIDEBAR_ACTIVITY_KEYS`: Chats,
@@ -465,7 +467,9 @@ matching and ordering. Search does not fetch sessions or broaden list membership
   unread-subtask preference without mounting those sessions. Expanded and archived
   folders do not derive hidden activity.
 - Single-project flat mode reveals 20 root sessions initially and 20 per Show
-  more; Show fewer resets to 20. Chats retains its own default reveal size. Reveal
+  more; Show fewer resets to 20. Chats keeps its reveal of 3. Elsewhere a
+  Tree worktree group reveals 7 sessions, 7 more per Show more, and 10 in
+  VS Code. Reveal
   controls change the logical list, not the viewport's bounded mounted window.
 - Archiving or deleting a session takes its whole active subtree with it on every surface, because the server does not cascade `time.archived`. In work and managed Chats build their rows with `buildActiveSessionNode` from `list/sessionCollection.ts`, so the descendants a row collects match the project tree at any depth; the mobile sessions sheet resolves the same lineage with `getDescendantIds` over its full active list rather than the rendered bucket. `sessions/sessionSubtreeActions.ts` owns the single-versus-batch store calls and the outcome toasts for all of them, and `collectSessionSubtreeIds` extends the surface's own descendant list at action time with a walk over the global active-plus-archived cache, so an active subagent below an archived intermediate is still archived (archive skips the archived intermediate; delete includes it). A projection that flattens a tree to one level silently leaves grandchildren active.
 - Subsessions belong to the agent run that spawned them, not to the user. They appear only nested under an active parent: the archive (sidebar bucket, auto folders and the Archive page) lists top-level sessions only, an archived subsession or one under an archived parent is hidden rather than promoted to a row of its own, and there is no restore for a subsession; it comes back when its parent is restored. A subsession whose parent is not loaded yet stays visible as a root.
