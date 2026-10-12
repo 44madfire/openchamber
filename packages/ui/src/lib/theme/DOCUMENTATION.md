@@ -94,8 +94,10 @@ the canvas permits it; a black canvas keeps a black sidebar. Body text is soften
 to a canvas contrast ceiling of 10 in dark and 9 in light, with a readability
 floor of 7 across shared surfaces when possible. Secondary text targets 4.6–6.
 Readability takes precedence over ceilings. Bubble text is checked after adding
-the primary tint. Bold uses stronger neutral text. Code backgrounds stay
-within 1.10 of the canvas; syntax token and diff colors retain their source values.
+the primary tint. Bold uses stronger neutral text. Code backgrounds keep their
+source lightness but take the canvas hue, so a neutral code fill does not sit as a
+cold slab inside a warm theme, and stay within 1.10 of the canvas; syntax token and
+diff colors retain their source values.
 
 Borders use the matching OpenChamber role's contrast on each corresponding
 surface as a baseline, including explicit tool and quote borders. Each cap allows

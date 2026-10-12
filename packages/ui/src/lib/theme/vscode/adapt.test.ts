@@ -85,6 +85,16 @@ test('user bubbles take on the primary hue without becoming a brighter patch', (
   }
 });
 
+test('a neutral code fill takes the canvas hue at its own lightness', () => {
+  const { colors: c } = buildVSCodeThemeFromPalette({ kind: 'light', colors: {
+    'chat.list.background': '#fcf5d7', 'foreground': '#3c3836',
+    'editor.background': '#fcfcfc', 'editor.foreground': '#3c3836',
+  } });
+  const canvas = c.surface.background, code = c.syntax.base.background;
+  expect(chromaticDistance(code, canvas, canvas, canvas)!).toBeLessThan(0.01);
+  expect(contrastRatio(code, canvas)).toBeLessThanOrEqual(1.1);
+});
+
 test('a blue primary may share the info hue, and syntax remains authored', () => {
   const { colors } = requireTheme(importVSCodeTheme(JSON.stringify({ colors: {
     'editor.background': '#151313', 'editor.foreground': '#CECDC3',

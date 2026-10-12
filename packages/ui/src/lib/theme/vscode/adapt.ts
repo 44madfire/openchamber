@@ -166,6 +166,9 @@ export function adaptVSCodeRoles(theme: Theme, authored: Readonly<VSCodeThemePal
     markdown.inlineCodeBackground = surface.subtle;
     markdown.inlineCode = readableText(readable(authored['textPreformat.foreground'] ?? primary.base), surface.subtle, canvas);
   }
-  syntax.base.background = toward(syntax.base.background, canvas, (color) => contrast(color, canvas) <= 1.1);
+  // Code keeps its own lightness but takes the canvas hue, so a neutral source
+  // code fill does not sit as a cold slab inside a warm or tinted theme.
+  syntax.base.background = toward(tintColor(canvas, syntax.base.background, 1, canvas), canvas,
+    (color) => contrast(color, canvas) <= 1.1);
   syntax.base.foreground = readableText(surface.foreground, syntax.base.background, canvas);
 }

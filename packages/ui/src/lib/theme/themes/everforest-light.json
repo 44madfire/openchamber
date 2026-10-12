@@ -53,7 +53,7 @@
     },
     "syntax": {
       "base": {
-        "background": "#fcfcfc",
+        "background": "#fffcec",
         "comment": "#a6b0a0",
         "keyword": "#df69ba",
         "string": "#8da101",
