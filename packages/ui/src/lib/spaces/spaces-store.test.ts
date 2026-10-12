@@ -48,7 +48,7 @@ describe('the journey list and creation progress', () => {
   const entry = (overrides: Partial<SpaceEntry> = {}): SpaceEntry => ({
     id: ID,
     name: 'One',
-    placeId: 'docker',
+    placeId: 'docker', machine: null,
     projectDirectory: '/home/me/app',
     projectFolder: { path: '/home/me/app', found: true },
     directory: `/spaces/${ID}/app`,
@@ -171,7 +171,7 @@ describe('the grant dialog and access given through it', () => {
   test('a grant just given survives a read of the list that began before it', () => {
     const grant = { kind: 'model' as const, id: 'openai', provider: 'openai', upstream: 'https://api.openai.com/v1', source: { kind: 'typed' as const }, url: 'http://gatekeeper:8080/model/openai' };
     const running: SpaceEntry = {
-      id: ID, name: 'One', placeId: 'docker', projectDirectory: '/home/me/app', directory: `/spaces/${ID}/app`, projectFolder: { path: '/home/me/app', found: true }, state: 'running', stoppedIdle: false, step: null,
+      id: ID, name: 'One', placeId: 'docker', machine: null, projectDirectory: '/home/me/app', directory: `/spaces/${ID}/app`, projectFolder: { path: '/home/me/app', found: true }, state: 'running', stoppedIdle: false, step: null,
       failure: null, network: { mode: 'allowlist', domains: [] }, grants: [], access: 'needs_access', needsAccess: ['openai'], damage: null, setup: null,
     };
     useSpacesStore.getState().applyJourney([running], 0);
@@ -198,7 +198,7 @@ describe('the grant dialog and access given through it', () => {
 
 describe('the lists of spaces', () => {
   const space = (id: string, projectDirectory: string | null): SpaceEntry => ({
-    id, name: id, placeId: 'docker', projectDirectory, directory: projectDirectory ? `/spaces/${id}/app` : null, projectFolder: { path: projectDirectory ?? '/home/me/old', found: true },
+    id, name: id, placeId: 'docker', machine: null, projectDirectory, directory: projectDirectory ? `/spaces/${id}/app` : null, projectFolder: { path: projectDirectory ?? '/home/me/old', found: true },
     state: 'running', stoppedIdle: false, step: null, failure: null, network: null, grants: [], access: null, needsAccess: [], damage: null, setup: null,
   });
   const journey = new Map([

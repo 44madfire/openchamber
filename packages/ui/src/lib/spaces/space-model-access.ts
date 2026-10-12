@@ -47,14 +47,15 @@ const spaceOfTarget = (target: SpaceTarget): { spaceId: string; directory: strin
  * the way on, as the group's menu decides it: a stopped space whose gatekeeper is gone never starts
  * again, and a space whose container is gone can only be deleted.
  */
-type StoppedSpace = { spaceId: string; reason: 'stopped' | 'gone'; start: boolean };
+type StoppedSpace = { spaceId: string; reason: 'stopped' | 'gone' | 'unreachable'; start: boolean };
 
 export const stoppedSpaceOfTarget = (target: SpaceTarget): StoppedSpace | null => {
   const space = spaceOfTarget(target);
   if (!space) return null;
   const entry = useSpacesStore.getState().journey?.get(space.spaceId);
-  if (entry?.state !== 'exited' && entry?.state !== 'missing') return null;
-  return { spaceId: space.spaceId, reason: entry.state === 'exited' ? 'stopped' : 'gone', start: spaceMenuActionsOf(entry).includes('start') };
+  if (entry?.state !== 'exited' && entry?.state !== 'missing' && entry?.state !== 'unreachable') return null;
+  const reason = entry.state === 'exited' ? 'stopped' : entry.state === 'missing' ? 'gone' : 'unreachable';
+  return { spaceId: space.spaceId, reason, start: spaceMenuActionsOf(entry).includes('start') };
 };
 
 export const noteSpaceModelAccess = (target: { requestId: string; directory: string }, providers: readonly string[]): void => {

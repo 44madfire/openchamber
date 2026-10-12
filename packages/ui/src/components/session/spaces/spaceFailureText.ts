@@ -19,6 +19,9 @@ const KNOWN: ReadonlyMap<string, I18nKey> = new Map<string, I18nKey>([
   ['login_not_supported', 'spaces.failure.loginNotSupported'],
   ['space_preparing', 'spaces.failure.stillPreparing'],
   ['place_missing', 'spaces.failure.placeMissing'],
+  ['place_unreachable', 'spaces.failure.placeUnreachable'],
+  ['place_has_spaces', 'spaces.failure.placeHasSpaces'],
+  ['invalid_machine', 'spaces.failure.invalidMachine'],
   ['space_not_running', 'spaces.failure.notRunning'],
   ['space_busy', 'spaces.failure.busy'],
   ['invalid_domain', 'spaces.failure.invalidDomain'],
@@ -34,14 +37,21 @@ const KNOWN: ReadonlyMap<string, I18nKey> = new Map<string, I18nKey>([
   ['image_pulling', 'spaces.failure.imagePulling'],
 ]);
 
+// The same two failures on another machine: what to do there, not on this computer.
+const ON_MACHINE: ReadonlyMap<string, I18nKey> = new Map<string, I18nKey>([
+  ['docker_cli_missing', 'spaces.failure.dockerMissingOn'],
+  ['docker_daemon_unreachable', 'spaces.failure.dockerNotRunningOn'],
+]);
+
 type Translate = (key: I18nKey, params?: I18nParams) => string;
 
 /**
  * The text of a failure. The `login_*` refusals name the login the user is to sign in to, so a
- * caller that knows the provider passes its login's name as `name`.
+ * caller that knows the provider passes its login's name as `name`; a caller that knows the
+ * failure is about another machine passes it as `machine`, so Docker's absence is placed there.
  */
 export const spaceFailureText = (t: Translate, failure: SpaceFailure, params?: I18nParams): string => {
-  const key = KNOWN.get(failure.code);
+  const key = (params?.machine ? ON_MACHINE.get(failure.code) : undefined) ?? KNOWN.get(failure.code);
   return key ? t(key, params) : t('spaces.failure.unexpected', { message: failure.message || failure.code });
 };
 

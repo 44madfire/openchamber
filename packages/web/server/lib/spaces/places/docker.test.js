@@ -1689,6 +1689,9 @@ describe('docker place over SSH', () => {
     const { fake, runCommand, withoutHost } = remoteFake();
     const place = remotePlace(runCommand, fake);
     expect(place.id).toBe('docker-ssh');
+    // The machine as the user wrote it, for the screens; the local place names none.
+    expect(place.machine).toBe('me@debian-box');
+    expect(placeOn(runCommand, { dockerPath: '/usr/bin/docker', wait: fake.wait, now: fake.now }).machine).toBeNull();
     await place.create({ ...SPEC, id: 'b1b2c3d4e5f6' });
     expect((await place.list()).map((space) => space.id).sort()).toEqual([ID, 'b1b2c3d4e5f6']);
     await place.stop(ID);

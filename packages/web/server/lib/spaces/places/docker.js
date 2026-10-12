@@ -671,5 +671,6 @@ export function createDockerPlace({ runCommand, openCommandStream = openCommandS
     return starting.get(spaceId);
   };
 
-  return { id, check, create, list, exec, execArgv, connect, stop, start, remove, verify, readDisk: disk.read, cleanUpDisk: disk.cleanUp, pullImage, imagePulling: () => imagePull !== null };
+  // `machine` names the machine of a Docker over SSH place as the user wrote it, for the screens; null locally.
+  return { id, machine, check, create, list, exec, execArgv, connect, stop, start, remove, verify, readDisk: disk.read, cleanUpDisk: disk.cleanUp, pullImage, imagePulling: () => imagePull !== null };
 }

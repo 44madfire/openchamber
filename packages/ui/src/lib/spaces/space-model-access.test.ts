@@ -11,7 +11,7 @@ const anthropic = { kind: 'model' as const, id: 'anthropic', provider: 'anthropi
 const running = (change: Partial<SpaceEntry> = {}): SpaceEntry => ({
   id: ID,
   name: 'Fix login',
-  placeId: 'docker',
+  placeId: 'docker', machine: null,
   projectDirectory: '/home/me/app',
   projectFolder: { path: '/home/me/app', found: true },
   directory: DIRECTORY,
@@ -118,6 +118,9 @@ describe('spaceModelRefusal', () => {
     // A stopped space whose gatekeeper is gone never starts again; a space whose container is gone can only be deleted.
     listed(running({ state: 'exited', damage: 'gatekeeper_gone' }));
     expect(stoppedSpaceOfTarget(session)).toEqual({ spaceId: ID, reason: 'stopped', start: false });
+    // A space whose machine is off takes nothing either, and no start brings it back from here.
+    listed(running({ state: 'unreachable', failure: { code: 'place_unreachable', message: '' } }));
+    expect(stoppedSpaceOfTarget(session)).toEqual({ spaceId: ID, reason: 'unreachable', start: false });
     listed(running({ state: 'missing' }));
     expect(stoppedSpaceOfTarget(session)).toEqual({ spaceId: ID, reason: 'gone', start: false });
     listed(running());

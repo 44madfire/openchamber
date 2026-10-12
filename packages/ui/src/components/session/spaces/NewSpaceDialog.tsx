@@ -3,8 +3,10 @@
  * runs, what code it starts from, its network, and model access given up front. Opened from the
  * new-session draft picker, the one entry point; never mounted in VS Code (decision 16).
  *
- * Opening it is the user acting in the feature's own screen, so it checks the place now
- * (decision 19); nothing checks it earlier to decide whether to offer the entry.
+ * Opening it is the user acting in the feature's own screen, so it checks the places now
+ * (decision 19); nothing checks them earlier to decide whether to offer the entry. With one place
+ * the dialog names it; with another machine set up in Settings it offers the choice, and under
+ * the machine says that the keys granted below are stored there (the maintainer's call of 2026-10-12).
  */
 
 import React from 'react';
@@ -31,7 +33,8 @@ import { failureOfError, spaceFailureText } from './spaceFailureText';
 import { ModelKeySource } from './ModelKeySource';
 import { isAccessChoiceComplete, modelGrantOf, usableHostLoginOf, useSpaceHostLogins, useSpaceModelProviders, type KeySourceChoice } from './spaceModelKeys';
 
-type PlaceState = { kind: 'checking' } | { kind: 'ready'; place: Extract<SpacePlace, { available: true }> } | { kind: 'unavailable'; failure: SpaceFailure };
+// The places, each checked by the host as the list came: none at all is a failure of its own.
+type PlacesState = { kind: 'checking' } | { kind: 'ready'; places: SpacePlace[] } | { kind: 'failed'; failure: SpaceFailure };
 type ChangesState = { kind: 'loading' } | { kind: 'ready'; files: string[] } | { kind: 'unknown' };
 // `sourceChosen` once the user touched where the key comes from, the name or the key included, so
 // the host's logins arriving later never move the radio under their cursor; until then the host's
@@ -44,20 +47,18 @@ type NewSpaceDialogProps = {
   project: { id: string; path: string };
 };
 
-const usePlace = (open: boolean): PlaceState => {
-  const [state, setState] = React.useState<PlaceState>({ kind: 'checking' });
+const usePlaces = (open: boolean): PlacesState => {
+  const [state, setState] = React.useState<PlacesState>({ kind: 'checking' });
   React.useEffect(() => {
     if (!open) return;
     const controller = new AbortController();
     setState({ kind: 'checking' });
     listSpacePlaces(controller.signal).then((places) => {
-      const place = places[0];
-      if (!place) setState({ kind: 'unavailable', failure: { code: 'place_missing', message: '' } });
-      else if (place.available) setState({ kind: 'ready', place });
-      else setState({ kind: 'unavailable', failure: { code: place.code, message: place.message } });
+      if (places.length === 0) setState({ kind: 'failed', failure: { code: 'place_missing', message: '' } });
+      else setState({ kind: 'ready', places });
     }, (error: Error) => {
       if (controller.signal.aborted) return;
-      setState({ kind: 'unavailable', failure: failureOfError(error) });
+      setState({ kind: 'failed', failure: failureOfError(error) });
     });
     return () => controller.abort();
   }, [open]);
@@ -82,10 +83,11 @@ const useChanges = (open: boolean, directory: string): ChangesState => {
 export const NewSpaceDialog: React.FC<NewSpaceDialogProps> = ({ open, onOpenChange, project }) => {
   const { t } = useI18n();
   const isMobile = useUIStore((state) => state.isMobile);
-  const place = usePlace(open);
+  const places = usePlaces(open);
   const changes = useChanges(open, project.path);
 
   const [name, setName] = React.useState(generateBranchSlug);
+  const [placeId, setPlaceId] = React.useState<string | null>(null);
   const [start, setStart] = React.useState<SpaceStart | null>(null);
   const [showFiles, setShowFiles] = React.useState(false);
   const [mode, setMode] = React.useState<'allowlist' | 'open' | null>(null);
@@ -104,6 +106,7 @@ export const NewSpaceDialog: React.FC<NewSpaceDialogProps> = ({ open, onOpenChan
   React.useEffect(() => {
     if (!open) return;
     setName(generateBranchSlug());
+    setPlaceId(null);
     setStart(null);
     setShowFiles(false);
     setMode(null);
@@ -143,12 +146,16 @@ export const NewSpaceDialog: React.FC<NewSpaceDialogProps> = ({ open, onOpenChan
   // With changes the uncommitted start is the default; with an unreadable list, the clean one, so
   // nothing travels that the user was not shown.
   const effectiveStart: SpaceStart = start ?? (hasChanges ? 'uncommitted' : 'clean');
-  const canRestrict = place.kind !== 'ready' || place.place.hostIsolation;
+  // Until the user picks, the first place that answers; the first place at all when none does, so
+  // its failure is the one shown.
+  const listed = places.kind === 'ready' ? places.places : [];
+  const place = listed.find((candidate) => candidate.id === placeId) ?? listed.find((candidate) => candidate.available) ?? listed[0] ?? null;
+  const canRestrict = place === null || !place.available || place.hostIsolation;
   // A choice the place turned out not to support falls back to the one it does.
   const effectiveMode = mode === 'allowlist' && !canRestrict ? 'open' : mode ?? (canRestrict ? 'allowlist' : 'open');
   const chosenAccess = providers.filter((provider) => access[provider.id]?.selected);
   const accessIncomplete = chosenAccess.some((provider) => !isAccessChoiceComplete(provider, access[provider.id]));
-  const canCreate = place.kind === 'ready' && name.trim() !== '' && changes.kind !== 'loading' && !accessIncomplete && !submitting;
+  const canCreate = place?.available === true && name.trim() !== '' && changes.kind !== 'loading' && !accessIncomplete && !submitting;
 
   const addDomain = () => {
     const candidates = domainInput.split(/[\s,]+/).map((value) => value.trim().toLowerCase()).filter(Boolean);
@@ -164,7 +171,7 @@ export const NewSpaceDialog: React.FC<NewSpaceDialogProps> = ({ open, onOpenChan
   };
 
   const handleCreate = async () => {
-    if (!canCreate) return;
+    if (!canCreate || place === null) return;
     setSubmitting(true);
     setSubmitError(null);
     const grants: SpaceModelAccess[] = chosenAccess.map((provider) => modelGrantOf(provider, access[provider.id]));
@@ -174,7 +181,7 @@ export const NewSpaceDialog: React.FC<NewSpaceDialogProps> = ({ open, onOpenChan
       await startSpaceCreation({
         projectId: project.id,
         setup,
-        request: { projectDirectory: project.path, name: name.trim(), start: effectiveStart, network: { mode: effectiveMode, domains: effectiveMode === 'allowlist' ? domains : [] } },
+        request: { projectDirectory: project.path, placeId: place.id, name: name.trim(), start: effectiveStart, network: { mode: effectiveMode, domains: effectiveMode === 'allowlist' ? domains : [] } },
         access: grants,
         refusalMessage: t('spaces.create.queueRefused'),
       });
@@ -201,22 +208,64 @@ export const NewSpaceDialog: React.FC<NewSpaceDialogProps> = ({ open, onOpenChan
     </label>
   );
 
+  // A place by the name the user knows it: this computer, or the machine as they wrote it.
+  const placeName = (candidate: SpacePlace) => candidate.machine ?? t('spaces.create.place.localDocker');
+  // What the host said of a place that cannot take a space now, under its name.
+  const placeFailure = (candidate: SpacePlace) => (candidate.available ? null : (
+    <div className="typography-meta text-status-error">{spaceFailureText(t, candidate, candidate.machine === null ? undefined : { machine: candidate.machine })}</div>
+  ));
+  // Under the machine, whether or not a key is chosen yet: what granting one below means there.
+  const machineNotice = (candidate: SpacePlace) => (candidate.machine === null ? null : (
+    <p className="typography-meta text-status-warning">{t('spaces.create.place.keysOnMachine', { machine: candidate.machine })}</p>
+  ));
+
+  const placeSection = (() => {
+    if (places.kind === 'checking') {
+      return (
+        <div className="flex items-start gap-2 typography-ui-label">
+          <Icon name="computer" className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
+          <div className="typography-meta text-muted-foreground">{t('spaces.create.place.checking')}</div>
+        </div>
+      );
+    }
+    if (places.kind === 'failed') {
+      return <div className="typography-meta text-status-error">{spaceFailureText(t, places.failure)}</div>;
+    }
+    if (listed.length === 1 && place !== null) {
+      return (
+        <div className="flex items-start gap-2 typography-ui-label">
+          <Icon name="computer" className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
+          <div className="min-w-0 space-y-0.5">
+            <div className="text-foreground">{placeName(place)}</div>
+            {placeFailure(place)}
+          </div>
+        </div>
+      );
+    }
+    return (
+      <div className="space-y-2">
+        {listed.map((candidate) => (
+          <div key={candidate.id} className="space-y-1">
+            {option(place?.id === candidate.id, () => setPlaceId(candidate.id), placeName(candidate))}
+            {place?.id === candidate.id ? (
+              <div className="space-y-1 ps-6">
+                {placeFailure(candidate)}
+                {machineNotice(candidate)}
+              </div>
+            ) : null}
+          </div>
+        ))}
+      </div>
+    );
+  })();
+
   const body = (
     <div className="space-y-5 pe-3">
       {section(t('spaces.create.name.label'), (
         <Input value={name} onChange={(event) => setName(event.target.value)} className="max-w-sm" aria-label={t('spaces.create.name.label')} />
       ))}
 
-      {section(t('spaces.create.place.label'), (
-        <div className="flex items-start gap-2 typography-ui-label">
-          <Icon name="computer" className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
-          <div className="min-w-0 space-y-0.5">
-            <div className="text-foreground">{t('spaces.create.place.localDocker')}</div>
-            {place.kind === 'checking' ? <div className="typography-meta text-muted-foreground">{t('spaces.create.place.checking')}</div> : null}
-            {place.kind === 'unavailable' ? <div className="typography-meta text-status-error">{spaceFailureText(t, place.failure)}</div> : null}
-          </div>
-        </div>
-      ))}
+      {section(t('spaces.create.place.label'), placeSection)}
 
       {section(t('spaces.create.start.label'), changes.kind === 'ready' && !hasChanges ? (
         <p className="typography-ui-label text-muted-foreground">{t('spaces.create.start.cleanOnly')}</p>

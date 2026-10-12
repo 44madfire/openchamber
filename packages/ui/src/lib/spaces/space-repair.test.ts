@@ -13,7 +13,7 @@ const originalLoadSessions = useGlobalSessionsStore.getState().loadSessions;
 const entry = (change: Partial<SpaceEntry> = {}): SpaceEntry => ({
   id: ID,
   name: 'Fix login',
-  placeId: 'docker',
+  placeId: 'docker', machine: null,
   projectDirectory: '/home/me/app',
   projectFolder: { path: '/home/me/app', found: true },
   directory: `/spaces/${ID}/app`,
@@ -56,6 +56,9 @@ describe('the state of a space', () => {
 
   test('names what the host lists, the lost gatekeeper before a stop, a stop before a repairable damage', () => {
     expect(spaceConditionOf(entry({ state: 'missing' }), undefined, undefined)).toEqual({ kind: 'container_gone' });
+    // The machine is off: nothing to do; the machine left Settings: a delete forgets the record.
+    expect(spaceConditionOf(entry({ state: 'unreachable', machine: 'box', failure: { code: 'place_unreachable', message: 'box did not answer' } }), undefined, undefined)).toEqual({ kind: 'unreachable', machine: 'box', gone: false });
+    expect(spaceConditionOf(entry({ state: 'unreachable', machine: null, failure: { code: 'place_not_found', message: '' } }), undefined, undefined)).toEqual({ kind: 'unreachable', machine: null, gone: true });
     expect(spaceConditionOf(entry({ state: 'exited', damage: 'gatekeeper_gone' }), undefined, undefined)).toEqual({ kind: 'gatekeeper_gone' });
     expect(spaceConditionOf(entry({ state: 'exited' }), undefined, undefined)).toEqual({ kind: 'stopped' });
     expect(spaceConditionOf(entry({ state: 'exited', stoppedIdle: true }), mark('stale'), undefined)).toEqual({ kind: 'stopped_idle' });
@@ -89,6 +92,8 @@ describe('the actions of a space', () => {
     expect(spaceMenuActionsOf(entry({ state: 'exited' }))).toEqual(['start', 'remove']);
     expect(spaceMenuActionsOf(entry({ state: 'exited', damage: 'gatekeeper_gone' }))).toEqual(['remove']);
     expect(spaceMenuActionsOf(entry({ state: 'missing' }))).toEqual(['remove']);
+    expect(spaceMenuActionsOf(entry({ state: 'unreachable', failure: { code: 'place_unreachable', message: '' } }))).toEqual([]);
+    expect(spaceMenuActionsOf(entry({ state: 'unreachable', failure: { code: 'place_not_found', message: '' } }))).toEqual(['remove']);
     expect(spaceMenuActionsOf(entry({ state: 'preparing' }))).toEqual([]);
     expect(spaceMenuActionsOf(undefined)).toEqual([]);
   });

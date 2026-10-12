@@ -2351,12 +2351,14 @@ async function main(options = {}) {
     buildHost: buildSpacesHost,
     startHost: startSpacesHost,
     persist: (enabled) => persistSettings({ isolatedSpacesEnabled: enabled }),
+    persistMachine: (machine) => persistSettings({ isolatedSpacesSshHost: machine }),
   });
   registerSpaceRoutes(app, {
     getJourney: () => spacesHost?.journey ?? null,
     getPlaces: () => spacesHost?.places() ?? [],
     readSwitch: spacesSwitch.readSwitch,
     setSwitch: spacesSwitch.setSwitch,
+    setMachine: spacesSwitch.setMachine,
     getArchive: () => spaceArchive,
   });
   realtimeProxyRuntime = attachRealtimeProxy({

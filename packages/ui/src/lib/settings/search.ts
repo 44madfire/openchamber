@@ -781,6 +781,15 @@ const SETTINGS_SEARCH_ITEMS: readonly SettingsSearchItem[] = [
     isAvailable: (ctx) => !ctx.isVSCode && ISOLATED_SPACES_RELEASED && useUIStore.getState().isolatedSpacesEnabled,
   },
   {
+    id: 'general.isolated-spaces-machine',
+    page: 'isolated-spaces',
+    titleKey: 'settings.openchamber.spaces.places.machine.label',
+    descriptionKey: 'settings.openchamber.spaces.places.machine.info',
+    keywords: ['machine', 'ssh', 'remote', 'docker', 'space', 'spaces', 'host', 'server'],
+    // Rendered only while the switch is on, and never before the feature's release or in VS Code.
+    isAvailable: (ctx) => !ctx.isVSCode && ISOLATED_SPACES_RELEASED && useUIStore.getState().isolatedSpacesEnabled,
+  },
+  {
     id: 'sessions.agent-memory-tool',
     page: 'general',
     titleKey: 'settings.openchamber.tools.field.agentMemoryTool',

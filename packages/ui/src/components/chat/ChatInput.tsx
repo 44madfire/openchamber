@@ -1734,7 +1734,7 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({
         // "Start", where the group's menu offers it, brings the space back and the user sends again.
         const stoppedSpace = spaceTarget ? stoppedSpaceOfTarget(spaceTarget) : null;
         if (stoppedSpace) {
-            toast.error(t(stoppedSpace.reason === 'gone' ? 'spaces.draft.spaceGone' : 'spaces.draft.spaceStopped'), stoppedSpace.start ? {
+            toast.error(t(stoppedSpace.reason === 'gone' ? 'spaces.draft.spaceGone' : stoppedSpace.reason === 'unreachable' ? 'spaces.draft.spaceUnreachable' : 'spaces.draft.spaceStopped'), stoppedSpace.start ? {
                 action: {
                     label: t('spaces.actions.start'),
                     onClick: () => void runSpaceAction(stoppedSpace.spaceId, 'start'),

@@ -11,7 +11,7 @@ const openaiLogin = { kind: 'login' as const, id: 'openai', provider: 'openai', 
 const entry = (change: Partial<SpaceEntry> = {}): SpaceEntry => ({
   id: 'a1b2c3d4e5f6',
   name: 'Fix login',
-  placeId: 'docker',
+  placeId: 'docker', machine: null,
   projectDirectory: '/home/me/app',
   projectFolder: { path: '/home/me/app', found: true },
   directory: '/spaces/a1b2c3d4e5f6/app',

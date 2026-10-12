@@ -34,7 +34,9 @@ export type SpaceCondition =
   | { kind: 'stopped' }
   | { kind: 'stopped_idle' }
   | { kind: 'damaged' }
-  | { kind: 'not_answering' };
+  | { kind: 'not_answering' }
+  /** The space's machine cannot be asked; `gone` when the machine left Settings, so only a delete, which forgets the record, is left. */
+  | { kind: 'unreachable'; machine: string | null; gone: boolean };
 
 export const spaceConditionOf = (
   entry: SpaceEntry | undefined,
@@ -48,6 +50,7 @@ export const spaceConditionOf = (
   // offering the same refused restart again and again.
   if (action?.kind === 'failed' && spaceMenuActionsOf(entry).includes(action.action)) return { kind: 'action_failed', action: action.action, failure: action.failure };
   if (entry.state === 'missing') return { kind: 'container_gone' };
+  if (entry.state === 'unreachable') return { kind: 'unreachable', machine: entry.machine, gone: entry.failure?.code === 'place_not_found' };
   if (entry.damage === 'gatekeeper_gone') return { kind: 'gatekeeper_gone' };
   if (entry.state === 'exited') return { kind: entry.stoppedIdle ? 'stopped_idle' : 'stopped' };
   if (entry.damage === 'repairable') return { kind: 'damaged' };
@@ -59,10 +62,13 @@ export const spaceConditionOf = (
 /**
  * The actions the group's menu offers for a space, in order. A restart needs a running space
  * with a gatekeeper that a start can bring back; one whose gatekeeper is gone can only be stopped
- * or deleted. Nothing for a space that is being made or whose making failed.
+ * or deleted. Nothing for a space that is being made or whose making failed, and nothing for one
+ * whose machine is off, since every action would fail there; one whose machine left Settings
+ * offers the delete that forgets its record.
  */
 export const spaceMenuActionsOf = (entry: SpaceEntry | undefined): SpaceAction[] => {
   if (!entry || entry.state === 'preparing' || entry.state === 'failed') return [];
+  if (entry.state === 'unreachable') return entry.failure?.code === 'place_not_found' ? ['remove'] : [];
   if (entry.state === 'missing') return ['remove'];
   const gone = entry.damage === 'gatekeeper_gone';
   if (entry.state === 'exited') return gone ? ['remove'] : ['start', 'remove'];

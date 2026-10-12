@@ -140,6 +140,9 @@ const spaceEntrySchema = z.object({
   name: z.string(),
   // The place the space lives on, as the host names it; the browser panel's container mark says it.
   placeId: z.string(),
+  // The machine of a Docker over SSH place, as the user wrote it; null for this computer, and
+  // for a place the host no longer has.
+  machine: z.string().nullable().default(null),
   projectDirectory: z.string().nullable(),
   directory: z.string().nullable(),
   // The folder the space was made for, on the host, which a space whose project is no longer
@@ -147,7 +150,8 @@ const spaceEntrySchema = z.object({
   // before 5e-3 names none.
   projectFolder: z.object({ path: z.string().nullable(), found: z.boolean().nullable() }).default({ path: null, found: null }),
   // `unreachable`: the space is on a place that cannot be asked right now, the machine of a
-  // Docker over SSH place being off among the reasons; the host lists it from its own record.
+  // Docker over SSH place being off among the reasons; the host lists it from its own record,
+  // with the place's failure in `failure`: `place_not_found` when the machine left Settings.
   state: z.enum(['preparing', 'running', 'exited', 'missing', 'failed', 'unreachable']),
   // A stopped space that stopped itself after the idle hours, rather than by a hand or a crash.
   stoppedIdle: z.boolean().default(false),
@@ -169,18 +173,24 @@ const spaceEntrySchema = z.object({
 
 export type SpaceEntry = z.infer<typeof spaceEntrySchema>;
 
+// `machine` is the SSH destination of the Docker over SSH place, as the user wrote it; null for this computer.
 const placeSchema = z.union([
-  z.object({ id: z.string(), available: z.literal(true), hostIsolation: z.boolean(), version: z.string().default('') }),
-  z.object({ id: z.string(), available: z.literal(false), code: z.string(), message: z.string() }),
+  z.object({ id: z.string(), machine: z.string().nullable().default(null), available: z.literal(true), hostIsolation: z.boolean(), version: z.string().default('') }),
+  z.object({ id: z.string(), machine: z.string().nullable().default(null), available: z.literal(false), code: z.string(), message: z.string() }),
 ]);
 
 export type SpacePlace = z.infer<typeof placeSchema>;
+
+/** The id of the Docker over SSH place, the one place a machine can be set for. */
+export const SSH_PLACE_ID = 'docker-ssh';
 
 export type SpaceStart = 'clean' | 'uncommitted';
 
 export type CreateSpaceRequest = {
   projectDirectory: string;
   name: string;
+  /** The place to make the space on; the host takes its first place without it. */
+  placeId: string;
   start: SpaceStart;
   network: SpaceNetwork;
   /** The project's setup commands, resolved as for a new worktree, trust included. */
@@ -237,6 +247,14 @@ export const setSpacesSwitch = (enabled: boolean): Promise<SpacesSwitchChange> =
 
 export const listSpacePlaces = async (signal?: AbortSignal): Promise<SpacePlace[]> =>
   (await request(`${SPACES_ROUTE}/places`, z.object({ places: z.array(placeSchema) }), { signal })).places;
+
+/**
+ * Sets the machine of the Docker over SSH place, the empty string taking the place away, and
+ * answers that place checked, or null. The host refuses with `place_has_spaces` while spaces
+ * are on the machine, and with `invalid_machine` for anything but `[user@]host[:port]`.
+ */
+export const setSpaceMachine = async (machine: string): Promise<SpacePlace | null> =>
+  (await request(`${SPACES_ROUTE}/machine`, z.object({ place: placeSchema.nullable() }), { method: 'PUT', body: JSON.stringify({ machine }) })).place;
 
 // The disk a place's spaces take, in bytes: the image (null when it is not there), the tools and
 // the spaces' own volumes, and what a clean-up would free now, the image among it or not.

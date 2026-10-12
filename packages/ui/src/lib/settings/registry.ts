@@ -306,7 +306,8 @@ export const SETTINGS_REGISTRY = {
   }),
   // The machine of the Docker over SSH place of isolated spaces, `[user@]host[:port]` as the
   // user's own `ssh` takes it; the empty string means no such place. The server reads it when
-  // the feature comes up. No settings screen writes it yet.
+  // the feature comes up; the "Isolated spaces" page writes it through the host's `PUT /machine`
+  // route, never directly, since the host rebuilds its places on the change.
   isolatedSpacesSshHost: field({ scope: 'instance', parse: parseTrimmedStringUpTo(320) }),
   // Server-owned: it says whether this build has the feature at all.
   agentMemoryFeatureAvailable: field({

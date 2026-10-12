@@ -57,7 +57,7 @@ const STATE_LINE = {
   stopped_idle: { text: 'spaces.group.state.stoppedIdle', tone: 'muted', action: 'start' },
   damaged: { text: 'spaces.group.state.damaged', tone: 'warning', action: 'restart' },
   not_answering: { text: 'spaces.group.state.notAnswering', tone: 'warning', action: 'restart' },
-} satisfies Record<Exclude<SpaceCondition['kind'], 'busy' | 'action_failed'>, { text: I18nKey; tone: 'muted' | 'warning' | 'error'; action: SpaceAction }>;
+} satisfies Record<Exclude<SpaceCondition['kind'], 'busy' | 'action_failed' | 'unreachable'>, { text: I18nKey; tone: 'muted' | 'warning' | 'error'; action: SpaceAction }>;
 
 const Line: React.FC<{ icon: 'loader-4' | 'error-warning' | 'alert' | 'stop'; tone: 'muted' | 'error' | 'warning'; children: React.ReactNode }> = ({ icon, tone, children }) => (
   <span className={tone === 'error' ? 'flex items-start gap-1.5 text-[var(--status-error)]' : tone === 'warning' ? 'flex items-start gap-1.5 text-[var(--status-warning)]' : 'flex items-start gap-1.5 text-muted-foreground'}>
@@ -192,6 +192,21 @@ export const SpaceGroupStatus: React.FC<{ spaceId: string; className?: string }>
       <div className={cn('flex flex-col gap-1', className)}>
         <Line icon="error-warning" tone="error">{t(FAILED_TEXT[condition.action], { reason: spaceFailureText(t, condition.failure) })}</Line>
         {actionButton(condition.action)}
+      </div>
+    );
+  }
+
+  // The machine is off or out of reach: nothing to do here but wait, or, once the machine left
+  // Settings, delete the space, which forgets its record and nothing else.
+  if (condition?.kind === 'unreachable') {
+    return (
+      <div className={cn('flex flex-col gap-1', className)}>
+        <Line icon="alert" tone="warning">
+          {condition.gone
+            ? t('spaces.group.state.machineRemoved')
+            : condition.machine === null ? t('spaces.group.state.unreachable') : t('spaces.group.state.unreachableMachine', { machine: condition.machine })}
+        </Line>
+        {condition.gone ? actionButton('remove') : null}
       </div>
     );
   }
