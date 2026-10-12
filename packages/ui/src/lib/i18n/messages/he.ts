@@ -988,6 +988,7 @@ export const dict = {
   'gitView.header.repositoryViews': 'תצוגות מאגר',
   'gitView.header.updateBranch': 'עדכן ענף',
   'gitView.header.openPullRequest': 'פתח בקשת משיכה',
+  'gitView.header.openRepository': 'הצג את המאגר ב-{provider}',
   'gitView.header.removeRemoteAria': 'הסר את המאגר המרוחק {name}',
   'gitView.header.removeRemoteTitle': 'הסר את המאגר המרוחק {name}',
   'gitView.header.upstreamSynced': 'מסונכרן',

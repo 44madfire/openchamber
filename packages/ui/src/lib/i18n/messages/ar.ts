@@ -988,6 +988,7 @@ export const dict = {
   'gitView.header.repositoryViews': 'طرق عرض المستودع',
   'gitView.header.updateBranch': 'تحديث الفرع',
   'gitView.header.openPullRequest': 'فتح طلب سحب',
+  'gitView.header.openRepository': 'عرض المستودع على {provider}',
   'gitView.header.removeRemoteAria': 'إزالة المستودع البعيد {name}',
   'gitView.header.removeRemoteTitle': 'إزالة المستودع البعيد {name}',
   'gitView.header.upstreamSynced': 'متزامن',

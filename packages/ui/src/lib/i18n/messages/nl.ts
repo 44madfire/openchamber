@@ -1002,6 +1002,7 @@ export const dict = {
   'gitView.header.repositoryViews': 'Repositoryweergaven',
   'gitView.header.updateBranch': 'Branch bijwerken',
   'gitView.header.openPullRequest': 'Pull request openen',
+  'gitView.header.openRepository': 'Repository bekijken op {provider}',
   'gitView.header.removeRemoteAria': 'Remote {name} verwijderen',
   'gitView.header.removeRemoteTitle': 'Remote {name} verwijderen',
   'gitView.header.upstreamSynced': 'gesynchroniseerd',
