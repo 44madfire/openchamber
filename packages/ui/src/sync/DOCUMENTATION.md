@@ -51,7 +51,10 @@ the app without another version request and without waiting for server health.
 The verdict is scoped to the current API endpoint and is never persisted.
 All other cases use the OpenChamber-owned `/api/opencode/compatibility` endpoint;
 it does not depend on a healthy OpenCode server or successful session bootstrap.
-Native mobile connection selection remains outside the gate until a server is selected.
+Native mobile keeps the gate disabled (`enabled={false}`) until a server is
+selected. The gate stays in the tree either way: switching it on or off never
+remounts the application, because a remount on every connect re-runs the
+mobile cold-launch re-probe.
 
 A confirmed incompatible version unmounts the application, removes the HTML
 splash, and shows recovery. There is no session/event polling behind that
