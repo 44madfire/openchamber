@@ -219,6 +219,182 @@ export interface AcpStatusesQuery {
 export interface AcpStatusesEnvelope {
   statuses: Record<string, AcpSessionStatus>;
 }
+// ---------------------------------------------------------------------------
+// Permissions (Phase 1.4): ACP `session/request_permission` → domain shape.
+// ---------------------------------------------------------------------------
+
+/**
+ * A pending permission request. Mirrors the UI `PermissionRequest` shape
+ * (opencode `Permission.Request`): the reducer stores it verbatim and
+ * `PermissionCard` renders it.
+ *
+ * - `action` is the resolved tool name (`shell`, `edit`, `read`, …; §3.4).
+ * - `resources` names what the call wants to touch (file paths from
+ *   `locations`, the shell command, …), size-capped.
+ * - `metadata` carries the capped tool input plus `title`/`kind`/`toolCallId`.
+ */
+export interface AcpPermissionRequest {
+  id: string;
+  sessionID: string;
+  action: string;
+  resources: string[];
+  save?: string[];
+  metadata?: Record<string, unknown>;
+  source?: { type: 'tool'; messageID: string; id: string };
+  message?: string;
+}
+
+export type AcpPermissionReply = 'once' | 'always' | 'reject';
+
+/**
+ * `POST /api/acp/sessions/:key/permissions/:requestId/reply` — answer one
+ * pending permission (§3.2 `permissions.reply`).
+ * `once`→`allow_once`, `always`→`allow_always` (else `allow_once`),
+ * `reject`→`reject_once`, sent as `{outcome:{outcome:'selected',optionId}}`;
+ * no matching option → `{outcome:{outcome:'cancelled'}}`.
+ * 200 with an empty body; settled/unknown → 404 `ACP_PERMISSION_UNKNOWN`.
+ */
+export interface AcpPermissionReplyRequest {
+  reply: AcpPermissionReply;
+  message?: string;
+}
+
+/**
+ * `GET /api/acp/sessions/:key/permissions/:requestId` — fetch one pending
+ * permission (for `fetchPermission`). Unknown/settled → 404
+ * `ACP_PERMISSION_UNKNOWN`.
+ */
+export interface AcpPermissionEnvelope {
+  permission: AcpPermissionRequest;
+}
+
+/**
+ * `GET /api/acp/permissions?directory=` — pending permission requests of one
+ * directory, for bootstrap merge. Never 404s; `{ permissions: [] }` when idle.
+ */
+export interface AcpPermissionsQuery {
+  directory: string;
+}
+export interface AcpPermissionsEnvelope {
+  permissions: AcpPermissionRequest[];
+}
+
+// ---------------------------------------------------------------------------
+// Forms (Phase 1.4): `elicitation/create` (form mode) plus pi-acp choice
+// prompts (a permission with more than one `allow_*` option).
+// ---------------------------------------------------------------------------
+
+/** One elicitation form field. Mirrors the UI `FormRequest` field shapes. */
+export interface AcpFormField {
+  key: string;
+  type: string;
+  title?: string;
+  description?: string;
+  required?: boolean;
+  hidden?: boolean;
+  default?: string | number | boolean | string[];
+  options?: Array<{ value: string; label: string; description?: string }>;
+}
+
+/**
+ * A pending form. Mirrors the UI `FormRequest` shape (opencode `Form.Info`).
+ * Choice-prompt forms carry a single `string` field with `options` (one per
+ * permission option) and `metadata.elicitation` absent; elicitation forms
+ * translate the JSON schema (`string`/`number`/`integer`→`number`,
+ * `boolean`, `array`→`multiselect`; `enum`/`oneOf`→`options`).
+ */
+export interface AcpFormRequest {
+  id: string;
+  sessionID: string;
+  title: string;
+  fields: AcpFormField[];
+  metadata?: Record<string, unknown>;
+}
+
+/**
+ * `POST /api/acp/sessions/:key/forms/:formId/reply` — answer a form
+ * (`{action:'accept',content}`; choice prompts answer the parked permission
+ * with the selected `optionId`). 200 with an empty body; unknown/settled →
+ * 404 `ACP_FORM_UNKNOWN`.
+ */
+export interface AcpFormReplyRequest {
+  answer: Record<string, string | number | boolean | string[]>;
+}
+
+/**
+ * `POST /api/acp/sessions/:key/forms/:formId/cancel` — dismiss a form
+ * (`{action:'cancel'}`; choice prompts answer the parked permission with
+ * `cancelled`). 200 with an empty body; unknown/settled → 404
+ * `ACP_FORM_UNKNOWN`.
+ */
+export interface AcpFormCancelParams {
+  key: string;
+  formId: string;
+}
+
+/**
+ * `GET /api/acp/forms?directory=` — pending forms of one directory, for
+ * bootstrap merge. Never 404s; `{ forms: [] }` when idle.
+ */
+export interface AcpFormsQuery {
+  directory: string;
+}
+export interface AcpFormsEnvelope {
+  forms: AcpFormRequest[];
+}
+
+// ---------------------------------------------------------------------------
+// Commands (Phase 1.4): the cached `available_commands` per session.
+// ---------------------------------------------------------------------------
+
+/** A slash command, OpenChamber `CommandInfo`-compatible (`name`, `description`). */
+export interface AcpCommandInfo {
+  name: string;
+  description?: string;
+}
+
+/**
+ * `GET /api/acp/sessions/:key/commands` — cached slash commands of one
+ * session. `{ commands: [] }` until an `available_commands_update` arrives.
+ * Unknown key → 404 `ACP_SESSION_UNKNOWN`. Changes emit
+ * `catalog.updated{kind:'command'}` on the frame.
+ */
+export interface AcpCommandsEnvelope {
+  commands: AcpCommandInfo[];
+}
+
+// ---------------------------------------------------------------------------
+// Config cache (D9): last-seen config options per backend, for the
+// pre-session picker. Persisted on every session/new and config_option_update.
+// ---------------------------------------------------------------------------
+
+/**
+ * `GET /api/acp/backends/:id/config-cache` — last-seen config options of one
+ * backend (same item shape as `AcpSessionMeta.configOptions`). Empty array
+ * when nothing has been seen yet. Unknown backend → 404
+ * `ACP_BACKEND_UNKNOWN`.
+ */
+export interface AcpConfigCacheEnvelope {
+  configOptions: AcpSessionMeta['configOptions'];
+}
+
+// ---------------------------------------------------------------------------
+// Phase 1.4 frame events (existing `SyncEvent` vocabulary — no new frame
+// type; the UI validates these with `lib/acp/frames.ts` unchanged).
+// ---------------------------------------------------------------------------
+//
+// - `permission.asked` (full `AcpPermissionRequest`) → `permission.replied
+//   {sessionID, requestID}` when answered, cancelled, or settled by turn end.
+// - `form.created {form}` → `form.settled {sessionID, formID}` (elicitation
+//   forms and pi-acp choice prompts alike).
+// - `catalog.updated {kind:'command'}` when a session's cached commands change.
+// - Compaction: `message.updated` (`role:'compaction'`, `status:'running'`,
+//   empty `summary`) then `message.compaction.delta {sessionID, delta}` per
+//   summary chunk, then `message.updated` with the settled status — for both
+//   the standard updates and the `_meta["opencode/compaction"]` fallback.
+// - Child sessions: `session.created` for the child (`parentID` = parent key)
+//   with its own message/part events, `session.patched` on status changes;
+//   the parent `subagent` tool part's metadata carries the child key.
 
 // ---------------------------------------------------------------------------
 // Backends (Phase 1.1, extended: `label`/`enabled` flattened for the picker).

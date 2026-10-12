@@ -169,5 +169,38 @@ export const createAcpBackendRegistry = ({
     return entries.find((entry) => entry.id === id) ?? null;
   };
 
-  return { list, save, get, filePath };
+  /**
+   * Patch ONE backend's config cache atomically: the read and the write run
+   * inside a single mutation-queue transaction, so a concurrent whole-
+   * registry PUT can neither be overwritten by the cache write nor wipe the
+   * cache write. Missing backends (deleted between seed and refresh) and
+   * corrupt files resolve null instead of throwing — the caller treats the
+   * cache as best-effort and the picker shows older options.
+   */
+  const patchCache = async (id, configOptions, at) => withMutation(async () => {
+    if (typeof id !== 'string' || !id || !Array.isArray(configOptions)) return null;
+    const raw = await readRaw();
+    if (raw === null) return null;
+    let parsed;
+    try {
+      parsed = JSON.parse(raw);
+    } catch {
+      return null;
+    }
+    const store = storeSchema.safeParse(parsed);
+    if (!store.success) return null;
+    const found = store.data.backends.some((entry) => entry?.id === id);
+    if (!found) return null;
+    const next = store.data.backends.map((entry) => (entry?.id === id
+      ? { ...entry, cache: { configOptions, at } }
+      : entry));
+    try {
+      await saveUntracked(next);
+    } catch {
+      return null;
+    }
+    return { id, at };
+  });
+
+  return { list, save, get, patchCache, filePath };
 };

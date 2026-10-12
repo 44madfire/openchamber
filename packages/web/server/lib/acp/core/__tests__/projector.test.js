@@ -543,3 +543,71 @@ describe('acp projector turn rules', () => {
     expect(new Set(generated).size).toBe(generated.length);
   });
 });
+
+describe('acp projector compaction identity', () => {
+  const compactionOf = (projector, id) => projector.page({ limit: 50 }).items
+    .map((item) => item.info)
+    .filter((info) => info.role === 'compaction');
+
+  it('keeps one record per compaction id across chunks and settle', () => {
+    const projector = projectorFor();
+    projector.acceptPrompt('msg_1', [{ type: 'text', text: '/compact' }]);
+    projector.applyUpdate({ sessionId: 'n', update: { sessionUpdate: 'compaction_update', compactionId: 'c1', status: 'in_progress' } });
+    projector.applyUpdate({ sessionId: 'n', update: { sessionUpdate: 'compaction_summary_chunk', compactionId: 'c1', content: { type: 'text', text: 'a' } } });
+    projector.applyUpdate({ sessionId: 'n', update: { sessionUpdate: 'compaction_update', compactionId: 'c1', status: 'completed' } });
+    const records = compactionOf(projector);
+    expect(records).toHaveLength(1);
+    expect(records[0]).toMatchObject({ status: 'completed', summary: 'a' });
+  });
+
+  it('patches the same record after completion instead of minting another', () => {
+    const projector = projectorFor();
+    projector.acceptPrompt('msg_1', [{ type: 'text', text: '/compact' }]);
+    projector.applyUpdate({ sessionId: 'n', update: { sessionUpdate: 'compaction_update', compactionId: 'c1', status: 'completed', summary: [{ type: 'text', text: 'done' }] } });
+    const first = compactionOf(projector)[0].id;
+    // A late chunk appends to the settled record (and refreshes it, since
+    // the reducer only streams deltas into running records).
+    const events = projector.applyUpdate({ sessionId: 'n', update: { sessionUpdate: 'compaction_summary_chunk', compactionId: 'c1', content: { type: 'text', text: '!' } } });
+    expect(events.map((event) => event.type)).toEqual(['message.compaction.delta', 'message.updated']);
+    const records = compactionOf(projector);
+    expect(records).toHaveLength(1);
+    expect(records[0]).toMatchObject({ id: first, status: 'completed', summary: 'done!' });
+    // A repeated terminal patch updates in place too.
+    projector.applyUpdate({ sessionId: 'n', update: { sessionUpdate: 'compaction_update', compactionId: 'c1', status: 'failed', error: 'boom' } });
+    expect(compactionOf(projector)).toHaveLength(1);
+    expect(compactionOf(projector)[0]).toMatchObject({ id: first, status: 'failed', error: { message: 'boom' } });
+  });
+
+  it('implements null and empty-array clearing for summary and error', () => {
+    const projector = projectorFor();
+    projector.acceptPrompt('msg_1', [{ type: 'text', text: '/compact' }]);
+    projector.applyUpdate({ sessionId: 'n', update: { sessionUpdate: 'compaction_summary_chunk', compactionId: 'c1', content: { type: 'text', text: 'secret' } } });
+    projector.applyUpdate({ sessionId: 'n', update: { sessionUpdate: 'compaction_update', compactionId: 'c1', status: 'completed', summary: null } });
+    expect(compactionOf(projector)[0].summary).toBe('');
+    projector.applyUpdate({ sessionId: 'n', update: { sessionUpdate: 'compaction_update', compactionId: 'c1', status: 'failed', error: 'x' } });
+    expect(compactionOf(projector)[0].error).toBeDefined();
+    projector.applyUpdate({ sessionId: 'n', update: { sessionUpdate: 'compaction_update', compactionId: 'c1', status: 'failed', error: null } });
+    expect(compactionOf(projector)[0].error).toBeUndefined();
+    projector.applyUpdate({ sessionId: 'n', update: { sessionUpdate: 'compaction_update', compactionId: 'c1', status: 'in_progress', summary: [] } });
+    expect(compactionOf(projector)[0].summary).toBe('');
+    // Omission leaves the value alone.
+    projector.applyUpdate({ sessionId: 'n', update: { sessionUpdate: 'compaction_summary_chunk', compactionId: 'c1', content: { type: 'text', text: 'kept' } } });
+    projector.applyUpdate({ sessionId: 'n', update: { sessionUpdate: 'compaction_update', compactionId: 'c1', status: 'completed' } });
+    expect(compactionOf(projector)[0].summary).toBe('kept');
+  });
+
+  it('rebuilds compactions canonically and rolls them back', () => {
+    const projector = projectorFor();
+    projector.acceptPrompt('msg_1', [{ type: 'text', text: 'x' }]);
+    projector.applyUpdate({ sessionId: 'n', update: { sessionUpdate: 'compaction_update', compactionId: 'c1', status: 'completed', summary: [{ type: 'text', text: 'old' }] } });
+    projector.beginReplay();
+    projector.applyUpdate({ sessionId: 'n', update: { sessionUpdate: 'compaction_summary_chunk', compactionId: 'c1', content: { type: 'text', text: 'new' } } }, { replay: true });
+    projector.rollbackReplay();
+    expect(compactionOf(projector)[0].summary).toBe('old');
+    projector.beginReplay();
+    projector.applyUpdate({ sessionId: 'n', update: { sessionUpdate: 'compaction_summary_chunk', compactionId: 'c1', content: { type: 'text', text: 'new' } } }, { replay: true });
+    projector.endReplay();
+    expect(compactionOf(projector)).toHaveLength(1);
+    expect(compactionOf(projector)[0].summary).toBe('new');
+  });
+});

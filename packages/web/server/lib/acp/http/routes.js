@@ -6,6 +6,7 @@
  * - `PUT /api/acp/backends` → replace the registry (validated).
  * - `POST /api/acp/backends/:id/restart` → stop and start fresh.
  * - `POST /api/acp/backends/:id/authenticate` → `{ methodId }`.
+ * - `GET /api/acp/backends/:id/config-cache` → `{ configOptions }` (D9 picker).
  *
  * Sessions (the contract in `./routes.d.ts`):
  * - `POST /api/acp/sessions` → `{ session }`.
@@ -18,6 +19,13 @@
  * - `POST /api/acp/sessions/:key/prompt` → 202 empty.
  * - `POST /api/acp/sessions/:key/cancel` → 200 `{ cancelled: true }` / 204.
  * - `POST /api/acp/sessions/:key/config` → 200 empty.
+ * - `GET /api/acp/sessions/:key/commands` → `{ commands }`.
+ * - `POST /api/acp/sessions/:key/permissions/:requestId/reply` → 200 empty.
+ * - `GET /api/acp/sessions/:key/permissions/:requestId` → `{ permission }`.
+ * - `POST /api/acp/sessions/:key/forms/:formId/reply` → 200 empty.
+ * - `POST /api/acp/sessions/:key/forms/:formId/cancel` → 200 empty.
+ * - `GET /api/acp/permissions?directory=` → `{ permissions }`.
+ * - `GET /api/acp/forms?directory=` → `{ forms }`.
  *
  * Live projector events fan out as `openchamber:acp-sync` frames through
  * `publishSyncFrame` (the host binds the global message hub, so SSE and WS
@@ -37,6 +45,8 @@ const statusForError = (error) => {
     case 'ACP_AUTH_UNKNOWN_METHOD':
     case 'ACP_SESSION_UNKNOWN':
     case 'ACP_MESSAGE_UNKNOWN':
+    case 'ACP_PERMISSION_UNKNOWN':
+    case 'ACP_FORM_UNKNOWN':
       return 404;
     case 'ACP_BACKEND_DISABLED':
     case 'ACP_AUTH_TERMINAL':
@@ -50,6 +60,7 @@ const statusForError = (error) => {
     case 'ACP_INVALID_PROMPT':
     case 'ACP_INVALID_TITLE':
     case 'ACP_INVALID_CONFIG':
+    case 'ACP_INVALID_REQUEST':
       return 400;
     case 'ACP_SESSIONS_UNAVAILABLE':
       return 503;
@@ -280,6 +291,91 @@ export const registerAcpRoutes = (app, { registry, manager, sessions = null, pub
       }
       await sessions.config({ key: req.params.key, configId, value });
       res.json({});
+    } catch (error) {
+      sendError(res, error);
+    }
+  });
+
+  app.get('/api/acp/sessions/:key/commands', async (req, res) => {
+    try {
+      if (!requireSessions(res)) return;
+      res.json({ commands: await sessions.commands({ key: req.params.key }) });
+    } catch (error) {
+      sendError(res, error);
+    }
+  });
+
+  app.post('/api/acp/sessions/:key/permissions/:requestId/reply', jsonBody, async (req, res) => {
+    try {
+      if (!requireSessions(res)) return;
+      const { reply } = req.body ?? {};
+      if (reply !== 'once' && reply !== 'always' && reply !== 'reject') {
+        res.status(400).json({ error: 'reply must be once, always or reject', code: 'ACP_INVALID_REQUEST' });
+        return;
+      }
+      await sessions.replyPermission({ key: req.params.key, requestId: req.params.requestId, reply });
+      res.json({});
+    } catch (error) {
+      sendError(res, error);
+    }
+  });
+
+  app.get('/api/acp/sessions/:key/permissions/:requestId', async (req, res) => {
+    try {
+      if (!requireSessions(res)) return;
+      res.json(await sessions.getPermission({ key: req.params.key, requestId: req.params.requestId }));
+    } catch (error) {
+      sendError(res, error);
+    }
+  });
+
+  app.post('/api/acp/sessions/:key/forms/:formId/reply', jsonBody, async (req, res) => {
+    try {
+      if (!requireSessions(res)) return;
+      const { answer } = req.body ?? {};
+      if (!answer || typeof answer !== 'object' || Array.isArray(answer)) {
+        res.status(400).json({ error: 'answer must be an object', code: 'ACP_INVALID_REQUEST' });
+        return;
+      }
+      await sessions.replyForm({ key: req.params.key, formId: req.params.formId, answer });
+      res.json({});
+    } catch (error) {
+      sendError(res, error);
+    }
+  });
+
+  app.post('/api/acp/sessions/:key/forms/:formId/cancel', async (req, res) => {
+    try {
+      if (!requireSessions(res)) return;
+      await sessions.cancelForm({ key: req.params.key, formId: req.params.formId });
+      res.json({});
+    } catch (error) {
+      sendError(res, error);
+    }
+  });
+
+  app.get('/api/acp/permissions', async (req, res) => {
+    try {
+      if (!requireSessions(res)) return;
+      res.json({ permissions: await sessions.listPendingPermissions({ directory: directoryOf(req) }) });
+    } catch (error) {
+      sendError(res, error);
+    }
+  });
+
+  app.get('/api/acp/forms', async (req, res) => {
+    try {
+      if (!requireSessions(res)) return;
+      res.json({ forms: await sessions.listPendingForms({ directory: directoryOf(req) }) });
+    } catch (error) {
+      sendError(res, error);
+    }
+  });
+
+  app.get('/api/acp/backends/:id/config-cache', async (req, res) => {
+    try {
+      if (!requireSessions(res)) return;
+      res.json({ configOptions: await sessions.configCache({ backendId: req.params.id }) });
     } catch (error) {
       sendError(res, error);
     }

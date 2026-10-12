@@ -17,6 +17,7 @@ export interface AcpBackendRegistry {
   list(): Promise<AcpBackendEntry[]>;
   save(backends: AcpBackendEntry[]): Promise<AcpBackendEntry[]>;
   get(id: string): Promise<AcpBackendEntry | null>;
+  patchCache(id: string, configOptions: unknown[], at: string): Promise<{ id: string; at: string } | null>;
   readonly filePath: string;
 }
 

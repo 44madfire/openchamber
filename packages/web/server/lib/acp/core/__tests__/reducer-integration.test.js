@@ -215,3 +215,128 @@ describe('acp projector through the real UI reducer', () => {
     expect(texts).toEqual(Array.from({ length: 12 }, (_, index) => `a${index + 1}`));
   });
 });
+
+describe('acp interaction through the real UI reducer (Phase 1.4)', () => {
+  it('permission.asked stores the card, permission.replied drops it', () => {
+    const store = freshStore();
+    const projector = projectorFor('ses_acp-omp_ra');
+    feed(store, [{ type: 'session.created', properties: { info: projector.session() } }]);
+    const request = {
+      id: 'perm_acp-1-toolu_1',
+      sessionID: 'ses_acp-omp_ra',
+      action: 'shell',
+      resources: ['echo hi'],
+      metadata: { command: 'echo hi' },
+    };
+    feed(store, [{ type: 'permission.asked', properties: request }]);
+    expect(store.permission['ses_acp-omp_ra']).toHaveLength(1);
+    expect(store.permission['ses_acp-omp_ra'][0]).toMatchObject({ action: 'shell' });
+    feed(store, [{ type: 'permission.replied', properties: { sessionID: 'ses_acp-omp_ra', requestID: request.id } }]);
+    expect(store.permission['ses_acp-omp_ra']).toHaveLength(0);
+  });
+
+  it('form.created stores the form, form.settled drops it', () => {
+    const store = freshStore();
+    const projector = projectorFor('ses_acp-omp_ra');
+    feed(store, [{ type: 'session.created', properties: { info: projector.session() } }]);
+    const form = {
+      id: 'form_acp-1',
+      sessionID: 'ses_acp-omp_ra',
+      title: 'Questions',
+      fields: [{ key: 'q0', type: 'string', title: 'Color', required: true }],
+    };
+    feed(store, [{ type: 'form.created', properties: { form } }]);
+    expect(store.form['ses_acp-omp_ra']).toHaveLength(1);
+    feed(store, [{ type: 'form.settled', properties: { sessionID: 'ses_acp-omp_ra', formID: form.id } }]);
+    expect(store.form['ses_acp-omp_ra']).toHaveLength(0);
+  });
+
+  it('compaction updates build one record that settles in place', () => {
+    const store = freshStore();
+    const projector = projectorFor('ses_acp-omp_ra');
+    feed(store, [{ type: 'session.created', properties: { info: projector.session() } }]);
+    feed(store, turnWithChunks(projector, 'msg_1', ['answer']));
+    feed(store, projector.applyUpdate({
+      sessionId: 'n',
+      update: { sessionUpdate: 'compaction_update', compactionId: 'c1', status: 'in_progress' },
+    }));
+    feed(store, projector.applyUpdate({
+      sessionId: 'n',
+      update: { sessionUpdate: 'compaction_summary_chunk', compactionId: 'c1', content: { type: 'text', text: 'sum' } },
+    }));
+    feed(store, projector.applyUpdate({
+      sessionId: 'n',
+      update: { sessionUpdate: 'compaction_summary_chunk', compactionId: 'c1', content: { type: 'text', text: 'mary' } },
+    }));
+    let compactions = store.message['ses_acp-omp_ra'].filter((message) => message.role === 'compaction');
+    expect(compactions).toHaveLength(1);
+    expect(compactions[0]).toMatchObject({ status: 'running', summary: 'summary' });
+    feed(store, projector.applyUpdate({
+      sessionId: 'n',
+      update: { sessionUpdate: 'compaction_update', compactionId: 'c1', status: 'completed' },
+    }));
+    compactions = store.message['ses_acp-omp_ra'].filter((message) => message.role === 'compaction');
+    expect(compactions).toHaveLength(1);
+    expect(compactions[0]).toMatchObject({ status: 'completed', summary: 'summary' });
+  });
+
+  it('late compaction chunks patch the settled record instead of forking it', () => {
+    const store = freshStore();
+    const projector = projectorFor('ses_acp-omp_ra');
+    feed(store, [{ type: 'session.created', properties: { info: projector.session() } }]);
+    feed(store, turnWithChunks(projector, 'msg_1', ['answer']));
+    feed(store, projector.applyUpdate({
+      sessionId: 'n',
+      update: { sessionUpdate: 'compaction_update', compactionId: 'c1', status: 'completed', summary: [{ type: 'text', text: 'done' }] },
+    }));
+    feed(store, projector.applyUpdate({
+      sessionId: 'n',
+      update: { sessionUpdate: 'compaction_summary_chunk', compactionId: 'c1', content: { type: 'text', text: '!' } },
+    }));
+    const compactions = store.message['ses_acp-omp_ra'].filter((message) => message.role === 'compaction');
+    expect(compactions).toHaveLength(1);
+    expect(compactions[0]).toMatchObject({ status: 'completed', summary: 'done!' });
+  });
+
+  it('child sessions nest under the parent and link from the subagent part', () => {
+    const store = freshStore();
+    const parent = projectorFor('ses_acp-omp_rparent');
+    feed(store, [{ type: 'session.created', properties: { info: parent.session() } }]);
+    feed(store, parent.acceptPrompt('msg_1', [{ type: 'text', text: 'delegate' }]));
+    feed(store, parent.applyUpdate({
+      sessionId: 'n',
+      update: {
+        sessionUpdate: 'tool_call',
+        toolCallId: 'toolu_sub',
+        name: 'subagent',
+        title: 'subagent',
+        kind: 'think',
+        status: 'in_progress',
+        rawInput: { description: 'Do it' },
+      },
+    }));
+    const child = createSessionProjector({
+      key: 'ses_acp-omp_rchild',
+      backendId: 'omp',
+      directory: 'C:\\work',
+      index: { parentKey: 'ses_acp-omp_rparent' },
+      now: (() => { let t = 5000; return () => t++; })(),
+    });
+    feed(store, [{ type: 'session.created', properties: { info: child.session() } }]);
+    feed(store, parent.linkSubagentChild('toolu_sub', 'ses_acp-omp_rchild'));
+    feed(store, child.applyUpdate({
+      sessionId: 'child',
+      update: { sessionUpdate: 'agent_message_chunk', content: { type: 'text', text: 'child text' } },
+    }));
+    // The child nests under the parent id.
+    const sessions = store.session ?? [];
+    expect(sessions.find((session) => session.id === 'ses_acp-omp_rchild')?.parentID).toBe('ses_acp-omp_rparent');
+    // The child transcript holds its own messages.
+    expect(store.message['ses_acp-omp_rchild'].map((message) => message.role)).toEqual(['assistant']);
+    expect(store.part[store.message['ses_acp-omp_rchild'][0].id][0].text).toBe('child text');
+    // The parent part links to the child key.
+    const assistantId = store.message['ses_acp-omp_rparent'].find((message) => message.role === 'assistant').id;
+    const subagent = store.part[assistantId].find((part) => part.type === 'tool' && part.callID === 'toolu_sub');
+    expect(subagent.state.metadata.sessionID).toBe('ses_acp-omp_rchild');
+  });
+});

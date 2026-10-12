@@ -22,6 +22,7 @@ export declare function directoryKey(directory: string): string;
 
 export interface AcpSessionRecord {
   id: string;
+  parentID?: string;
   projectID: string;
   directory: string;
   title: string;
@@ -59,6 +60,14 @@ export interface AcpSessionService {
   delete(options: { key: string }): Promise<boolean>;
   rename(options: { key: string; title: string }): Promise<{ session: AcpSessionRecord; events: AcpSyncEvent[] }>;
   status(options: { directory: string }): Promise<Record<string, { type: string; [key: string]: unknown }>>;
+  replyPermission(options: { key: string; requestId: string; reply: 'once' | 'always' | 'reject' }): Promise<{ events: AcpSyncEvent[] }>;
+  getPermission(options: { key: string; requestId: string }): Promise<{ permission: Record<string, unknown> }>;
+  listPendingPermissions(options: { directory: string }): Promise<Array<Record<string, unknown>>>;
+  replyForm(options: { key: string; formId: string; answer: Record<string, unknown> }): Promise<{ events: AcpSyncEvent[] }>;
+  cancelForm(options: { key: string; formId: string }): Promise<{ events: AcpSyncEvent[] }>;
+  listPendingForms(options: { directory: string }): Promise<Array<Record<string, unknown>>>;
+  commands(options: { key: string }): Promise<Array<{ name: string; description?: string }>>;
+  configCache(options: { backendId: string }): Promise<unknown[]>;
   getLive(key: string): { projector: AcpProjector } | null;
   dispose(): void;
 }
