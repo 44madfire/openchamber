@@ -53,6 +53,7 @@ export const dict: Record<I18nKey, string> = {
   'commitComparison.noCommits': '커밋을 찾을 수 없습니다',
   'commitComparison.emptyDiff': '이 커밋에는 변경 사항이 없습니다',
   'chat.liveActivity.title': '활동',
+  'chat.liveActivity.moreRows': '{count}개 더 보기',
   'chat.liveActivity.changedFile': '파일 {count}개 변경',
   'chat.liveActivity.changedFiles': '파일 {count}개 변경',
   'chat.liveActivity.explored': '코드베이스 탐색',

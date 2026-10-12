@@ -240,10 +240,6 @@ type MarkdownBlock = {
   plainText?: true;
   // A trailing fence whose closing marker has not arrived yet.
   openFence?: true;
-  // The last block of a message that is still streaming but rendered as if
-  // settled (the sorted chat mode). It changes with every step, so it is
-  // cached with the live blocks instead of pushing settled blocks out.
-  growing?: true;
   // The piece of the split this block renders; carries its content hash.
   segment?: Segment;
 };
@@ -516,9 +512,8 @@ export const __liveSplitStatsForTests = () => ({ ...liveSplitStats, settled: set
 export const __streamBlocksForTests = (
   text: string,
   live: boolean,
-  growing = live,
 ): Array<Pick<MarkdownBlock, 'raw' | 'src' | 'mode' | 'highlight'>> =>
-  streamBlocks(text, live, 'escape', growing).map(({ raw, src, mode, highlight }) => ({ raw, src, mode, highlight }));
+  streamBlocks(text, live, 'escape').map(({ raw, src, mode, highlight }) => ({ raw, src, mode, highlight }));
 
 /**
  * Split markdown into render blocks, one per top-level token. While
@@ -527,26 +522,20 @@ export const __streamBlocksForTests = (
  * partial fence does not corrupt the parse of stable content above it. A
  * settled message renders every block from its own text, so blocks that were
  * complete while streaming keep their identity when the stream ends.
- *
- * `growing` marks text that is still streaming but rendered as if settled
- * (the sorted chat mode): it is split incrementally like a live stream and
- * stays out of the settled split memo, whose entries every step would evict.
  */
 const streamBlocks = (
   text: string,
   live: boolean,
   rawHtml: MarkdownRawHtmlMode = 'escape',
-  growing = live,
 ): MarkdownBlock[] => {
   // Raw HTML of a document may open in one block and close in another; the
   // allowlist pass must see it whole.
   if (!live && rawHtml === 'sanitize') return [{ raw: text, src: text, mode: 'full', highlight: true }];
 
-  const split = live || growing ? splitText(text, true) : settledSplit(text);
-  const growingTail = !live && growing ? { growing: true as const } : {};
+  const split = live ? splitText(text, true) : settledSplit(text);
   if (split.kind === 'whole') {
-    if (split.plainText) return [{ raw: text, src: text, mode: live ? 'live' : 'full', highlight: true, plainText: true, ...growingTail }];
-    return [{ raw: text, src: live ? heal(text) : text, mode: live ? 'live' : 'full', highlight: true, ...growingTail }];
+    if (split.plainText) return [{ raw: text, src: text, mode: live ? 'live' : 'full', highlight: true, plainText: true }];
+    return [{ raw: text, src: live ? heal(text) : text, mode: live ? 'live' : 'full', highlight: true }];
   }
 
   const lastIndex = split.segments.length - 1;
@@ -554,12 +543,7 @@ const streamBlocks = (
     const raw = text.slice(segment.start, segment.end);
     const isLast = index === lastIndex;
     const openFence = isLast && segment.fence !== undefined;
-    if (!live) {
-      const block: MarkdownBlock = { raw, src: raw, mode: 'full', highlight: true, segment };
-      if (isLast && growing) block.growing = true;
-      if (isLast && growing && openFence) block.openFence = true;
-      return block;
-    }
+    if (!live) return { raw, src: raw, mode: 'full', highlight: true, segment };
     const block: MarkdownBlock = {
       raw,
       // A finished block renders from its own text, as it will once the
@@ -1160,7 +1144,7 @@ const liveBlockCache = new HighlightResultCache<string>({
 });
 
 const cacheFor = (block: MarkdownBlock): HighlightResultCache<string> =>
-  (block.mode === 'live' || block.growing ? liveBlockCache : fullBlockCache);
+  (block.mode === 'live' ? liveBlockCache : fullBlockCache);
 
 /** Content-addressed cache key for a markdown block. */
 const markdownBlockCacheKey = (
@@ -1193,11 +1177,10 @@ export const getCachedMarkdownBlocks = (
   text: string,
   imageMode: MarkdownImageMode = 'inline',
   rawHtml: MarkdownRawHtmlMode = 'escape',
-  growing = false,
 ): RenderedBlock[] | null => {
   if (!text) return [];
 
-  const blocks = streamBlocks(text, false, rawHtml, growing);
+  const blocks = streamBlocks(text, false, rawHtml);
   const rendered: RenderedBlock[] = [];
   for (const block of blocks) {
     const contentHash = blockFingerprint(block);
@@ -1283,11 +1266,10 @@ export const renderMarkdownBlocksSync = (
   streaming: boolean,
   imageMode: MarkdownImageMode = 'inline',
   rawHtml: MarkdownRawHtmlMode = 'escape',
-  growing = streaming,
 ): RenderedBlock[] => {
   if (!text) return [];
 
-  return streamBlocks(text, streaming, rawHtml, growing).map((block) => {
+  return streamBlocks(text, streaming, rawHtml).map((block) => {
     const contentHash = blockFingerprint(block);
     const id = markdownBlockCacheKey(contentHash, block.mode, block.highlight, imageMode, rawHtml);
     const cache = cacheFor(block);
@@ -1350,11 +1332,10 @@ export const renderMarkdownBlocks = async (
   streaming: boolean,
   imageMode: MarkdownImageMode = 'inline',
   rawHtml: MarkdownRawHtmlMode = 'escape',
-  growing = streaming,
 ): Promise<RenderedBlock[]> => {
   if (!text) return [];
 
-  const blocks = streamBlocks(text, streaming, rawHtml, growing);
+  const blocks = streamBlocks(text, streaming, rawHtml);
   return Promise.all(
     blocks.map(async (block) => {
       const contentHash = blockFingerprint(block);

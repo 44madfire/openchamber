@@ -53,6 +53,7 @@ export const dict: Record<I18nKey, string> = {
   'commitComparison.noCommits': 'Nie znaleziono commitów',
   'commitComparison.emptyDiff': 'Brak zmian w tym commicie',
   'chat.liveActivity.title': 'Aktywność',
+  'chat.liveActivity.moreRows': '+{count} więcej',
   'chat.liveActivity.changedFile': 'Zmieniono {count} plik',
   'chat.liveActivity.changedFiles': 'Zmienione pliki: {count}',
   'chat.liveActivity.explored': 'Przeanalizowano bazę kodu',

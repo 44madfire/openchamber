@@ -53,6 +53,7 @@ export const dict: Record<I18nKey, string> = {
   'commitComparison.noCommits': '找不到提交',
   'commitComparison.emptyDiff': '此提交沒有變更',
   'chat.liveActivity.title': '活動',
+  'chat.liveActivity.moreRows': '還有 {count} 項',
   'chat.liveActivity.changedFile': '變更了 {count} 個檔案',
   'chat.liveActivity.changedFiles': '變更了 {count} 個檔案',
   'chat.liveActivity.explored': '探索了程式碼庫',

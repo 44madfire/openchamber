@@ -53,6 +53,7 @@ export const dict: Record<I18nKey, string> = {
   'commitComparison.noCommits': 'コミットが見つかりません',
   'commitComparison.emptyDiff': 'このコミットに変更はありません',
   'chat.liveActivity.title': 'アクティビティ',
+  'chat.liveActivity.moreRows': 'さらに {count} 件',
   'chat.liveActivity.changedFile': '{count} ファイルを変更',
   'chat.liveActivity.changedFiles': '{count} ファイルを変更',
   'chat.liveActivity.explored': 'コードベースを調査',

@@ -10,6 +10,11 @@ import { parseGeneratedJsonResult } from './generatedJsonResult';
 
 type PartWithText = Part & { text?: string; content?: string; value?: string; time?: { start?: number; end?: number } };
 
+// A streaming reply is read a block at a time (see streamTextCommit.ts); taking
+// new text at most this often lets the blocks finished in between land, and
+// move the chat, together.
+const REPLY_REVEAL_INTERVAL_MS = 400;
+
 interface AssistantTextPartProps {
     part: Part;
     sessionId?: string;
@@ -48,6 +53,7 @@ const AssistantTextPart: React.FC<AssistantTextPartProps> = ({
     const throttledTextContent = useStreamingTextThrottle({
         text: textContent,
         isStreaming,
+        throttleMs: REPLY_REVEAL_INTERVAL_MS,
         identityKey: `${messageId}:${part.id ?? 'text'}`,
     });
 
@@ -87,6 +93,9 @@ const AssistantTextPart: React.FC<AssistantTextPartProps> = ({
         <div
             className="group/assistant-text relative my-1 break-words"
             key={part.id || `${messageId}-text`}
+            // The chat scroll stops following once the start of the reply
+            // being written would leave the screen (useChatTimelineScroll).
+            data-streaming-reply={isStreaming && part.type === 'text' ? '' : undefined}
         >
             <MarkdownRenderer
                 content={displayTextContent}

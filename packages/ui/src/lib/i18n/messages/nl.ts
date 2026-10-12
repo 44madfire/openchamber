@@ -52,6 +52,7 @@ export const dict = {
   'commitComparison.noCommits': 'Geen commits gevonden',
   'commitComparison.emptyDiff': 'Geen wijzigingen in deze commit',
   'chat.liveActivity.title': 'Activiteit',
+  'chat.liveActivity.moreRows': '+{count} meer',
   'chat.liveActivity.changedFile': '{count} bestand gewijzigd',
   'chat.liveActivity.changedFiles': '{count} bestanden gewijzigd',
   'chat.liveActivity.explored': 'Codebase verkend',

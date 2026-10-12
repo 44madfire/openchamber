@@ -945,14 +945,10 @@ const useMorphdomMarkdown = ({
   ctx,
   domCacheKey,
   tableLayoutSettled,
-  growing = streaming,
 }: {
   containerRef: React.RefObject<HTMLDivElement | null>;
   text: string;
   streaming: boolean;
-  // The text is still streaming, though rendered as settled when `streaming`
-  // is false (the sorted chat mode): its steps stay out of settled caches.
-  growing?: boolean;
   imageMode?: MarkdownImageMode;
   rawHtml?: MarkdownRawHtmlMode;
   syntaxVars: Record<string, string>;
@@ -1123,7 +1119,7 @@ const useMorphdomMarkdown = ({
       // block whose code is not highlighted yet carries an id that render
       // does not match, so it recolours that block in place and keeps every
       // other block's DOM (selection, file links, images, disclosures).
-      const blocks = renderMarkdownBlocksSync(text, streaming, imageMode, rawHtml, growing);
+      const blocks = renderMarkdownBlocksSync(text, streaming, imageMode, rawHtml);
       let hasMermaidBlock = false;
       for (const renderedBlock of blocks) {
         const block = document.createElement('div');
@@ -1149,7 +1145,7 @@ const useMorphdomMarkdown = ({
       // or re-decorating ordinary blocks.
       refreshMermaidViewers();
     }
-  }, [containerRef, text, streaming, growing, imageMode, rawHtml, ctx, refreshMermaidViewers, tableLayoutSettled, layoutTablesNow]);
+  }, [containerRef, text, streaming, imageMode, rawHtml, ctx, refreshMermaidViewers, tableLayoutSettled, layoutTablesNow]);
 
   React.useEffect(() => () => {
     mermaidViewerRef.current?.cleanup();
@@ -1165,7 +1161,7 @@ const useMorphdomMarkdown = ({
     const decorationId = getMarkdownDecorationId(ctx);
 
     if (!streaming) {
-      const cachedBlocks = getCachedMarkdownBlocks(text, imageMode, rawHtml, growing);
+      const cachedBlocks = getCachedMarkdownBlocks(text, imageMode, rawHtml);
       if (cachedBlocks && domMatchesRenderedBlocks(target, cachedBlocks, decorationId)) {
         mountedDomRef.current = domCacheKey
           ? { key: domCacheKey, copiedLabel: ctx.labels.copied }
@@ -1176,7 +1172,7 @@ const useMorphdomMarkdown = ({
       }
     }
 
-    void renderMarkdownBlocks(text, streaming, imageMode, rawHtml, growing).then((blocks) => {
+    void renderMarkdownBlocks(text, streaming, imageMode, rawHtml).then((blocks) => {
       if (!active || renderRevisionRef.current !== renderRevision) return;
       const existing = Array.from(target.children) as HTMLElement[];
       // Reconciling against freshly parsed HTML drops the measured column
@@ -1309,7 +1305,7 @@ const useMorphdomMarkdown = ({
     return () => {
       active = false;
     };
-  }, [containerRef, ctx, domCacheKey, growing, imageMode, rawHtml, refreshMermaidViewers, layoutTablesNow, scheduleTableLayout, streaming, tableLayoutSettled, text]);
+  }, [containerRef, ctx, domCacheKey, imageMode, rawHtml, refreshMermaidViewers, layoutTablesNow, scheduleTableLayout, streaming, tableLayoutSettled, text]);
 
   React.useEffect(() => {
     const container = containerRef.current;
@@ -1405,7 +1401,6 @@ const MarkdownRendererImpl: React.FC<MarkdownRendererProps> = ({
     containerRef,
     text: content,
     streaming: isStreaming,
-    growing: isStreaming,
     imageMode,
     syntaxVars,
     ctx,

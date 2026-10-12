@@ -45,6 +45,7 @@ const TurnItem: React.FC<TurnItemProps> = ({ turn, stickyUserHeader = true, rend
             {stickyUserHeader ? (
                 <div
                     className="sticky top-0 z-20 [overflow-anchor:none]"
+                    data-turn-sticky-header=""
                     style={isMobile ? STICKY_HEADER_BACKGROUND_MOBILE : STICKY_HEADER_BACKGROUND_DESKTOP}
                 >
                     <div className="relative z-10">

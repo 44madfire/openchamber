@@ -51,6 +51,7 @@ export const dict = {
   'commitComparison.noCommits': 'لم يُعثر على إيداعات',
   'commitComparison.emptyDiff': 'لا توجد تغييرات في هذا الإيداع',
   'chat.liveActivity.title': 'النشاط',
+  'chat.liveActivity.moreRows': '+{count} أخرى',
   'chat.liveActivity.changedFile': 'تغيير {count} ملف',
   'chat.liveActivity.changedFiles': 'تغيير {count} ملفات',
   'chat.liveActivity.explored': 'استكشاف قاعدة الشيفرة',

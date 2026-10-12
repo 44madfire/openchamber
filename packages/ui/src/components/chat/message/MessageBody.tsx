@@ -48,6 +48,7 @@ import { ToolRevealOnMount } from './parts/ToolRevealOnMount';
 import { StaticToolRow } from './parts/ProgressiveGroup';
 import { isExpandableTool } from './parts/toolRenderUtils';
 import { LiveActivityCollapse } from '../components/LiveActivityCollapse';
+import { ActivityRowSkipContext, isActivityRowPart, isToolRowShown } from '../lib/turns/activityRows';
 import { LiveFinalActivityContext } from '../components/liveActivityContext';
 import { useProjectContextStore } from '@/stores/useProjectContextStore';
 import { resolveProjectForSessionDirectory } from '@/lib/projectResolution';
@@ -1320,6 +1321,7 @@ const AssistantMessageBody = React.memo(({
     const timeFormatPreference = useUIStore((state) => state.timeFormatPreference);
     const vscodeApi = useRuntimeAPIs().vscode;
     const liveFinalActivity = React.useContext(LiveFinalActivityContext);
+    const activityRowSkip = React.useContext(ActivityRowSkipContext);
     const isLastAssistantInTurn = turnGroupingContext?.isLastAssistantInTurn ?? false;
     const hasStopFinish = messageFinish === 'stop';
     const effectiveStreamPhase: StreamPhase = hasStopFinish ? 'completed' : streamPhase;
@@ -1333,34 +1335,6 @@ const AssistantMessageBody = React.memo(({
         return resolved ? { id: resolved.id, path: resolved.path } : null;
     }, [availableWorktreesByProject, currentSessionId, effectiveDirectory, getDirectoryForSession, projects]);
     const currentProjectRef = canUseProjectPlanActions ? sessionProjectRef : null;
-
-    const isActiveTool = React.useCallback((toolPart: ToolPartType): boolean => {
-        const state = (toolPart as Record<string, unknown>).state as Record<string, unknown> | undefined ?? {};
-        const status = state?.status;
-        return status === 'pending' || status === 'running' || status === 'started';
-    }, []);
-
-    const isToolFinalized = React.useCallback((toolPart: ToolPartType) => {
-        const state = (toolPart as Record<string, unknown>).state as Record<string, unknown> | undefined ?? {};
-        const status = state?.status;
-        if (status === 'pending' || status === 'running' || status === 'started') {
-            return false;
-        }
-        const time = state?.time as Record<string, unknown> | undefined ?? {};
-        const endTime = typeof time?.end === 'number' ? time.end : undefined;
-        const startTime = typeof time?.start === 'number' ? time.start : undefined;
-        if (typeof endTime !== 'number') {
-            return false;
-        }
-        if (typeof startTime === 'number' && endTime < startTime) {
-            return false;
-        }
-        return true;
-    }, []);
-
-    const shouldShowTool = React.useCallback((toolPart: ToolPartType): boolean => {
-        return isActiveTool(toolPart) || isToolFinalized(toolPart);
-    }, [isActiveTool, isToolFinalized]);
 
     const hasCopyableText = Boolean(hasTextContent) && !awaitingMessageCompletion;
 
@@ -1680,7 +1654,7 @@ const AssistantMessageBody = React.memo(({
                 return false;
             }
             if (activity.part.type === 'tool') {
-                return shouldShowTool(activity.part);
+                return isToolRowShown(activity.part);
             }
             return showReasoningTraces && !isEmptyTextPart(activity.part);
         }));
@@ -1689,9 +1663,17 @@ const AssistantMessageBody = React.memo(({
         // Group consecutive static tools (read, grep, glob, etc.) into compact rows.
         // Expandable tools (bash, edit, task) get individual rows.
         // Text renders inline at its natural position.
+        // A working turn with Activity collapsed shows only its latest rows;
+        // the first rows of the message it cuts into are left out here.
+        let rowsToSkip = activityRowSkip?.messageId === messageId ? activityRowSkip.rows : 0;
         let i = 0;
         while (i < visibleParts.length) {
             const part = visibleParts[i];
+            if (rowsToSkip > 0 && isActivityRowPart(part)) {
+                rowsToSkip -= 1;
+                i += 1;
+                continue;
+            }
             rendered = splitLiveActivity && part.type !== 'text' ? activityRendered : answerRendered;
 
             if (part.type === 'text') {
@@ -1763,7 +1745,7 @@ const AssistantMessageBody = React.memo(({
                 const toolPart = part as ToolPartType;
                 const toolName = toolPart.tool?.toLowerCase() ?? '';
 
-                if (!shouldShowTool(toolPart)) {
+                if (!isToolRowShown(toolPart)) {
                     i++;
                     continue;
                 }
@@ -1829,6 +1811,7 @@ const AssistantMessageBody = React.memo(({
         }
         return answerRendered;
     }, [
+        activityRowSkip,
         alwaysShowMessageActions,
         animatedToolIdsLookup,
         collapsibleThinkingBlocks,
@@ -1844,7 +1827,6 @@ const AssistantMessageBody = React.memo(({
         onShowPopup,
         onToggleTool,
         shouldShowStandaloneMessageActions,
-        shouldShowTool,
         effectiveStreamPhase,
         showReasoningTraces,
         turnGroupingContext,

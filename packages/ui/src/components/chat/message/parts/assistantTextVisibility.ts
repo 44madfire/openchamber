@@ -23,9 +23,9 @@ export const resolveAssistantDisplayText = (input: {
     throttledTextContent: string;
     isStreaming: boolean;
 }): string => {
-    // While streaming, reveal whole blocks only: rendering stops at the last
-    // complete line so a shown paragraph never mutates in place. The held
-    // tail lands with the next line break (or the finalize pass).
+    // While streaming, reveal whole blocks only: rendering stops at the end of
+    // the last finished block so a shown paragraph never mutates in place.
+    // The held tail lands when its block ends (or with the finalize pass).
     return input.isStreaming
         ? commitStreamedText(input.throttledTextContent)
         : input.textContent;

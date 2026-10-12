@@ -2,56 +2,30 @@ import { describe, expect, test } from 'bun:test';
 
 import {
     AUTOMATIC_MOVEMENT_MAX_MS,
-    FOLLOW_BURST_HIDDEN_MAX_PX,
-    FOLLOW_BURST_HIDDEN_MIN_PX,
     GLIDE_START_GRACE_MS,
     isFollowGlideUnderWay,
     isPositionHeldByFollow,
     resolveFollowGlideTarget,
-    resolveFollowBurstThresholdPx,
+    resolveFollowStop,
     resolveViewportAtEnd,
 } from './followScroll';
 
-// 16px root font, leading-relaxed.
-const thresholdPx = resolveFollowBurstThresholdPx(16 * 1.625);
-
-describe('resolveFollowBurstThresholdPx', () => {
-    test('is two lines of message text', () => {
-        expect(thresholdPx).toBe(52);
-    });
-
-    test('stays within its bounds', () => {
-        expect(resolveFollowBurstThresholdPx(10)).toBe(FOLLOW_BURST_HIDDEN_MIN_PX);
-        expect(resolveFollowBurstThresholdPx(60)).toBe(FOLLOW_BURST_HIDDEN_MAX_PX);
-        expect(resolveFollowBurstThresholdPx(0)).toBe(FOLLOW_BURST_HIDDEN_MIN_PX);
-        expect(resolveFollowBurstThresholdPx(Number.NaN)).toBe(FOLLOW_BURST_HIDDEN_MIN_PX);
+describe('resolveFollowGlideTarget', () => {
+    test('glides to the true end whenever any of it is hidden', () => {
+        expect(resolveFollowGlideTarget(5000, 5000)).toBeNull();
+        expect(resolveFollowGlideTarget(5001, 5000)).toBeNull();
+        expect(resolveFollowGlideTarget(5010, 5000)).toBe(5010);
     });
 });
 
-describe('resolveFollowGlideTarget', () => {
-    const target = (scroll: number, end: number, burst: boolean, afterSend = false) => resolveFollowGlideTarget({
-        end,
-        scroll,
-        burst,
-        thresholdPx,
-        afterSend,
+describe('resolveFollowStop', () => {
+    test('follows to the end while the reply start stays on screen', () => {
+        expect(resolveFollowStop(800, 900)).toEqual({ target: 800, hold: false });
+        expect(resolveFollowStop(901, 900)).toEqual({ target: 901, hold: false });
     });
 
-    test('plain follow glides to the true end whenever any of it is hidden', () => {
-        expect(target(5000, 5000, false)).toBeNull();
-        expect(target(5000, 5001, false)).toBeNull();
-        expect(target(5000, 5010, false)).toBe(5010);
-    });
-
-    test('burst holds while less than the threshold is hidden, then glides to the true end', () => {
-        expect(target(5000, 5000 + thresholdPx - 1, true)).toBeNull();
-        expect(target(5000, 5000 + thresholdPx, true)).toBe(5000 + thresholdPx);
-        expect(target(5000, 5300, true)).toBe(5300);
-    });
-
-    test('right after a send burst shows the sent row whole like the plain follow', () => {
-        expect(target(5000, 5010, true, true)).toBe(5010);
-        expect(target(5000, 5001, true, true)).toBeNull();
+    test('stops at the reply start once the end would carry it off screen', () => {
+        expect(resolveFollowStop(1500, 900)).toEqual({ target: 900, hold: true });
     });
 });
 
@@ -59,21 +33,19 @@ describe('isFollowGlideUnderWay', () => {
     const glide = { lastTop: 1000, issuedAt: 0, stateEnd: 1400 };
 
     test('a glide still moving toward an unchanged end is left to finish', () => {
-        expect(isFollowGlideUnderWay(glide, 1100, 1400, false, 500)).toBe(true);
+        expect(isFollowGlideUnderWay(glide, 1100, 1400, 500)).toBe(true);
         // Not moved yet, but only just issued.
-        expect(isFollowGlideUnderWay(glide, 1000, 1400, false, GLIDE_START_GRACE_MS - 1)).toBe(true);
+        expect(isFollowGlideUnderWay(glide, 1000, 1400, GLIDE_START_GRACE_MS - 1)).toBe(true);
     });
 
-    test('a plain glide is re-aimed once the end moved on; a burst glide runs on', () => {
-        expect(isFollowGlideUnderWay(glide, 1100, 1450, false, 500)).toBe(false);
-        expect(isFollowGlideUnderWay(glide, 1100, 1450, true, 500)).toBe(true);
+    test('a glide is re-aimed once the end moved on', () => {
+        expect(isFollowGlideUnderWay(glide, 1100, 1450, 500)).toBe(false);
     });
 
     test('a glide that stopped is checked against the true end again', () => {
         // Stopped short where it landed: the scroll no longer moves.
-        expect(isFollowGlideUnderWay(glide, 1000, 1400, false, 500)).toBe(false);
-        expect(isFollowGlideUnderWay(glide, 1000, 1400, true, 500)).toBe(false);
-        expect(isFollowGlideUnderWay(null, 1100, 1400, false, 500)).toBe(false);
+        expect(isFollowGlideUnderWay(glide, 1000, 1400, 500)).toBe(false);
+        expect(isFollowGlideUnderWay(null, 1100, 1400, 500)).toBe(false);
     });
 });
 

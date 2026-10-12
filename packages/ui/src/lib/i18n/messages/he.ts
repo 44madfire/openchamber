@@ -51,6 +51,7 @@ export const dict = {
   'commitComparison.noCommits': 'לא נמצאו קומיטים',
   'commitComparison.emptyDiff': 'אין שינויים בקומיט הזה',
   'chat.liveActivity.title': 'פעילות',
+  'chat.liveActivity.moreRows': '+{count} נוספים',
   'chat.liveActivity.changedFile': 'שונה קובץ {count}',
   'chat.liveActivity.changedFiles': 'שונו {count} קבצים',
   'chat.liveActivity.explored': 'סקר את בסיס הקוד',

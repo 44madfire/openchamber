@@ -108,7 +108,16 @@ completion or interruption while preserving the original rows, their order, and
 their individual controls. It adds no tool subgroups, side line, height cap, or
 inner scroller. Subagent calls alone do not make a turn collapsible.
 
-The active turn stays open without an Activity header. A final assistant message with `finish: stop`
+The active turn has its Activity header from the first step. Folded, it shows
+only the latest 7 rows (a text, a reasoning block or a tool call each;
+`lib/turns/activityRows.ts`); the header counts the earlier ones ("+N more")
+and opens them all. `LiveTurnActivity` leaves out the messages entirely above
+the cut and tells the message it cuts into, through
+`ActivityRowSkipContext`, how many of its first rows `MessageBody` skips; both
+count with the same rule. When the cut moves down, `useActivityRowGlide`
+replays the jump as a 220 ms glide of the rows (FLIP, `transform` only, skipped
+with reduced motion). The trim stays while the settled fold closes and lifts
+when the reader opens it. A final assistant message with `finish: stop`
 collapses the earlier messages and the final message's non-text parts, keeping
 the answer and its existing footer outside. Intermediate-text summary fallback
 and compaction summaries never become final answers. An older turn without a
@@ -264,7 +273,7 @@ finished with `stop`, so no tool patch is parsed while the turn streams.
 - A `subagent` call that went to the background (`background: true`, or moved there with `session.background`) settles at once with `metadata.status: "running"` and the child in `metadata.sessionID`. `SubagentToolPartContent` rebuilds it from the child (`backgroundSubagentPart.ts`): running while the child session is active in `global-session-status`, then finished, failed or stopped from the report OpenCode appends (`findSubagentRun`), with the `in background` header label while it runs, `stopped` after a cancel, and the stop action described for subagent rows above. `ChatContainer` drops that report from the timeline (`keepCommandSubagentReports`), so the subagent stays where it was started instead of reappearing as a new turn at the end. Only reports of `subagent: true` commands, which have no call row, still render as their own `TimelineNotice` turn, and only when the child started inside the loaded history; any other report (a call not loaded yet, an unknown child) stays out of the chat and is reachable from the session's subagent list, so loading older history never makes the chat shift.
 - The result of a session the agent dispatched with `returnResult` arrives as a `synthetic` message with `source: "openchamber-session"` (`@/lib/opencode/dispatched-session`, delivered by the server's `lib/dispatch-results`). It is a background report like a subagent run (`isBackgroundReportEntry`): it opens a turn, so the woken agent's reply renders below it, and a fork after an answer cuts before it. `TimelineNotice` renders it as one collapsed row, `Session finished: <title>` (failed / stopped variants carry the status icon), that opens to the answer as Markdown with an `Open session` action going through `openSessionLink`.
 - Reasoning streaming presentation derives from the live stream phase (`streaming`/`cooldown`), never from missing persisted timing: a cached part without `time.end` is not live, and a part whose `time.end` is set never streams (issue #2020).
-- Assistant text parts carry the same part-finalization gate (`assistantTextVisibility.ts`): the block-commit reveal holds a still-growing part's trailing line, while a part sealed with `time.end` renders in full immediately — including while the turn stays blocked on a pending question or permission ask (#3277).
+- Assistant text parts carry the same part-finalization gate (`assistantTextVisibility.ts`): the block-level reveal (`lib/streamTextCommit.ts`) holds a still-growing part's unfinished block, and the reply takes new text at most every 400 ms, while a part sealed with `time.end` renders in full immediately — including while the turn stays blocked on a pending question or permission ask (#3277).
 
 ## "I want to change description for Perplexity" (example recipe)
 

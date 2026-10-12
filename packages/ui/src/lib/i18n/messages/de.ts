@@ -52,6 +52,7 @@ export const dict = {
   'commitComparison.noCommits': 'Keine Commits gefunden',
   'commitComparison.emptyDiff': 'Keine Änderungen in diesem Commit',
   'chat.liveActivity.title': 'Aktivität',
+  'chat.liveActivity.moreRows': '+{count} weitere',
   'chat.liveActivity.changedFile': '{count} Datei geändert',
   'chat.liveActivity.changedFiles': '{count} Dateien geändert',
   'chat.liveActivity.explored': 'Codebasis untersucht',
