@@ -332,7 +332,7 @@ export function materializeSessionSnapshots(
       existing.role !== "assistant"
       || incoming?.role !== "assistant"
       || incoming.time.completed === undefined
-      || (existing.time.completed !== undefined && existing.error?.type !== "aborted")
+      || (existing.time.completed !== undefined && !existing.closedLocally)
     ) continue
     if (reconciledCurrentMessages === currentMessages) reconciledCurrentMessages = [...currentMessages]
     reconciledCurrentMessages[index] = incoming

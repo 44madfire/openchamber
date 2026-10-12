@@ -208,6 +208,7 @@ describe("materializeSessionSnapshots", () => {
       ...unfinishedMessage,
       time: { created: 1, completed: 5000 },
       error: { type: "aborted", message: "aborted" },
+      closedLocally: true,
     }
     const staleMessage = message("msg_1")
     const state = {
@@ -233,6 +234,7 @@ describe("materializeSessionSnapshots", () => {
       ...unfinishedMessage,
       time: { created: 1, completed: 5000 },
       error: { type: "aborted", message: "aborted" },
+      closedLocally: true,
     }
     const completedMessage: Message = {
       ...unfinishedMessage,

@@ -201,9 +201,13 @@ describe("message events", () => {
   })
 
   test("a reported completion lifts the local interruption mark", () => {
-    // `interruptedTurnToolParts` closes an open turn with `{type:"aborted"}`
-    // when idle status lands before the completion event flushes.
-    const marked = assistant({ time: { created: 10, completed: 15 }, error: { type: "aborted", message: "aborted" } })
+    // `interruptedTurnToolParts` closes an open turn locally when idle status
+    // lands before the completion event flushes.
+    const marked = assistant({
+      time: { created: 10, completed: 15 },
+      error: { type: "aborted", message: "aborted" },
+      closedLocally: true,
+    })
     const draft = state({ message: { ses_1: [marked] } })
     apply(draft, {
       type: "message.patched",
@@ -211,6 +215,7 @@ describe("message events", () => {
     })
     expect(draft.message.ses_1[0]).toMatchObject({ time: { completed: 20 }, finish: "stop" })
     expect("error" in draft.message.ses_1[0]).toBe(false)
+    expect("closedLocally" in draft.message.ses_1[0]).toBe(false)
 
     // A turn that really failed keeps the error the server sent.
     const failed = state({ message: { ses_1: [marked] } })

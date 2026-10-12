@@ -2347,7 +2347,8 @@ export function handleEvent(
     // how the turn ended, so it leaves the message as OpenCode stored it.
     const stopped = payload.type === "session.error" || payload.properties.outcome === "interrupted"
     if (sessionID && stopped) {
-      const interrupted = interruptedTurnToolParts(state, sessionID)
+      const failure = payload.type === "session.error" ? payload.properties.error : undefined
+      const interrupted = interruptedTurnToolParts(state, sessionID, Date.now(), failure)
       if (interrupted) {
         cloneField("message", (value) => ({ ...value }))
         draft.message[sessionID] = interrupted.messages
@@ -2394,9 +2395,11 @@ export function handleEvent(
 // record is the only thing that marks a turn stopped here. The server does
 // not always finalize the trailing assistant message and its tool parts
 // before the record (anomalyco/opencode#19023), so the record's turn is
-// completed locally with an aborted error and its orphaned tools become
+// completed locally (`closedLocally`) and its orphaned tools become
 // `error`/`Interrupted` with an end time — the same shape OpenCode itself
-// writes for cancelled tools. A later terminal event can supersede the mark;
+// writes for cancelled tools. The message carries the error OpenCode reported
+// for a failed turn; `aborted` only when the turn was stopped or the failure
+// came without one. A later terminal event can supersede the mark;
 // a stale refresh cannot regress the locally final state.
 //
 // An idle status, a status snapshot that no longer lists a session, or an
@@ -2407,6 +2410,7 @@ export function interruptedTurnToolParts(
   state: DirectoryStore,
   sessionID: string,
   now = Date.now(),
+  failure?: StructuredError,
 ): { messageID: string; messages: Message[]; parts?: Part[] } | null {
   if ((state.form?.[sessionID] ?? []).length > 0) return null
   if ((state.permission?.[sessionID] ?? []).length > 0) return null
@@ -2435,13 +2439,12 @@ export function interruptedTurnToolParts(
 
   const messageID = message.id
   const nextMessages = [...messages]
-  // `materializeSessionSnapshots` supersedes a locally aborted message only
-  // when it recognises this exact type, so both sides use the domain value.
-  const error: StructuredError = { type: "aborted", message: "aborted" }
+  const error: StructuredError = failure ?? { type: "aborted", message: "aborted" }
   nextMessages[messageIndex] = {
     ...message,
     time: { ...message.time, completed: now },
     error,
+    closedLocally: true,
   }
 
   let partsChanged = false
@@ -2470,18 +2473,21 @@ export function interruptedTurnToolParts(
 }
 
 /**
- * The outcome OpenCode recorded for the trailing assistant turn: the newest
- * `idle` record after that turn's assistant message, or undefined while no
- * process has recorded its end.
+ * How OpenCode recorded the end of the trailing assistant turn: the newest
+ * `idle` record after that turn's assistant message, with the error of a
+ * failed turn (2.0.27+), or undefined while no process has recorded its end.
  */
-function recordedTurnOutcome(state: DirectoryStore, sessionID: string): SessionOutcome | undefined {
+function recordedTurnEnd(
+  state: DirectoryStore,
+  sessionID: string,
+): { outcome: SessionOutcome; error?: StructuredError } | undefined {
   const messages = state.message[sessionID] ?? []
-  let outcome: SessionOutcome | undefined
+  let end: { outcome: SessionOutcome; error?: StructuredError } | undefined
   for (let index = messages.length - 1; index >= 0; index -= 1) {
     const message = messages[index]
     if (message.role === "user") return undefined
-    if (message.role === "assistant") return outcome
-    if (message.role === "idle") outcome ??= message.outcome
+    if (message.role === "assistant") return end
+    if (message.role === "idle") end ??= { outcome: message.outcome, error: message.error }
   }
   return undefined
 }
@@ -2493,9 +2499,9 @@ function recordedTurnOutcome(state: DirectoryStore, sessionID: string): SessionO
  */
 export function markRecordedInterruptedTurn(store: StoreApi<DirectoryStore>, sessionID: string): void {
   const state = store.getState()
-  const outcome = recordedTurnOutcome(state, sessionID)
-  if (outcome !== "interrupted" && outcome !== "failed") return
-  const interrupted = interruptedTurnToolParts(state, sessionID)
+  const end = recordedTurnEnd(state, sessionID)
+  if (end?.outcome !== "interrupted" && end?.outcome !== "failed") return
+  const interrupted = interruptedTurnToolParts(state, sessionID, Date.now(), end.outcome === "failed" ? end.error : undefined)
   if (!interrupted) return
 
   const interruptedParts = interrupted.parts
