@@ -30,6 +30,7 @@ import { FilesystemError, parseFilesystemErrorReason } from "@/lib/api/files-err
 import type { ContextPartMetadata } from "@/lib/messages/contextParts"
 import { getRuntimeUrlResolver } from "@/lib/runtime-url"
 import { runtimeFetch } from "@/lib/runtime-fetch"
+import { isRelayModeActive } from "@/lib/relay/runtime-tunnel"
 import { isSpaceDirectory } from "@/lib/spaces/space-route"
 import { spaceMarkSchema, type SpaceMark } from "@/lib/spaces/spaces-store"
 import { getRuntimeKey } from "@/lib/runtime-switch"
@@ -1056,6 +1057,9 @@ class OpencodeService {
         // Something between this client and the server (a CORS allow-list, a
         // proxy) may refuse the header even though the server lists the
         // capability. When the plain page works, this runtime stops asking.
+        // The relay tunnel has neither, so a failure there is the connection
+        // dropping, and the caller's retry asks for the shelled page again.
+        if (isRelayModeActive()) throw error
         response = await list().catch(() => { throw error })
         this.partShellsSupport.set(getRuntimeKey(), false)
       }

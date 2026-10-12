@@ -1,6 +1,8 @@
 import { beforeEach, describe, expect, mock, test } from "bun:test"
 import { z } from "zod"
 import { isAmbiguousSendFailure } from '@/sync/send-failure-classification'
+import { adoptRelayTunnel, deactivateRelayTunnel } from "@/lib/relay/runtime-tunnel"
+import type { RelayTunnelClient } from "@/lib/relay/tunnel-client"
 
 // The generated `@opencode/client` runs for real here; only the runtime
 // transport (`runtimeFetch`) and runtime identity are replaced. That keeps
@@ -730,6 +732,30 @@ describe("messages and config", () => {
     await opencodeClient.getSessionMessages("ses_1", { limit: 20, partShells: true })
     await opencodeClient.getSessionMessages("ses_1", { limit: 20, partShells: true })
     expect(pageRequests().map((request) => request.headers.get("x-openchamber-part-shells"))).toEqual(["v1", null, null])
+  })
+
+  test("a page lost to a relay tunnel drop keeps asking for shelled pages", async () => {
+    const pageRequests = () => requests.filter((request) => request.url.pathname === "/api/session/ses_1/message")
+    runtimeKey = "shells-relay"
+    responses.push(json({ compatibility: { capabilities: ["api.message-part-shells.v1"] } }))
+    opencodeClient.learnMessagePageShellsSupport()
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    const tunnel: RelayTunnelClient = {
+      async fetch() { throw new Error("the client routes through runtimeFetch") },
+      openWebSocket() { throw new Error("no sockets here") },
+      getStatus: () => ({ state: "connected" }),
+      subscribeStatus: () => () => undefined,
+      close: () => undefined,
+    }
+    adoptRelayTunnel({ relayUrl: "wss://relay.test", serverId: "fixture", hostEncPubJwk: {} }, tunnel)
+    try {
+      responses.push(new Error("relay tunnel reset: relay keepalive timeout"), json({ data: [], cursor: {} }))
+      await expect(opencodeClient.getSessionMessages("ses_1", { limit: 20, partShells: true })).rejects.toThrow("transport failure")
+      await opencodeClient.getSessionMessages("ses_1", { limit: 20, partShells: true })
+      expect(pageRequests().map((request) => request.headers.get("x-openchamber-part-shells"))).toEqual(["v1", "v1"])
+    } finally {
+      deactivateRelayTunnel()
+    }
   })
 
   test("a cursor is never combined with an order", async () => {
