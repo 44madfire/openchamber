@@ -234,12 +234,6 @@ const SETTINGS_SEARCH_ITEMS: readonly SettingsSearchItem[] = [
     keywords: ['security', 'app link', 'deep link', 'scheme', 'protocol', 'obsidian', 'notion'],
   },
   {
-    id: 'chat.render-mode',
-    page: 'chat',
-    titleKey: 'settings.openchamber.visual.section.chatRenderMode',
-    keywords: ['messages', 'conversation', 'rendering'],
-  },
-  {
     id: 'chat.message-transport',
     page: 'general',
     titleKey: 'settings.openchamber.visual.section.messageStreamTransport',

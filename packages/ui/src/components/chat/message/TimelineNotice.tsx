@@ -55,7 +55,6 @@ const CompactionNotice: React.FC<{ message: Extract<Message, { role: 'compaction
         <NoticeRow spacingClassName="pt-1">
             <ReasoningTimelineBlock
                 text={summary}
-                variant="thinking"
                 blockId={message.id}
                 isStreaming={running}
                 expandWhileStreaming={expandWhileStreaming}
@@ -283,7 +282,6 @@ const DispatchedSessionNotice: React.FC<{ message: SyntheticMessage; result: Dis
         <NoticeRow>
             <ReasoningTimelineBlock
                 text={result.output}
-                variant="thinking"
                 blockId={message.id}
                 presentation={{
                     icon: DISPATCHED_SESSION_ICONS[result.state],

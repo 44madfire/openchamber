@@ -2715,7 +2715,6 @@ export const dict = {
   'chat.modelControls.modeValue.all': 'الكل',
   'chat.modelControls.modeValue.none': '—',
   'chat.reasoningTrace.thinking': 'التفكير',
-  'chat.reasoningTrace.justification': 'التبرير',
   'chat.reasoningTrace.expandAria': 'توسيع مسار التفكير',
   'chat.reasoningTrace.collapseAria': 'طي مسار التفكير',
   'chat.reasoningTrace.thought': 'فكرة',

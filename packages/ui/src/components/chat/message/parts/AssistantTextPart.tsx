@@ -15,7 +15,6 @@ interface AssistantTextPartProps {
     sessionId?: string;
     messageId: string;
     streamPhase: StreamPhase;
-    chatRenderMode?: 'sorted' | 'live';
     onShowPopup?: (content: ToolPopupContent) => void;
 }
 
@@ -23,7 +22,6 @@ const AssistantTextPart: React.FC<AssistantTextPartProps> = ({
     part,
     messageId,
     streamPhase,
-    chatRenderMode = 'live',
     onShowPopup,
 }) => {
     // Use part directly from props — parent provides the latest version from the store.
@@ -39,7 +37,6 @@ const AssistantTextPart: React.FC<AssistantTextPartProps> = ({
     const isFinalized = Boolean(time && typeof time.end !== 'undefined');
     const isStreaming = resolveAssistantTextStreaming({
         streamPhase,
-        chatRenderMode,
         isFinalized,
     });
 
@@ -78,7 +75,7 @@ const AssistantTextPart: React.FC<AssistantTextPartProps> = ({
     if (generatedResult) {
         return (
             <div
-                className={`group/assistant-text relative break-words ${chatRenderMode === 'live' ? 'my-1' : ''}`}
+                className="group/assistant-text relative my-1 break-words"
                 key={part.id || `${messageId}-text`}
             >
                 <GeneratedJsonResultCard result={generatedResult} />
@@ -88,7 +85,7 @@ const AssistantTextPart: React.FC<AssistantTextPartProps> = ({
 
     return (
         <div
-            className={`group/assistant-text relative break-words ${chatRenderMode === 'live' ? 'my-1' : ''}`}
+            className="group/assistant-text relative my-1 break-words"
             key={part.id || `${messageId}-text`}
         >
             <MarkdownRenderer
@@ -97,7 +94,6 @@ const AssistantTextPart: React.FC<AssistantTextPartProps> = ({
                 messageId={messageId}
                 isAnimated={false}
                 isStreaming={isStreaming}
-                disableStreamAnimation={chatRenderMode === 'sorted'}
                 variant={part.type === 'reasoning' ? 'reasoning' : 'assistant'}
                 enableFileReferences={isFinalized}
                 onShowPopup={onShowPopup}

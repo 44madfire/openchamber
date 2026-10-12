@@ -10,14 +10,12 @@ import type { StreamPhase } from '../types';
 // line hidden until the user answers (#3277).
 export const resolveAssistantTextStreaming = (input: {
     streamPhase: StreamPhase;
-    chatRenderMode: 'sorted' | 'live';
     isFinalized: boolean;
 }): boolean => {
     if (input.isFinalized) {
         return false;
     }
-    return input.chatRenderMode === 'live'
-        && (input.streamPhase === 'streaming' || input.streamPhase === 'cooldown');
+    return input.streamPhase === 'streaming' || input.streamPhase === 'cooldown';
 };
 
 export const resolveAssistantDisplayText = (input: {

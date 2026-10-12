@@ -22,7 +22,6 @@ type BuildLiveStreamingEntryOptions = {
     // parts — remounting them (and replaying their reveal animation) once the
     // record catches up.
     livePartsByMessageId: Readonly<Record<string, Part[]>>;
-    showTextJustificationActivity: boolean;
     showTurnChangedFiles: boolean;
     mergeHiddenUserTurns?: boolean;
 };
@@ -93,7 +92,6 @@ export const buildLiveStreamingEntry = <TEntry extends StreamingTailEntry>(
         : [entry.turn.userMessage, ...assistantMessages];
 
     const projection = projectTurnRecords(sourceMessages, {
-        showTextJustificationActivity: options.showTextJustificationActivity,
         showTurnChangedFiles: options.showTurnChangedFiles,
         mergeHiddenUserTurns: options.mergeHiddenUserTurns,
     });

@@ -2756,7 +2756,6 @@ export const dict: Record<I18nKey, string> = {
   'chat.modelControls.modeValue.all': '전체',
   'chat.modelControls.modeValue.none': '—',
   'chat.reasoningTrace.thinking': '추론',
-  'chat.reasoningTrace.justification': '근거',
   'chat.reasoningTrace.expandAria': '추론 트레이스 펼치기',
   'chat.reasoningTrace.collapseAria': '추론 트레이스 접기',
   'chat.reasoningTrace.thought': '추론 완료',

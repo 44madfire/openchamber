@@ -145,11 +145,10 @@ const ChatMessage: React.FC<ChatMessageProps> = ({
     }
 
     const providers = useConfigStore((state) => state.providers);
-    const { showReasoningTraces, stickyUserHeader, chatRenderMode } = useUIStore(
+    const { showReasoningTraces, stickyUserHeader } = useUIStore(
         useShallow((state) => ({
             showReasoningTraces: state.showReasoningTraces,
             stickyUserHeader: state.stickyUserHeader,
-            chatRenderMode: state.chatRenderMode,
         }))
     );
 
@@ -327,18 +326,6 @@ const ChatMessage: React.FC<ChatMessageProps> = ({
         [normalizedParts, showReasoningTraces]
     );
 
-    const displayParts = React.useMemo(() => {
-        if (isUser) {
-            return visibleParts;
-        }
-
-        if (!isMessageCompleted && chatRenderMode === 'sorted') {
-            return [];
-        }
-
-        return visibleParts;
-    }, [chatRenderMode, isMessageCompleted, isUser, visibleParts]);
-
     const agentMention = React.useMemo(() => {
         if (!isUser) {
             return undefined;
@@ -358,7 +345,7 @@ const ChatMessage: React.FC<ChatMessageProps> = ({
         return { name, token: rawValue } satisfies AgentMentionInfo;
     }, [isUser, normalizedParts]);
 
-    const shouldHideUserMessage = isUser && displayParts.length === 0;
+    const shouldHideUserMessage = isUser && visibleParts.length === 0;
 
     const themeVariant = currentTheme?.metadata.variant;
     const isDarkTheme = React.useMemo(() => {
@@ -533,15 +520,15 @@ const ChatMessage: React.FC<ChatMessageProps> = ({
 
     const messageTextContent = React.useMemo(() => {
         if (isUser) {
-            return flattenUserTextParts(displayParts);
+            return flattenUserTextParts(visibleParts);
         }
 
         if (assistantErrorText && assistantErrorText.trim().length > 0) {
             return assistantErrorText;
         }
 
-        return flattenAssistantTextParts(displayParts);
-    }, [assistantErrorText, displayParts, isUser]);
+        return flattenAssistantTextParts(visibleParts);
+    }, [assistantErrorText, visibleParts, isUser]);
 
     const hasTextContent = messageTextContent.length > 0;
 
@@ -673,7 +660,7 @@ const ChatMessage: React.FC<ChatMessageProps> = ({
             >
                 <div className="chat-message-column relative">
                     {isUser ? (
-                        displayParts.length === 0 ? null : (
+                        visibleParts.length === 0 ? null : (
                             <FadeInOnReveal
                                 forceAnimation
                                 skipAnimation={!animateUserOnMount}
@@ -701,7 +688,7 @@ const ChatMessage: React.FC<ChatMessageProps> = ({
                                         >
                                             <MessageBody
                                                 messageId={message.info.id}
-                                                parts={displayParts}
+                                                parts={visibleParts}
                                                 isUser={isUser}
                                                 isMessageCompleted={isMessageCompleted}
                                                 messageFinish={messageFinish}
@@ -738,7 +725,7 @@ const ChatMessage: React.FC<ChatMessageProps> = ({
                                         {useExternalUserActionsRow ? (
                                             <MessageBody
                                                 messageId={message.info.id}
-                                                parts={displayParts}
+                                                parts={visibleParts}
                                                 isUser={isUser}
                                                 isMessageCompleted={isMessageCompleted}
                                                 messageFinish={messageFinish}

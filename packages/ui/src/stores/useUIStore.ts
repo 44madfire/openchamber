@@ -56,7 +56,6 @@ const persistedPanelHeightsSchema = z.object({
 });
 type MermaidRenderingMode = 'svg' | 'ascii';
 type UserMessageRenderingMode = 'markdown' | 'plain';
-type ChatRenderMode = 'sorted' | 'live';
 type ActivityRenderMode = 'collapsed' | 'summary';
 export type SessionRetentionAction = 'archive' | 'delete';
 export type TimeFormatPreference = 'auto' | '12h' | '24h';
@@ -1001,7 +1000,6 @@ interface UIStore {
   collapsibleThinkingBlocks: boolean;
   /** A collapsible reasoning block opens while its model thinks. Off: it stays folded to its header. */
   expandReasoningWhileStreaming: boolean;
-  chatRenderMode: ChatRenderMode;
   activityRenderMode: ActivityRenderMode;
   showDeletionDialog: boolean;
   autoDeleteEnabled: boolean;
@@ -1272,7 +1270,6 @@ interface UIStore {
   setSessionGoalDefaultBudget: (value: number) => void;
   setCollapsibleThinkingBlocks: (value: boolean) => void;
   setExpandReasoningWhileStreaming: (value: boolean) => void;
-  setChatRenderMode: (value: ChatRenderMode) => void;
   setActivityRenderMode: (value: ActivityRenderMode) => void;
   setShowDeletionDialog: (value: boolean) => void;
   setAutoDeleteEnabled: (value: boolean) => void;
@@ -1489,7 +1486,6 @@ export const useUIStore = create<UIStore>()(
         sessionGoalDefaultBudget: 200_000,
         collapsibleThinkingBlocks: true,
         expandReasoningWhileStreaming: false,
-        chatRenderMode: 'live',
         activityRenderMode: 'summary',
         showDeletionDialog: true,
         autoDeleteEnabled: false,
@@ -2532,10 +2528,6 @@ export const useUIStore = create<UIStore>()(
           set({ expandReasoningWhileStreaming: value });
         },
 
-        setChatRenderMode: (value) => {
-          set({ chatRenderMode: value });
-        },
-
         setActivityRenderMode: (value) => {
           set({ activityRenderMode: value });
         },
@@ -3554,7 +3546,6 @@ export const useUIStore = create<UIStore>()(
           sessionGoalDefaultBudget: state.sessionGoalDefaultBudget,
           collapsibleThinkingBlocks: state.collapsibleThinkingBlocks,
           expandReasoningWhileStreaming: state.expandReasoningWhileStreaming,
-          chatRenderMode: state.chatRenderMode,
           activityRenderMode: state.activityRenderMode,
           showDeletionDialog: state.showDeletionDialog,
           autoDeleteEnabled: state.autoDeleteEnabled,

@@ -2756,7 +2756,6 @@ export const dict = {
   'chat.modelControls.modeValue.all': 'Alle',
   'chat.modelControls.modeValue.none': '—',
   'chat.reasoningTrace.thinking': 'Denken',
-  'chat.reasoningTrace.justification': 'Onderbouwing',
   'chat.reasoningTrace.expandAria': 'Redeneringstrace uitvouwen',
   'chat.reasoningTrace.collapseAria': 'Redeneringstrace samenvouwen',
   'chat.reasoningTrace.thought': 'Gedachte',

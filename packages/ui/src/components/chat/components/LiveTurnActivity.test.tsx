@@ -146,7 +146,7 @@ describe('live Activity with the real message body', () => {
         container = document.createElement('div');
         document.body.append(container);
         root = createRoot(container);
-        useUIStore.setState({ chatRenderMode: 'live', collapsibleThinkingBlocks: false, showSplitAssistantMessageActions: false });
+        useUIStore.setState({ collapsibleThinkingBlocks: false, showSplitAssistantMessageActions: false });
         useDirectoryStore.setState({ currentDirectory: '/project' });
         useI18nStore.getState().setLocale('en');
         MessageBody = (await import('../message/MessageBody')).default;

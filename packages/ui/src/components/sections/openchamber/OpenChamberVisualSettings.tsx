@@ -192,19 +192,6 @@ const USER_MESSAGE_RENDERING_OPTIONS: Option<'markdown' | 'plain'>[] = [
     },
 ];
 
-const CHAT_RENDER_MODE_OPTIONS: Option<'sorted' | 'live'>[] = [
-    {
-        id: 'sorted',
-        labelKey: 'settings.openchamber.visual.option.chatRenderMode.sorted.label',
-        descriptionKey: 'settings.openchamber.visual.option.chatRenderMode.sorted.description',
-    },
-    {
-        id: 'live',
-        labelKey: 'settings.openchamber.visual.option.chatRenderMode.live.label',
-        descriptionKey: 'settings.openchamber.visual.option.chatRenderMode.live.description',
-    },
-];
-
 const MESSAGE_STREAM_TRANSPORT_OPTIONS: Option<'auto' | 'ws' | 'sse'>[] = [
     {
         id: 'auto',
@@ -315,7 +302,7 @@ const normalizeUserMessageRenderingMode = (mode: unknown): 'markdown' | 'plain' 
     return mode === 'markdown' ? 'markdown' : 'plain';
 };
 
-type VisibleSetting = 'sessionAssist' | 'sessionGoal' | 'theme' | 'windowControlsPosition' | 'pwaInstallName' | 'pwaOrientation' | 'mobileKeyboardMode' | 'timeFormat' | 'weekStart' | 'fontSize' | 'terminalFontSize' | 'terminalShell' | 'terminalLoginShell' | 'editorFontSize' | 'spacing' | 'scrollbars' | 'inputBarOffset' | 'mermaidRendering' | 'userMessageRendering' | 'chatRenderMode' | 'messageTransport' | 'activityRenderMode' | 'collapsibleUserMessages' | 'stickyUserHeader' | 'promptNavigatorEnabled' | 'wideChatLayout' | 'codeBlockLineWrap' | 'tableCellWrap' | 'copyMessagesAsPlainText' | 'splitAssistantMessageActions' | 'subagentReadOnlyBanner' | 'diffLayout' | 'mobileStatusBar' | 'dotfiles' | 'fileViewerPreview' | 'reasoning' | 'showToolFileIcons' | 'showTurnChangedFiles' | 'followUpBehavior' | 'inputHistoryScope' | 'inputHistoryLimit' | 'messageSearch' | 'terminalQuickKeys' | 'fileEditorKeymap' | 'persistDraft' | 'inputSpellcheck' | 'largeTextPaste' | 'enterToSend' | 'reportUsage' | 'autoSaveEnabled' | 'confirmFileTreeMove' | 'sessionTabs' | 'animatedActivityIndicators' | 'layoutAnimations' | 'fileTreeSide';
+type VisibleSetting = 'sessionAssist' | 'sessionGoal' | 'theme' | 'windowControlsPosition' | 'pwaInstallName' | 'pwaOrientation' | 'mobileKeyboardMode' | 'timeFormat' | 'weekStart' | 'fontSize' | 'terminalFontSize' | 'terminalShell' | 'terminalLoginShell' | 'editorFontSize' | 'spacing' | 'scrollbars' | 'inputBarOffset' | 'mermaidRendering' | 'userMessageRendering' | 'messageTransport' | 'activityRenderMode' | 'collapsibleUserMessages' | 'stickyUserHeader' | 'promptNavigatorEnabled' | 'wideChatLayout' | 'codeBlockLineWrap' | 'tableCellWrap' | 'copyMessagesAsPlainText' | 'splitAssistantMessageActions' | 'subagentReadOnlyBanner' | 'diffLayout' | 'mobileStatusBar' | 'dotfiles' | 'fileViewerPreview' | 'reasoning' | 'showToolFileIcons' | 'showTurnChangedFiles' | 'followUpBehavior' | 'inputHistoryScope' | 'inputHistoryLimit' | 'messageSearch' | 'terminalQuickKeys' | 'fileEditorKeymap' | 'persistDraft' | 'inputSpellcheck' | 'largeTextPaste' | 'enterToSend' | 'reportUsage' | 'autoSaveEnabled' | 'confirmFileTreeMove' | 'sessionTabs' | 'animatedActivityIndicators' | 'layoutAnimations' | 'fileTreeSide';
 
 const WINDOW_CONTROLS_POSITION_OPTIONS: Array<{ id: DesktopWindowControlsPosition; labelKey: string }> = [
     { id: 'left', labelKey: 'settings.openchamber.desktopNetwork.option.windowControlsLeft' },
@@ -389,8 +376,6 @@ export const OpenChamberVisualSettings: React.FC<OpenChamberVisualSettingsProps>
     const setTableCellWrap = useUIStore(state => state.setTableCellWrap);
     const copyMessagesAsPlainText = useUIStore(state => state.copyMessagesAsPlainText);
     const setCopyMessagesAsPlainText = useUIStore(state => state.setCopyMessagesAsPlainText);
-    const chatRenderMode = useUIStore(state => state.chatRenderMode);
-    const setChatRenderMode = useUIStore(state => state.setChatRenderMode);
     const activityRenderMode = useUIStore(state => state.activityRenderMode);
     const setActivityRenderMode = useUIStore(state => state.setActivityRenderMode);
     const fontSize = useUIStore(state => state.fontSize);
@@ -469,7 +454,6 @@ export const OpenChamberVisualSettings: React.FC<OpenChamberVisualSettingsProps>
     const effectiveMessageStreamTransport = messageStreamTransport;
     const settingsDefaultFileViewerPreview = useConfigStore((state) => state.settingsDefaultFileViewerPreview);
     const setSettingsDefaultFileViewerPreview = useConfigStore((state) => state.setSettingsDefaultFileViewerPreview);
-    const isSettingsDialogOpen = useUIStore(state => state.isSettingsDialogOpen);
     const {
         themeMode,
         setThemeMode,
@@ -501,7 +485,6 @@ export const OpenChamberVisualSettings: React.FC<OpenChamberVisualSettingsProps>
     const setDesktopWindowControlsPosition = useUIStore((state) => state.setDesktopWindowControlsPosition);
     const desktopWindowControlsStyle = useUIStore((state) => state.desktopWindowControlsStyle);
     const setDesktopWindowControlsStyle = useUIStore((state) => state.setDesktopWindowControlsStyle);
-    const [chatRenderPreviewTick, setChatRenderPreviewTick] = React.useState(0);
     const reportUsage = useUIStore(state => state.reportUsage);
     const setReportUsage = useUIStore(state => state.setReportUsage);
 
@@ -529,52 +512,6 @@ export const OpenChamberVisualSettings: React.FC<OpenChamberVisualSettingsProps>
         setDesktopWindowControlsStyle(value);
         void updateDesktopSettings({ desktopWindowControlsStyle: value });
     }, [setDesktopWindowControlsStyle]);
-
-    const shouldAnimateChatPreview = (isSettingsDialogOpen || isMobile || isVSCodeRuntime())
-        && (visibleSettings ? visibleSettings.includes('chatRenderMode') : true);
-
-    React.useEffect(() => {
-        if (!shouldAnimateChatPreview) {
-            return;
-        }
-
-        // Use requestAnimationFrame for smoother animation without setInterval overhead
-        let rafId: number | null = null;
-        let lastTime = Date.now();
-        
-        const tick = () => {
-            const now = Date.now();
-            // Update every ~420ms
-            if (now - lastTime >= 420) {
-                setChatRenderPreviewTick((prev) => (prev + 1) % 24);
-                lastTime = now;
-            }
-            rafId = requestAnimationFrame(tick);
-        };
-        
-        // Only run when visible
-        if (typeof document === 'undefined' || document.visibilityState === 'visible') {
-            rafId = requestAnimationFrame(tick);
-        }
-        
-        const onVisibility = () => {
-            if (document.visibilityState === 'visible' && rafId === null) {
-                rafId = requestAnimationFrame(tick);
-            } else if (document.visibilityState !== 'visible' && rafId !== null) {
-                cancelAnimationFrame(rafId);
-                rafId = null;
-            }
-        };
-        
-        document.addEventListener('visibilitychange', onVisibility);
-
-        return () => {
-            document.removeEventListener('visibilitychange', onVisibility);
-            if (rafId !== null) {
-                cancelAnimationFrame(rafId);
-            }
-        };
-    }, [shouldAnimateChatPreview]);
 
     const handleUserMessageRenderingModeChange = React.useCallback((mode: 'markdown' | 'plain') => {
         setUserMessageRenderingMode(mode);
@@ -622,11 +559,6 @@ export const OpenChamberVisualSettings: React.FC<OpenChamberVisualSettingsProps>
         void updateDesktopSettings({ enterToSend: enabled, enterToSendConfigured: true });
     }, [setEnterToSend, setEnterToSendConfigured]);
 
-    const handleChatRenderModeChange = React.useCallback((mode: 'sorted' | 'live') => {
-        setChatRenderMode(mode);
-        void updateDesktopSettings({ chatRenderMode: mode });
-    }, [setChatRenderMode]);
-
     const handleMessageStreamTransportChange = React.useCallback((mode: 'auto' | 'ws' | 'sse') => {
         setMessageStreamTransport(mode);
         void updateDesktopSettings({ messageStreamTransport: mode });
@@ -648,7 +580,9 @@ export const OpenChamberVisualSettings: React.FC<OpenChamberVisualSettingsProps>
 
     const handleActivityRenderModeChange = React.useCallback((mode: 'collapsed' | 'summary') => {
         setActivityRenderMode(mode);
-        void updateDesktopSettings({ activityRenderMode: mode });
+        // A stored legacy 'sorted' chat mode reads as Collapsed until the user
+        // picks a mode here; retire it so the choice sticks.
+        void updateDesktopSettings({ activityRenderMode: mode, chatRenderMode: 'live' });
     }, [setActivityRenderMode]);
 
     const handleMermaidRenderingModeChange = React.useCallback((mode: 'svg' | 'ascii') => {
@@ -739,7 +673,6 @@ export const OpenChamberVisualSettings: React.FC<OpenChamberVisualSettingsProps>
     const hasBehaviorSettings = shouldShow('mermaidRendering')
         || (shouldShow('sessionGoal') && !isVSCode)
         || shouldShow('userMessageRendering')
-        || shouldShow('chatRenderMode')
         || shouldShow('messageTransport')
         || shouldShow('activityRenderMode')
         || shouldShow('collapsibleUserMessages')
@@ -763,8 +696,7 @@ export const OpenChamberVisualSettings: React.FC<OpenChamberVisualSettingsProps>
         || shouldShow('showToolFileIcons')
         || (!isMobile && shouldShow('inputSpellcheck'))
         || shouldShow('enterToSend');
-    const showBehaviorDisplaySettings = shouldShow('chatRenderMode')
-        || shouldShow('activityRenderMode');
+    const showBehaviorDisplaySettings = shouldShow('activityRenderMode');
     const showTransportSection = shouldShow('messageTransport');
     const showBehaviorMessageOptions = shouldShow('userMessageRendering')
         || shouldShow('mermaidRendering')
@@ -1736,92 +1668,6 @@ export const OpenChamberVisualSettings: React.FC<OpenChamberVisualSettingsProps>
                                 divider={behaviorSectionDivider}
                                 contentClassName="space-y-6"
                             >
-                                {shouldShow('chatRenderMode') && (
-                                    <SettingsControlGroup
-                                        title={t('settings.openchamber.visual.section.chatRenderMode')}
-                                        settingsItem="chat.render-mode"
-                                    >
-                                        <div role="radiogroup" aria-label={t('settings.openchamber.visual.section.chatRenderModeAria')} className="grid w-full max-w-[26rem] grid-cols-1 gap-3 @xl:grid-cols-2">
-                                            {CHAT_RENDER_MODE_OPTIONS.map((option) => {
-                                                const selected = chatRenderMode === option.id;
-                                                const previewPhase = chatRenderPreviewTick % 12;
-                                                return (
-                                                    <button
-                                                        key={option.id}
-                                                        type="button"
-                                                        onClick={() => handleChatRenderModeChange(option.id)}
-                                                        aria-pressed={selected}
-                                                        className={cn(
-                                                            'flex flex-col items-start gap-1 rounded-lg border p-3 text-start transition-colors',
-                                                            selected
-                                                                ? 'border-border bg-interactive-selection text-interactive-selection-foreground'
-                                                                : 'border-border hover:border-border/80 hover:bg-interactive-hover'
-                                                        )}
-                                                    >
-                                                        <span className={cn('typography-ui-label', selected ? 'text-inherit' : 'text-muted-foreground')}>
-                                                            {tUnsafe(option.labelKey)}
-                                                        </span>
-                                                        <div className="mt-2 w-full rounded-md border border-border/60 bg-muted/30 p-2">
-                                                            {option.id === 'live' ? (
-                                                                <div className="space-y-1.5">
-                                                                    {[0, 1, 2].map((index) => {
-                                                                        const rowStart = index * 3 + 1;
-                                                                        const rowProgressPhase = previewPhase - rowStart + 1;
-                                                                        const rowProgress = rowProgressPhase <= 0
-                                                                            ? 0
-                                                                            : rowProgressPhase === 1
-                                                                                ? 42
-                                                                                : rowProgressPhase === 2
-                                                                                    ? 68
-                                                                                    : 92;
-                                                                        const visible = rowProgress > 0;
-                                                                        return (
-                                                                            <div
-                                                                                key={index}
-                                                                                className={cn(
-                                                                                    'flex items-center gap-1.5 transition-all duration-300 motion-reduce:transition-none',
-                                                                                    visible ? 'translate-y-0 opacity-100' : 'translate-y-1 opacity-0'
-                                                                                )}
-                                                                            >
-                                                                                <span className="h-2 w-2 shrink-0 rounded-full bg-muted-foreground/55" />
-                                                                                <span
-                                                                                    className="h-1.5 rounded bg-muted-foreground/30 transition-all duration-300 motion-reduce:transition-none"
-                                                                                    style={{ width: `${rowProgress}%` }}
-                                                                                />
-                                                                            </div>
-                                                                        );
-                                                                    })}
-                                                                </div>
-                                                            ) : (
-                                                                <div className="space-y-1.5">
-                                                                    {[0, 1, 2].map((index) => {
-                                                                        const visible = previewPhase >= (index + 1) * 3;
-                                                                        return (
-                                                                            <div
-                                                                                key={index}
-                                                                                className={cn(
-                                                                                    'flex items-center gap-1.5 transition-all duration-300 motion-reduce:transition-none',
-                                                                                    visible ? 'translate-y-0 opacity-100' : 'translate-y-1 opacity-0'
-                                                                                )}
-                                                                            >
-                                                                                <span className="h-2 w-2 shrink-0 rounded-full bg-muted-foreground/55" />
-                                                                                <span
-                                                                                    className="h-1.5 rounded bg-muted-foreground/30"
-                                                                                    style={{ width: '92%' }}
-                                                                                />
-                                                                            </div>
-                                                                        );
-                                                                    })}
-                                                                </div>
-                                                            )}
-                                                        </div>
-                                                    </button>
-                                                );
-                                            })}
-                                        </div>
-                                    </SettingsControlGroup>
-                                )}
-
                                 {shouldShow('activityRenderMode') && (
                                     <SettingsControlGroup title={t('settings.openchamber.visual.section.activityDefault')} settingsItem="chat.activity-default">
                                         <SettingsRadioGroup aria-label={t('settings.openchamber.visual.section.activityDefaultAria')}>

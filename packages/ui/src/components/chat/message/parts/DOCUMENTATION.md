@@ -8,17 +8,17 @@ Use this doc when you ask an agent to change tool/header/description behavior.
 
 - Message parts are rendered from `MessageBody.tsx`.
 - There are two tool rendering paths:
-  - **Static grouped tools** -> `StaticToolRow` in `ProgressiveGroup.tsx`
+  - **Static tools** -> `StaticToolRow` in `ProgressiveGroup.tsx`
   - **Expandable tools** -> `ToolPart.tsx`
 - Shared tool icon mapping is centralized in `toolPresentation.tsx` (`getToolIcon`).
 
 ## Which file controls what
 
 - `ProgressiveGroup.tsx`
-  - Renders grouped Activity rows and grouped static tools.
-  - Contains `StaticToolRow`.
+  - Contains `StaticToolRow`, the compact one-line row of a navigation tool.
+    The file keeps the name of the grouped Activity block it used to hold.
   - Contains static tool short description logic (`getToolShortDescription`).
-  - If you want to change how `read/grep/perplexity/webfetch/...` look in compact/grouped mode, edit here.
+  - If you want to change how `read/grep/perplexity/webfetch/...` look in compact mode, edit here.
 
 - `ToolPart.tsx`
   - Renders expandable tool rows (shell/edit/write/question/subagent + fallback).
@@ -58,16 +58,13 @@ Use this doc when you ask an agent to change tool/header/description behavior.
   - Thinking block UI (`ReasoningTimelineBlock`), summary + optional duration.
 
 - `components/LiveTurnActivity.tsx` (relative to the chat folder)
-  - Owns the optional live-only turn disclosure. `MessageList` enables it when
-    Activity Default is Collapsed and the turn has visible Activity content.
+  - Owns the optional turn disclosure. `MessageList` enables it when Activity
+    Default is Collapsed and the turn has visible Activity content.
   - `components/LiveActivityCollapse.tsx` owns the finite height transition;
     `components/liveActivityContext.ts` scopes the final message's non-text
-    disclosure without changing sorted message context or tool rendering.
+    disclosure without changing message context or tool rendering.
   - `lib/turns/liveActivity.ts` owns final-answer and interruption boundaries.
   - `lib/turns/liveActivitySummary.ts` derives the report from tool results.
-
-- `JustificationBlock.tsx`
-  - Justification block wrapper over `ReasoningTimelineBlock`.
 
 - `BlockLine.tsx`
   - The vertical connector line left of a collapsible block's body. It is also a click target: clicking it folds/expands the block via its header toggle handler (`onToggle`), or toggles the nearest native `<details>` when no handler is passed (JSON summary sections). Geometry is inline-styled (12px hit strip centered on the 1px line) so it does not depend on compiled Tailwind classes.
@@ -94,21 +91,22 @@ containing item's direction. Direction changes preserve source and copy text.
 The footer under a turn's last assistant message copies and saves the whole
 reply: the text parts of every assistant message in the turn, in order, with
 tool output and reasoning left out. `MessageList` hands the earlier text to the
-last message as `earlierAssistantText`; per-message and per-justification copy
-buttons keep copying only their own text. Earlier messages may be folded or not
-mounted, and in sorted mode part of the last message sits in Activity, so a
+last message as `earlierAssistantText`; per-message copy buttons keep copying
+only their own text. Earlier messages may be folded or not mounted, so a
 reply of more than one text part is drawn by `buildTurnImageExportSource` from
 Markdown with the chat's classes and `decorateMarkdown`. A reply of one text
 part keeps the copy of what the chat rendered.
 
-### Optional live history disclosure
+### Optional history disclosure
 
-Activity Default is shared by the settings UI in both render modes. In live
-mode, Expanded preserves the original timeline without a turn disclosure.
-Collapsed adds one Activity header after completion or interruption while preserving the original live rows,
-their order, and their individual controls. It adds no tool subgroups, side
-line, height cap, or inner scroller. Sorted rendering keeps its existing path
-and its own per-turn expansion state.
+The chat has one render mode: parts stream in and stay in the order they ran.
+The Sorted mode, which folded a turn's work into one block above its answers,
+was removed; a stored `chatRenderMode: 'sorted'` reads as Collapsed Activity
+(`lib/settings/parsers.ts`, `parseActivityRenderMode`). Expanded preserves the
+timeline without a turn disclosure. Collapsed adds one Activity header after
+completion or interruption while preserving the original rows, their order, and
+their individual controls. It adds no tool subgroups, side line, height cap, or
+inner scroller. Subagent calls alone do not make a turn collapsible.
 
 The active turn stays open without an Activity header. A final assistant message with `finish: stop`
 collapses the earlier messages and the final message's non-text parts, keeping
@@ -166,7 +164,7 @@ opening reveal. `scripts/legend-list-dom-order.test.mjs` runs the installed
 bundles' allocation and timer code for both.
 
 The header retains its report when expanded and has no hover background. Its
-left inset matches sorted Activity. Diff deletions use the ASCII hyphen.
+left inset matches the tool rows. Diff deletions use the ASCII hyphen.
 The header reports five categories: changed files, codebase
 exploration, commands, web research, and subagents. Narrow chat columns only
 show file changes. Exploration and research are flags, not synthetic counts.
@@ -265,9 +263,8 @@ finished with `stop`, so no tool patch is parsed while the turn streams.
 - A background `shell` call (`background: true`, or moved to the background mid-run) settles at once with `metadata.status: "running"` and a `shellID`; its text is a notice plus an instruction for the model. `ToolPart` renders it through `BackgroundShellToolPartContent`, which rebuilds the part from the command's real state (`backgroundShellPart.ts`) so the row keeps the ordinary shell look collapsed and expanded: while `sync/background-shells.ts` lists the command it is a running shell with a live timer from the call start and an `in background` label, and its expanded output is read from `/api/shell/:id/output` once a second, only while expanded (`useBackgroundShellOutput.ts`, starting from the last 64 KiB). Once OpenCode appends the command's completion (a `synthetic` message with `source: "shell"`, see `@/lib/opencode/background-shell`) the row is a finished or failed shell ending at that message, with its real output; the completion message itself stays hidden from the timeline. While it runs the row has a stop action. OpenCode 2.0.19 has no route that cancels a background job, and `shell.remove` reports the command to the agent as an error (`Shell.NotFoundError`, "nothing ran"), after which agents relaunch it; `opencodeClient.stopBackgroundShells` therefore first admits one non-resuming synthetic note (`shellCancellationNote`) for the commands of one session it stops, which explains the coming errors as the user's stop without forbidding the commands, and removes the shells together only once the note is in. The note stays out of the timeline (no context metadata); its `openchamberShellCancellation` metadata (`shellIDs`, or a single `shellID` in notes written before stops were grouped) makes each named row read "stopped" instead of failed. Drop the note once OpenCode reports a cancel itself. The composer's `BackgroundShellsStrip` offers the same stop for every running command of the session and its subagents (see `composer/DOCUMENTATION.md`). Between the two, or before the list was read, the row shows the notice without the model instruction and no duration. The user moves a foreground command (or a subagent the turn waits on) there with `session.background`, which backgrounds all of the session's blocking work at once: the action sits in the status chip above the composer and in the scroll-to-bottom pill (`components/BackgroundWorkButton.tsx`, a sibling of the pill's scroll button), shown only while `useAssistantStatus` reports `working.canBackground`, and on the customizable `background_session_work` shortcut (default `mod+shift+b`; not the TUI's `ctrl+b`, which the composer's macOS emacs keymap uses to move the caret and which is `mod+b` elsewhere). The row then turns into the background row above.
 - A `subagent` call that went to the background (`background: true`, or moved there with `session.background`) settles at once with `metadata.status: "running"` and the child in `metadata.sessionID`. `SubagentToolPartContent` rebuilds it from the child (`backgroundSubagentPart.ts`): running while the child session is active in `global-session-status`, then finished, failed or stopped from the report OpenCode appends (`findSubagentRun`), with the `in background` header label while it runs, `stopped` after a cancel, and the stop action described for subagent rows above. `ChatContainer` drops that report from the timeline (`keepCommandSubagentReports`), so the subagent stays where it was started instead of reappearing as a new turn at the end. Only reports of `subagent: true` commands, which have no call row, still render as their own `TimelineNotice` turn, and only when the child started inside the loaded history; any other report (a call not loaded yet, an unknown child) stays out of the chat and is reachable from the session's subagent list, so loading older history never makes the chat shift.
 - The result of a session the agent dispatched with `returnResult` arrives as a `synthetic` message with `source: "openchamber-session"` (`@/lib/opencode/dispatched-session`, delivered by the server's `lib/dispatch-results`). It is a background report like a subagent run (`isBackgroundReportEntry`): it opens a turn, so the woken agent's reply renders below it, and a fork after an answer cuts before it. `TimelineNotice` renders it as one collapsed row, `Session finished: <title>` (failed / stopped variants carry the status icon), that opens to the answer as Markdown with an `Open session` action going through `openSessionLink`.
-- Thinking/Justification duration is hidden in `sorted` mode (handled in `ReasoningPart.tsx` + `JustificationBlock.tsx`).
 - Reasoning streaming presentation derives from the live stream phase (`streaming`/`cooldown`), never from missing persisted timing: a cached part without `time.end` is not live, and a part whose `time.end` is set never streams (issue #2020).
-- Assistant text parts carry the same part-finalization gate (`assistantTextVisibility.ts`): live mode's block-commit reveal holds a still-growing part's trailing line, while a part sealed with `time.end` renders in full immediately — including while the turn stays blocked on a pending question or permission ask (#3277).
+- Assistant text parts carry the same part-finalization gate (`assistantTextVisibility.ts`): the block-commit reveal holds a still-growing part's trailing line, while a part sealed with `time.end` renders in full immediately — including while the turn stays blocked on a pending question or permission ask (#3277).
 
 ## "I want to change description for Perplexity" (example recipe)
 
@@ -285,7 +282,7 @@ Why: only navigation tools use the compact static path; all other tools need obs
 1. Update `toolRenderUtils.ts`:
    - add/remove a tool name from `STATIC_TOOL_NAMES` only when it has a reliable direct in-app navigation action
 2. Ensure `ToolPart.tsx` supports desired header + expanded output format for that tool.
-3. Validate both modes (`sorted` and `live`).
+3. Validate with Activity Default set to Expanded and to Collapsed.
 
 ## Safe editing checklist
 
@@ -321,6 +318,6 @@ Why: only navigation tools use the compact static path; all other tools need obs
   via text sniffing (`<terminal_context>` blocks, `GitHub issue context (JSON)`
   and `Linear issue context (JSON)` prefixes).
 - Tools: `ToolPart.tsx`, `ToolPartDiffPreview.tsx`, `PlainDiffFallback.tsx`, `ProgressiveGroup.tsx`, `toolPresentation.tsx`, `toolRenderUtils.ts`, `ToolRevealOnMount.tsx`, `GuestToolTable.tsx`
-- Reasoning/justification: `ReasoningPart.tsx`, `JustificationBlock.tsx`
+- Reasoning: `ReasoningPart.tsx`
 - Status/placeholders: `WorkingPlaceholder.tsx`, `SessionActiveSpinner.tsx`, `MigratingPart.tsx`, `BusyDots.tsx`
 - Utility renderers: `VirtualizedCodeBlock.tsx`, `MinDurationShineText.tsx`

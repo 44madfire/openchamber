@@ -143,7 +143,6 @@ export interface MarkdownRendererProps {
   skipFadeIn?: boolean;
   className?: string;
   isStreaming?: boolean;
-  disableStreamAnimation?: boolean;
   variant?: MarkdownVariant;
   onShowPopup?: (content: ToolPopupContent) => void;
   enableFileReferences?: boolean;
@@ -1334,7 +1333,6 @@ const MarkdownRendererImpl: React.FC<MarkdownRendererProps> = ({
   skipFadeIn = false,
   className,
   isStreaming = false,
-  disableStreamAnimation = false,
   variant = 'assistant',
   onShowPopup,
   enableFileReferences = true,
@@ -1353,7 +1351,6 @@ const MarkdownRendererImpl: React.FC<MarkdownRendererProps> = ({
     openContextPreview(effectiveDirectory, url);
   }, [effectiveDirectory, openContextPreview]);
 
-  const live = isStreaming && !disableStreamAnimation;
 
   useMermaidInlineInteractions({
     containerRef,
@@ -1407,7 +1404,7 @@ const MarkdownRendererImpl: React.FC<MarkdownRendererProps> = ({
   useMorphdomMarkdown({
     containerRef,
     text: content,
-    streaming: live,
+    streaming: isStreaming,
     growing: isStreaming,
     imageMode,
     syntaxVars,
@@ -1436,7 +1433,6 @@ const MarkdownRendererImpl: React.FC<MarkdownRendererProps> = ({
 export const MarkdownRenderer = React.memo(MarkdownRendererImpl, (prev, next) => {
   return prev.content === next.content
     && prev.isStreaming === next.isStreaming
-    && prev.disableStreamAnimation === next.disableStreamAnimation
     && prev.variant === next.variant
     && prev.isAnimated === next.isAnimated
     && prev.skipFadeIn === next.skipFadeIn
