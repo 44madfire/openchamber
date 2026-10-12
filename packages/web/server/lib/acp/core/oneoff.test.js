@@ -471,17 +471,55 @@ describe('acp one-off generation', () => {
   });
 
   it('holds a lease so idle reap cannot kill the backend mid-turn', async () => {
+    // No wall-clock margins: the turn parks until the test releases it,
+    // and the reap deadline passing is OBSERVED (a lease-free control
+    // backend reaps on it) while the leased one-off backend stays ready.
+    const reapFired = [];
     const { oneOff, manager } = await setup({
-      entry: {
-        env: { ONEOFF_FIX_PROMPT_SCRIPT: JSON.stringify([{ sleepMs: 400 }, { update: { sessionUpdate: 'agent_message_chunk', content: { type: 'text', text: 'fixture-reply' } } }]) },
-      },
-      managerOptions: { idleReapMs: 80 },
-      oneOffOptions: { timeoutMs: 10_000 },
+      entries: [
+        fixtureEntry({ id: 'leased', env: { ONEOFF_FIX_PROMPT_SCRIPT: JSON.stringify([{ holdForCancel: 30_000 }]) } }),
+        fixtureEntry({ id: 'control', env: { ONEOFF_FIX_PROMPT_SCRIPT: JSON.stringify([]) } }),
+      ],
+      managerOptions: { idleReapMs: 100 },
+      oneOffOptions: { timeoutMs: 30_000 },
     });
-    const result = await oneOff.generate({ backendId: 'fixture', instruction: 'Hi.', input: 'x' });
-    expect(result.text).toBe('fixture-reply');
-    expect(result.sessionCleanup).toBe('deleted');
-    expect((await manager.status('fixture')).state).toBe('ready');
+    manager.events.on('backend-idle-reaped', (event) => reapFired.push(event.backendId));
+    const waitForReap = (backendId) => new Promise((resolve) => {
+      const timer = setTimeout(() => resolve('timeout'), 10_000);
+      timer.unref?.();
+      const onReap = (event) => {
+        if (event.backendId !== backendId) return;
+        manager.events.off('backend-idle-reaped', onReap);
+        clearTimeout(timer);
+        resolve(event.backendId);
+      };
+      manager.events.on('backend-idle-reaped', onReap);
+    });
+    // Control first: a lease-free backend observably reaps on the deadline.
+    await manager.ensureReady('control');
+    expect(await waitForReap('control')).toBe('control');
+    expect((await manager.status('control')).state).toBe('idle');
+    // Park the one-off turn, then reap the control AGAIN while parked:
+    // the deadline observably passes during the lease.
+    const call = oneOff.generate({ backendId: 'leased', instruction: 'Hi.', input: 'x' });
+    call.catch(() => {});
+    const startDeadline = Date.now() + 10_000;
+    for (;;) {
+      const stderr = await stderrOf(manager, 'leased');
+      if (stderr.split('\n').some((line) => line.startsWith('NEW:'))) break;
+      if (Date.now() > startDeadline) throw new Error('one-off session never started');
+      await new Promise((resolve) => setTimeout(resolve, 10));
+    }
+    await manager.ensureReady('control');
+    expect(await waitForReap('control')).toBe('control');
+    // The leased backend survived deadlines that reaped the control.
+    expect((await manager.status('leased')).state).toBe('ready');
+    expect(reapFired).not.toContain('leased');
+    // Release the parked turn by shutting down (aborts the call); the
+    // backend was ready until shutdown and never idle-reaped.
+    await manager.shutdown();
+    await expect(call).rejects.toThrow();
+    expect(reapFired).not.toContain('leased');
   });
 
   it('lets sibling-session updates pass through to the session router', async () => {
