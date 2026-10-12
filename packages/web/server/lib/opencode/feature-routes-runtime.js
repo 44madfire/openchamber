@@ -1,6 +1,8 @@
 import { registerAcpRoutes } from '../acp/http/routes.js';
 import { createAcpBackendManager } from '../acp/core/backend-manager.js';
 import { createAcpBackendRegistry } from '../acp/core/registry.js';
+import { createAcpSessionIndex } from '../acp/core/session-index.js';
+import { createAcpSessionService } from '../acp/core/sessions.js';
 import { registerFsRoutes } from '../fs/routes.js';
 import { registerEnvironmentRoutes } from '../environment/routes.js';
 import { registerQuotaRoutes } from '../quota/routes.js';
@@ -119,6 +121,8 @@ export const createFeatureRoutesRuntime = (dependencies) => {
   // route registration; shutdown drains it (see shutdownAcpBackends).
   let acpBackendManagerInstance = null;
   const setAcpBackendManager = (manager) => { acpBackendManagerInstance = manager; };
+  let acpSessionServiceInstance = null;
+  const setAcpSessionService = (service) => { acpSessionServiceInstance = service; };
   const getWalkthroughService = async () => {
     if (!walkthroughService) {
       const [service, pullRequest] = await Promise.all([
@@ -287,8 +291,14 @@ export const createFeatureRoutesRuntime = (dependencies) => {
     // Before the generic OpenCode proxy: the ACP API is OpenChamber-owned and
     // must never fall through to the upstream server.
     const acpBackendRegistry = createAcpBackendRegistry({ dataDir: openchamberDataDir });
+    // The manager needs the session service's agent→client hooks before its
+    // first connect, and the service needs the manager: the holder breaks the
+    // cycle (the service is assigned before any backend can start). Hooks are
+    // bound per backend so traffic can never be attributed across backends.
+    const acpServiceHolder = { current: null };
     const acpBackendManager = createAcpBackendManager({
       registry: acpBackendRegistry,
+      connectionHooks: (backendId, generation) => acpServiceHolder.current?.hooksForBackend(backendId, generation) ?? {},
       // Every connect logs its negotiated version + agentInfo (§0).
       onConnect: ({ backendId, protocolVersion, agentInfo }) => {
         console.log(
@@ -297,10 +307,21 @@ export const createFeatureRoutesRuntime = (dependencies) => {
         );
       },
     });
+    const acpSessionService = createAcpSessionService({
+      manager: acpBackendManager,
+      index: createAcpSessionIndex({ dataDir: openchamberDataDir }),
+      registry: acpBackendRegistry,
+    });
+    acpServiceHolder.current = acpSessionService;
     setAcpBackendManager(acpBackendManager);
+    setAcpSessionService(acpSessionService);
     registerAcpRoutes(app, {
       registry: acpBackendRegistry,
       manager: acpBackendManager,
+      sessions: acpSessionService,
+      // ACP sync frames ride the global message hub, so both SSE and WS
+      // clients get them and replay works like any other stream event.
+      publishSyncFrame: (frame) => globalEventHub?.injectEvent({ payload: frame, directory: frame.properties.directory }),
     });
 
     registerOpenCodeRoutes(app, {
@@ -758,7 +779,12 @@ export const createFeatureRoutesRuntime = (dependencies) => {
     publishRepositoryCredentialEndpoint: async () => { await gitRepositoryCredentialRuntime?.publish(); },
     /** The ACP backend manager owned by this runtime (null until routes register). */
     getAcpBackendManager: () => acpBackendManagerInstance,
+    /** The ACP session service owned by this runtime (null until routes register). */
+    getAcpSessionService: () => acpSessionServiceInstance,
     /** Stop all ACP agents. Awaited by server shutdown; safe before registration. */
-    shutdownAcpBackends: async () => { await acpBackendManagerInstance?.shutdown().catch(() => {}); },
+    shutdownAcpBackends: async () => {
+      acpSessionServiceInstance?.dispose();
+      await acpBackendManagerInstance?.shutdown().catch(() => {});
+    },
   };
 };

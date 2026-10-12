@@ -1,4 +1,5 @@
 import type { SessionSidebarRenderContext } from '../sessionSidebarRowModel';
+import { isAcpUnsupported } from '@/lib/acp/capabilities';
 import { getRuntimeKey } from '@/lib/runtime-switch';
 import { matchesRankQuery } from '@/lib/search/fuzzySearch';
 import { normalizePath } from '@/lib/pathNormalization';
@@ -93,15 +94,18 @@ export const canShowSessionWorktreeMenu = ({
   archivedBucket,
   isVSCode,
   sessionDirectory,
+  sessionId,
 }: {
   isSubtaskSession: boolean;
   archivedBucket: boolean;
   isVSCode: boolean;
   sessionDirectory: string | null;
+  sessionId?: string | null;
 }): boolean => !isSubtaskSession
   && !archivedBucket
   && !isVSCode
-  && !isChatDirectoryPath(sessionDirectory);
+  && !isChatDirectoryPath(sessionDirectory)
+  && !isAcpUnsupported(sessionId, "move");
 
 export const getSessionWorktreeMenuDisabled = ({
   sessionDirectory,

@@ -1,0 +1,4 @@
+{"sessionUpdate":"available_commands_update","availableCommands":[{"name":"init","description":"guided AGENTS.md setup"},{"name":"review","description":"review changes [commit|branch|pr], defaults to uncommitted"},{"name":"compact","description":"Compact the session"}]}
+{"sessionUpdate":"agent_message_chunk","messageId":"msg_12cbd494f001ePmMpIwnN5LSQP","content":{"type":"text","text":"HELLO-OC2"}}
+{"sessionUpdate":"usage_update","used":8890,"size":1000000,"cost":{"amount":0.00057186,"currency":"USD"}}
+{"sessionUpdate":"__result__","stopReason":"end_turn","usage":{"inputTokens":4,"outputTokens":10,"totalTokens":8890,"cachedReadTokens":5216,"cachedWriteTokens":3660}}

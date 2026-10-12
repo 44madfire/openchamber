@@ -19,6 +19,7 @@ import { z } from "zod"
 import { opencodeClient } from "@/lib/opencode/client"
 import { GLOBAL_EVENT_DIRECTORY, routeWireEvent, syncEventSessionID, type SyncEvent } from "@/lib/opencode/events"
 import type { Metadata } from "@/lib/opencode/model"
+import { parseAcpSyncFrame } from "@/lib/acp/frames"
 import { getRuntimeUrlResolver } from "@/lib/runtime-url"
 import { clearRuntimeUrlAuthToken, refreshRuntimeUrlAuthToken } from "@/lib/runtime-auth"
 import { useAuthSessionStore, waitForAuthSession } from "@/lib/runtime-auth-expiry"
@@ -304,6 +305,14 @@ export function classifyStreamPayload(payload: unknown, frameDirectory: string |
   if (!type.startsWith(OPENCHAMBER_TYPE_PREFIX)) return { kind: "events", events: translateWirePayload(payload, frameDirectory) }
 
   switch (type) {
+    case "openchamber:acp-sync": {
+      // An ACP batch already speaks the reducer's vocabulary: validated events
+      // pass unchanged into the directory queue. A malformed frame is dropped
+      // whole — a partial batch would desync the transcript.
+      const frame = parseAcpSyncFrame(payload)
+      if (!frame) return NO_EVENTS
+      return { kind: "events", events: frame.events.map((event) => ({ directory: frame.directory, event })) }
+    }
     case "openchamber:space-stream": {
       const parsed = openchamberSpaceStreamSchema.safeParse(payload)
       return parsed.success ? { kind: "space-stream", properties: parsed.data.properties } : NO_EVENTS

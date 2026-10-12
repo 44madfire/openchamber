@@ -205,14 +205,19 @@ describe("request fidelity", () => {
 
   test("the active-session snapshot is the host's, except for a directory inside an isolated space", async () => {
     responses.push(json({ data: { ses_host: { type: "running" } } }))
+    responses.push(json({ statuses: {} }))
     await opencodeClient.getActiveSessionStatuses("/repo/app")
     expect(requests[0].url.pathname).toBe("/api/session/active")
     expect(requests[0].headers.has("x-opencode-directory")).toBe(false)
+    // A host directory also merges the host's ACP busy map.
+    expect(requests[1].url.pathname).toBe("/api/acp/sessions/status")
     responses.push(json({ data: { ses_space: { type: "running" } } }))
     const statuses = await opencodeClient.getActiveSessionStatuses("/spaces/a1b2c3d4e5f6/app")
     // The space's directory travels on the request; `runtimeFetch` turns it into the space's prefix.
-    expect(requests[1].url.pathname).toBe("/api/session/active")
-    expect(requests[1].headers.get("x-opencode-directory")).toBe(encodeURIComponent("/spaces/a1b2c3d4e5f6/app"))
+    // A space skips the ACP merge: the host's ACP state never covers it.
+    expect(requests[2].url.pathname).toBe("/api/session/active")
+    expect(requests[2].headers.get("x-opencode-directory")).toBe(encodeURIComponent("/spaces/a1b2c3d4e5f6/app"))
+    expect(requests).toHaveLength(3)
     expect(statuses).toEqual({ ses_space: { type: "busy" } })
   })
 

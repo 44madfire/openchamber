@@ -4,6 +4,10 @@
  */
 
 import type { FilePart, FormRequest, JsonValue, Message, Metadata, ModelRef, Part, PermissionRequest, Session, SyntheticMessage, TextPart, UserMessage } from "@/lib/opencode/model"
+import { AcpUnsupportedError } from "@/lib/acp/client"
+import { isAcpUnsupported } from "@/lib/acp/capabilities"
+import { foldAcpPromptText } from "@/lib/acp/prompt"
+import { isAcpSessionId } from "@/lib/acp/session-key"
 import { compact, partIds } from "@/lib/opencode/model"
 import { readSubagentRun } from "@/lib/opencode/subagent-run"
 import { readDispatchedSessionResult } from "@/lib/opencode/dispatched-session"
@@ -327,6 +331,8 @@ export async function moveSessionToDirectory(
   destinationDirectory: string,
   expectedRuntimeKey?: string,
 ): Promise<void> {
+  // ACP sessions are bound to the cwd they were created in; there is no move.
+  if (isAcpUnsupported(session.id, "move")) throw new AcpUnsupportedError("session.move", session.id)
   await opencodeClient.moveSession(session.id, destinationDirectory)
 
   // If the runtime changed during the move request, the server move
@@ -972,7 +978,7 @@ function getRequestReplyDirectory(
  * what the first turn will run on pass it here, so the session is created on
  * that selection and the first prompt needs no switch at all.
  */
-export type SessionCreateSelection = { model?: ModelRef; agent?: string }
+export type SessionCreateSelection = { model?: ModelRef; agent?: string; acpBackendId?: string }
 
 export async function createSession(
   title?: string,
@@ -992,7 +998,7 @@ export async function createSession(
     // wrong project (closes #1637, #2270).
     const effectiveDirectory = directoryOverride ?? dir()
     const session = await opencodeClient.createSession(
-      { title, metadata, model: selection?.model, agent: selection?.agent },
+      { title, metadata, model: selection?.model, agent: selection?.agent, acpBackendId: selection?.acpBackendId },
       effectiveDirectory,
     )
 
@@ -1995,19 +2001,26 @@ export async function optimisticSend(input: {
   // admits them. The client skips blank items, so they get no record here.
   // The leading item's id is reserved now, before it is known, so it still
   // sorts ahead of everything else when it arrives after the insert.
-  const leadingContextID = input.leadingContext ? ascendingId("msg") : null
+  //
+  // ACP folds context into the prompt text instead of admitting synthetic
+  // records (no synthetic route), so an ACP send inserts no separate
+  // context records: the optimistic user message carries the folded text,
+  // exactly what the server echoes, and reconciles in place by its id.
+  const foldContext = isAcpSessionId(input.sessionId)
+  const leadingContextID = input.leadingContext && !foldContext ? ascendingId("msg") : null
   const context = (input.context ?? [])
     .filter((item) => item.text.trim())
     .map((item) => ({ ...item, id: ascendingId("msg") }))
   const messageID = ascendingId("msg")
   input.onMessageID?.(messageID)
-  const optimisticIDs = [...context.map((item) => item.id), messageID]
+  const optimisticIDs = foldContext ? [messageID] : [...context.map((item) => item.id), messageID]
 
   // Part ids follow `partIds`, the same derivation the projection uses for the
   // server's echo of this message. Identical ids let the echo reconcile in
   // place instead of rendering the prompt twice.
+  const optimisticText = foldContext ? foldAcpPromptText(input.content, context) : input.content
   const optimisticParts: Part[] = [
-    { id: partIds.userText(messageID), sessionID: input.sessionId, messageID, type: "text", text: input.content },
+    { id: partIds.userText(messageID), sessionID: input.sessionId, messageID, type: "text", text: optimisticText },
   ]
   if (input.files) {
     input.files.forEach((file, index) => {
@@ -2050,7 +2063,9 @@ export async function optimisticSend(input: {
     })
     optimisticAdd({ sessionID: input.sessionId, directory: targetDirectory, message: synthetic, parts: [] })
   }
-  for (const item of context) addSyntheticContext(item)
+  if (!foldContext) {
+    for (const item of context) addSyntheticContext(item)
+  }
   optimisticAdd({
     sessionID: input.sessionId,
     directory: targetDirectory,
@@ -2070,13 +2085,28 @@ export async function optimisticSend(input: {
 
   try {
     let sentContext = context
-    if (input.leadingContext && leadingContextID) {
+    if (input.leadingContext) {
       const leading = await input.leadingContext
       if (leading?.text.trim()) {
-        const leadingItem = { ...leading, id: leadingContextID }
-        addSyntheticContext(leadingItem)
-        optimisticIDs.unshift(leadingContextID)
-        sentContext = [leadingItem, ...context]
+        if (foldContext) {
+          // The leading knowledge folds into the prompt the server echoes,
+          // so the optimistic record is re-inserted with the same fold. The
+          // send below still awaits, so no echo can have replaced it yet.
+          const leadingItem = { ...leading, id: ascendingId("msg") }
+          sentContext = [leadingItem, ...context]
+          optimisticRemove({ sessionID: input.sessionId, directory: targetDirectory, messageID })
+          optimisticAdd({
+            sessionID: input.sessionId,
+            directory: targetDirectory,
+            message: optimisticMessage,
+            parts: [{ ...optimisticParts[0], text: foldAcpPromptText(input.content, sentContext) } as Part, ...optimisticParts.slice(1)],
+          })
+        } else if (leadingContextID) {
+          const leadingItem = { ...leading, id: leadingContextID }
+          addSyntheticContext(leadingItem)
+          optimisticIDs.unshift(leadingContextID)
+          sentContext = [leadingItem, ...context]
+        }
       }
     }
     assertRuntimeUnchanged()
@@ -2482,6 +2512,7 @@ export async function dismissOpenFormsForSession(sessionId: string): Promise<boo
  * 5. Set pendingInputText so the reverted message text appears in the input
  */
 export async function revertToMessage(sessionId: string, messageId: string): Promise<void> {
+  if (isAcpUnsupported(sessionId, "revert")) throw new AcpUnsupportedError("session.revert.stage", sessionId)
   const { store, directory } = dirStoreForSession(sessionId)
   const state = store.getState()
 
@@ -2681,6 +2712,7 @@ const isTurnBoundary = (message: Message): boolean =>
  * rewrite.
  */
 export async function forkAfterMessage(sessionId: string, messageId: string): Promise<Session | null> {
+  if (isAcpUnsupported(sessionId, "fork")) throw new AcpUnsupportedError("session.fork", sessionId)
   const expectedRuntimeKey = getRuntimeKey()
   const { store, directory } = dirStoreForSession(sessionId)
   const messages = store.getState().message[sessionId] ?? []
@@ -2771,6 +2803,7 @@ export async function forkFromLastCompletedTurn(sessionId: string): Promise<Sess
  * 4. Switch to the new session and stage its composer replay
  */
 export async function forkFromMessage(sessionId: string, messageId: string): Promise<void> {
+  if (isAcpUnsupported(sessionId, "fork")) throw new AcpUnsupportedError("session.fork", sessionId)
   const expectedRuntimeKey = getRuntimeKey()
   const { store, directory } = dirStoreForSession(sessionId)
   const state = store.getState()

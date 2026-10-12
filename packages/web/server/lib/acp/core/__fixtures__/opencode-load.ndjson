@@ -1,0 +1,6 @@
+{"sessionUpdate":"user_message_chunk","messageId":"msg_12cc03eb6001lfW6EWvhNOupVE","content":{"type":"text","text":"Reply with exactly: REPLAY-MARKER-TEXT"}}
+{"sessionUpdate":"agent_message_chunk","messageId":"msg_12cc03ed1001zdOnoh7hGVGiq9","content":{"type":"text","text":"REPLAY-MARKER-TEXT"}}
+{"sessionUpdate":"user_message_chunk","messageId":"msg_12cc042ea001mDjwSkA4UtlhyR","content":{"type":"text","text":"Create file replay-note.txt containing: replay-xyz"}}
+{"sessionUpdate":"tool_call","toolCallId":"toolu_01S1HEAqUP7rCec4r9htisVs","name":"write","title":"write","kind":"edit","status":"pending","locations":[{"path":"C:\\work\\replay-note.txt"}],"rawInput":{"path":"C:\\work\\replay-note.txt","content":"replay-xyz"}}
+{"sessionUpdate":"tool_call_update","toolCallId":"toolu_01S1HEAqUP7rCec4r9htisVs","status":"completed","locations":[{"path":"C:\\work\\replay-note.txt"}],"content":[{"type":"content","content":{"type":"text","text":"Created file successfully: replay-note.txt"}}],"rawOutput":{"metadata":{"truncated":false}}}
+{"sessionUpdate":"agent_message_chunk","messageId":"msg_12cc0479c001uz3PsFnOS6aKdN","content":{"type":"text","text":"Created `replay-note.txt` in the working directory with the content `replay-xyz`."}}

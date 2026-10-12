@@ -721,6 +721,34 @@ export class SessionMessageLoader {
     this.notify(entry)
   }
 
+  /**
+   * Retires removed records from the loader's view of a session. The reducer
+   * drops the visible records; this drops everything that would resurrect
+   * them: optimistic shadows under the removed ids, in-flight reads and
+   * queued refreshes (staled via the generation bump), the cached prefetch,
+   * and pagination coverage (pre-removal cursors name records that no
+   * longer exist, so the next read takes a fresh initial window). Shadows
+   * under other ids — e.g. a prompt sent while the removal landed —
+   * survive and merge into the fresh window by identity.
+   */
+  retireRemovedMessages(target: SessionMessageTarget, messageIDs: readonly string[]): void {
+    const normalized = this.normalizeTarget(target)
+    if (!normalized || messageIDs.length === 0) return
+    clearSessionPrefetch(normalized.directory, [normalized.sessionID], this.runtimeKey)
+    const entry = this.entries.get(this.keyFor(normalized))
+    if (!entry) return
+    this.bumpGeneration(entry)
+    entry.inflight = null
+    entry.queuedRefresh = null
+    entry.queuedRefreshLimit = 0
+    const removed = new Set(messageIDs)
+    for (const messageID of entry.optimistic.keys()) {
+      if (removed.has(messageID)) entry.optimistic.delete(messageID)
+    }
+    entry.snapshot = createDefaultState(entry.snapshot.generation)
+    this.notify(entry)
+  }
+
   invalidateDirectory(directory: string): void {
     const normalizedDirectory = normalizePath(directory)
     if (!normalizedDirectory) return

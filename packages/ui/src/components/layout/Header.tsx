@@ -87,6 +87,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Button } from '@/components/ui/button';
 import { useMultiRunTitle } from '@/lib/multirun/useMultiRuns';
 import { buildSessionTreeMoveMessages, requestSessionTreeMove, useIsSessionWorktreeMovePending } from '@/lib/worktrees/sessionWorktreeMove';
+import { isAcpUnsupported } from '@/lib/acp/capabilities';
 import { titlebarControlsWidthReaderRef } from './titlebarControlsWidth';
 
 const DESKTOP_HEADER_ICON_BUTTON_CLASS = 'app-region-no-drag inline-flex h-8 w-8 items-center justify-center gap-2 rounded-md typography-ui-label font-medium text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 hover:bg-interactive-hover transition-colors';
@@ -1369,8 +1370,8 @@ export const Header: React.FC = () => {
 
   const renderSessionTabMenu = React.useCallback(({ session, open, isActive, select, closeOtherTabs, components }: SessionTabMenuArgs) => {
     const { Item, Separator } = components;
-    const canMoveToWorktree = isActive && !isVSCode && !isChatContext && currentSession && !currentSession.parentId;
-    const canMoveToProject = isActive && !isVSCode && isChatContext && currentSession && !currentSession.parentId && hasProjects;
+    const canMoveToWorktree = isActive && !isVSCode && !isChatContext && currentSession && !currentSession.parentId && !isAcpUnsupported(session.id, 'move');
+    const canMoveToProject = isActive && !isVSCode && isChatContext && currentSession && !currentSession.parentId && hasProjects && !isAcpUnsupported(session.id, 'move');
     return (
       <>
         <SessionMenuItemHint hint={t('sessions.sidebar.session.menuHint.rename')}>
@@ -1620,7 +1621,7 @@ export const Header: React.FC = () => {
                     <DropdownMenuSeparator />
                     <SessionMenuItemHint hint={t('sessions.sidebar.session.menuHint.exportMarkdown')}><DropdownMenuItem onClick={() => void exportCurrentSession()}><Icon name="download" className="mr-1 size-4" />{t('sessions.sidebar.session.menu.exportMarkdown')}</DropdownMenuItem></SessionMenuItemHint>
                     {renderGuestSessionActionItems(DropdownMenuItem)}
-                    {!isVSCode && !isChatContext && currentSession && !currentSession.parentId ? (
+                    {!isVSCode && !isChatContext && currentSession && !currentSession.parentId && !isAcpUnsupported(currentSessionId, 'move') ? (
                       <SessionMenuItemHint hint={isCurrentSessionMovingToWorktree
                         ? t('sessions.sidebar.session.moveToWorktree.tooltipMoving')
                         : isCurrentSessionActive

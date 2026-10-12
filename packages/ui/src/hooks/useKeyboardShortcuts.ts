@@ -2,6 +2,7 @@ import React from 'react';
 import { isVimEditorEventTarget } from '@/lib/editorFocus';
 import { isTerminalEventTarget } from '@/lib/terminalFocus';
 import { useSessionUIStore } from '@/sync/session-ui-store';
+import { isAcpSessionId } from '@/lib/acp/session-key';
 import { activateAdjacentSessionTab, activateSessionTabByIndex, closeSessionTabAndActivateNeighbour } from '@/lib/sessionTabs';
 import { navigateSessionHistory } from '@/lib/sessionNavigationHistory';
 import { useSelectionStore } from '@/sync/selection-store';
@@ -236,6 +237,9 @@ export const useKeyboardShortcuts = () => {
     },
     cycle_agent: (event) => {
       if (hasActiveBtwComposer()) return false;
+      // ACP sessions take modes through their own config options (Phase 1.4
+      // controls); cycling the OpenCode agent here would silently no-op.
+      if (isAcpSessionId(useSessionUIStore.getState().currentSessionId)) return false;
       const state = useUIStore.getState();
       const hasOverlay = state.isSettingsDialogOpen
         || state.isCommandPaletteOpen

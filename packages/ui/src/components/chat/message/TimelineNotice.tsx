@@ -14,6 +14,7 @@
 import React from 'react';
 
 import { Icon } from '@/components/icon/Icon';
+import { isAcpUnsupported } from '@/lib/acp/capabilities';
 import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { ReasoningTimelineBlock } from './parts/ReasoningPart';
@@ -179,6 +180,10 @@ const SubagentRunActions: React.FC<{ message: SyntheticMessage; canFork: boolean
     const handleFork = React.useCallback(() => {
         void useSessionUIStore.getState().forkFromMessage(message.sessionID, message.id);
     }, [message.id, message.sessionID]);
+    const session = useSession(message.sessionID);
+    const showRevert = !isAcpUnsupported(message.sessionID, "revert");
+    const showFork = canFork && !isAcpUnsupported(message.sessionID, "fork", session);
+    if (!showRevert && !showFork) return null;
 
     return (
         <div
@@ -189,6 +194,7 @@ const SubagentRunActions: React.FC<{ message: SyntheticMessage; canFork: boolean
                     : 'pointer-events-none opacity-0 transition-opacity duration-150 group-hover/subagent-run:pointer-events-auto group-hover/subagent-run:opacity-100 focus-within:pointer-events-auto focus-within:opacity-100',
             )}
         >
+            {showRevert ? (
             <Tooltip>
                 <TooltipTrigger asChild>
                     <Button
@@ -204,7 +210,8 @@ const SubagentRunActions: React.FC<{ message: SyntheticMessage; canFork: boolean
                 </TooltipTrigger>
                 <TooltipContent sideOffset={6}>{t('chat.messageBody.actions.revert')}</TooltipContent>
             </Tooltip>
-            {canFork ? (
+            ) : null}
+            {showFork ? (
                 <Tooltip>
                     <TooltipTrigger asChild>
                         <Button

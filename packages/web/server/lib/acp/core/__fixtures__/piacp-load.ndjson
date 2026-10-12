@@ -1,0 +1,5 @@
+{"sessionUpdate":"session_info_update","title":"Reply with exactly this acknowledgement and nothing else: ACK REPLAY-MARKER-TURN"}
+{"sessionUpdate":"user_message_chunk","content":{"type":"text","text":"Reply with exactly this acknowledgement and nothing else: ACK REPLAY-MARKER-TURN1"}}
+{"sessionUpdate":"agent_message_chunk","content":{"type":"text","text":"ACK REPLAY-MARKER-TURN1"}}
+{"sessionUpdate":"user_message_chunk","content":{"type":"text","text":"Reply with exactly this acknowledgement and nothing else: ACK REPLAY-MARKER-TURN2"}}
+{"sessionUpdate":"agent_message_chunk","content":{"type":"text","text":"ACK REPLAY-MARKER-TURN2"}}

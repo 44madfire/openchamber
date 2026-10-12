@@ -39,6 +39,8 @@ export interface AcpConnectedAgent {
   agentCapabilities: AgentCapabilities | null;
   authMethods: AuthMethod[];
   agentInfo: Implementation | null;
+  /** Manager-assigned connection generation (stamped at publish; absent on bare connections). */
+  generation?: number;
   waitForExit(): Promise<{ code: number | null; signal: string | null }>;
   readonly exited: { code: number | null; signal: string | null } | null;
 }

@@ -60,6 +60,9 @@ import {
   type Vcs,
 } from "./model"
 import { ascendingId } from "./ids"
+import { AcpApiError, AcpUnsupportedError, acpClient, readAcpSessionMeta, type AcpConfigOption, type AcpPromptPart } from "@/lib/acp/client"
+import { foldAcpPromptText } from "@/lib/acp/prompt"
+import { isAcpSessionId } from "@/lib/acp/session-key"
 import { runningShellFromWire, shellCancellationNote, type RunningShell } from "./background-shell"
 import { subagentCancellationNote } from "./subagent-run"
 import { toJsonRecord } from "./json"
@@ -175,6 +178,11 @@ const validateRuntimeResponse = (response: Response): Response => {
  */
 export function normalizeOpencodeError(operation: string, error: unknown): OpencodeApiError {
   if (error instanceof OpencodeApiError) return error
+  // ACP failures already carry their HTTP status (`AcpApiError`) or are
+  // deliberate capability signals (`AcpUnsupportedError`); wrapping them
+  // would hide the status callers branch on (409 busy, 404 gone) and the
+  // operation the session cannot do.
+  if (error instanceof AcpApiError || error instanceof AcpUnsupportedError) throw error
   const routingError = error instanceof RuntimeRoutingResponseError ? error
     : error instanceof ClientError && error.cause instanceof RuntimeRoutingResponseError ? error.cause : null
   if (routingError) {
@@ -534,6 +542,18 @@ const dedupeById = <T extends { id: string }>(lists: T[][]): T[] => {
   return merged
 }
 
+/**
+ * True when `value` is safe to write to an ACP config option: the value is
+ * already current, or the agent offers it. An option without an offered
+ * list (free text/number) accepts anything.
+ */
+const isOfferedConfigValue = (option: AcpConfigOption, value: string): boolean => {
+  if (option.current === value) return true
+  const offered = option.options
+  if (!offered || offered.length === 0) return true
+  return offered.some((candidate) => candidate.id === value)
+}
+
 // ---------------------------------------------------------------------------
 // Service
 // ---------------------------------------------------------------------------
@@ -865,8 +885,29 @@ class OpencodeService {
       }),
     )
     const spaces = options.global ? sessionPageSpacesSchema.safeParse(response).data?.spaces : undefined
+    const sessions = response.data.map(projectSession)
+    // ACP sessions live beside OpenCode's. They append here so the sidebar,
+    // the global store, and resync see one list. Appending only applies to
+    // plain first pages of a directory listing: global/search/cursor/child
+    // pages and explicit orders have no ACP equivalent, and the native
+    // records keep their exact order and paging semantics — ACP records go
+    // after them, sorted by id among themselves (Binary.search order). An
+    // empty or failed ACP read leaves the native page byte-for-byte.
+    if (directory && !options.cursor && !options.search && options.order === undefined && options.parentID === undefined) {
+      const acp = await acpClient.listSessions(directory).catch(() => null)
+      if (acp && acp.length > 0) {
+        const seen = new Set(sessions.map((session) => session.id))
+        const extra = acp.filter((session) => {
+          if (seen.has(session.id)) return false
+          seen.add(session.id)
+          return true
+        })
+        extra.sort((left, right) => (left.id < right.id ? -1 : left.id > right.id ? 1 : 0))
+        sessions.push(...extra)
+      }
+    }
     return {
-      sessions: response.data.map(projectSession),
+      sessions,
       cursor: pageCursor(response.cursor),
       ...(spaces ? { spaces } : {}),
     }
@@ -879,10 +920,17 @@ class OpencodeService {
   }
 
   async createSession(
-    params?: { id?: string; title?: string; agent?: string; model?: ModelRef; metadata?: Metadata },
+    params?: { id?: string; title?: string; agent?: string; model?: ModelRef; metadata?: Metadata; acpBackendId?: string },
     directory?: string | null,
   ): Promise<Session> {
     const requestDirectory = this.resolveDirectory(directory)
+    const acpBackendId = params?.acpBackendId
+    // A chosen ACP backend creates the session on that agent instead of
+    // OpenCode; without one the default OpenCode path runs unchanged.
+    if (acpBackendId) {
+      if (!requestDirectory) throw new Error("A directory is required to create an ACP session")
+      return call("acp.sessions.create", () => acpClient.createSession(acpBackendId, requestDirectory, params?.title))
+    }
     const info = await call("session.create", () =>
       this.clientFor(directory).session.create({
         id: params?.id,
@@ -900,11 +948,13 @@ class OpencodeService {
   }
 
   async getSession(id: string, directory?: string | null): Promise<Session> {
+    if (isAcpSessionId(id)) return call("acp.sessions.get", () => acpClient.getSession(id, directory))
     const info = await call("session.get", () => this.clientFor(directory).session.get({ sessionID: id }))
     return projectSession(info)
   }
 
   async deleteSession(id: string, directory?: string | null): Promise<boolean> {
+    if (isAcpSessionId(id)) return call("acp.sessions.delete", () => acpClient.deleteSession(id, directory))
     await call("session.remove", () => this.clientFor(directory).session.remove({ sessionID: id }))
     return true
   }
@@ -914,22 +964,88 @@ class OpencodeService {
    * `session.update`, where an empty title asks the server to regenerate one.
    */
   async renameSession(id: string, title: string, directory?: string | null): Promise<void> {
+    if (isAcpSessionId(id)) {
+      await call("acp.sessions.rename", () => acpClient.renameSession(id, title, directory))
+      return
+    }
     await call("session.update", () => this.clientFor(directory).session.update({ sessionID: id, title }))
   }
 
   async moveSession(id: string, toDirectory: string, options?: { delivery?: SessionInboxDelivery }): Promise<void> {
+    if (isAcpSessionId(id)) throw new AcpUnsupportedError("session.move", id)
     const directory = this.normalizeCandidatePath(toDirectory) ?? toDirectory
     await call("session.move", () =>
       this.client.session.move({ sessionID: id, directory, delivery: options?.delivery }),
     )
   }
 
-  async switchSessionModel(id: string, model: ModelRef, directory?: string | null): Promise<void> {
+  async switchSessionModel(id: string, model: ModelRef, directory?: string | null, runtimeKey?: string): Promise<void> {
+    if (isAcpSessionId(id)) {
+      await this.switchAcpSessionConfig(id, model, undefined, directory, runtimeKey, "strict")
+      return
+    }
     await call("session.switchModel", () => this.clientFor(directory).session.switchModel({ sessionID: id, model }))
   }
 
-  async switchSessionAgent(id: string, agent: string, directory?: string | null): Promise<void> {
+  async switchSessionAgent(id: string, agent: string, directory?: string | null, runtimeKey?: string): Promise<void> {
+    if (isAcpSessionId(id)) {
+      await this.switchAcpSessionConfig(id, undefined, agent, directory, runtimeKey, "strict")
+      return
+    }
     await call("session.switchAgent", () => this.clientFor(directory).session.switchAgent({ sessionID: id, agent }))
+  }
+
+  /**
+   * Applies an OpenCode model/agent switch to an ACP session through its
+   * config options (D9: config options are the only model/effort/mode
+   * surface). The model maps to the `model` option (`providerID/modelID`)
+   * and the agent to the `mode` option when the agent offers them. A value
+   * the agent did not offer is never written: OpenCode catalog ids are
+   * meaningless to other agents. The session's current `metadata.acp`
+   * names the option ids and their offered values.
+   *
+   * Strict mode (direct calls: a deliberate user change) throws
+   * `AcpUnsupportedError` when the switch cannot be mapped, so the caller
+   * can explain it. Lenient mode (the send path) no-ops instead: the
+   * composer retains native defaults the agent never offered, and an
+   * ordinary prompt must not fail for that.
+   *
+   * The switch is a read followed by writes, so the caller's runtime key is
+   * re-checked after the read and before every write: a runtime switch
+   * mid-flight must not mutate the new runtime's session.
+   */
+  private async switchAcpSessionConfig(
+    id: string,
+    model?: ModelRef,
+    agent?: string,
+    directory?: string | null,
+    runtimeKey?: string,
+    mode: "strict" | "lenient" = "lenient",
+  ): Promise<void> {
+    this.assertRuntimeUnchanged(runtimeKey)
+    const session = await call("acp.sessions.get", () => acpClient.getSession(id, directory))
+    this.assertRuntimeUnchanged(runtimeKey)
+    const meta = readAcpSessionMeta(session)
+    const options = meta?.configOptions ?? []
+    if (model) {
+      const modelOption = options.find((option) => option.id === "model")
+      const value = `${model.providerID}/${model.id}`
+      const mappable = modelOption !== undefined && isOfferedConfigValue(modelOption, value)
+      if (!mappable && mode === "strict") throw new AcpUnsupportedError("session.switchModel", id)
+      if (mappable && modelOption) {
+        this.assertRuntimeUnchanged(runtimeKey)
+        await call("acp.sessions.config", () => acpClient.setSessionConfig(id, modelOption.id, value, directory))
+      }
+    }
+    if (agent) {
+      const modeOption = options.find((option) => option.id === "mode")
+      const mappable = modeOption !== undefined && isOfferedConfigValue(modeOption, agent)
+      if (!mappable && mode === "strict") throw new AcpUnsupportedError("session.switchAgent", id)
+      if (mappable && modeOption) {
+        this.assertRuntimeUnchanged(runtimeKey)
+        await call("acp.sessions.config", () => acpClient.setSessionConfig(id, modeOption.id, agent, directory))
+      }
+    }
   }
 
   /**
@@ -946,6 +1062,13 @@ class OpencodeService {
     options?: { limit?: number; cursor?: string; order?: "asc" | "desc" },
     directory?: string | null,
   ): Promise<MessagePage> {
+    if (isAcpSessionId(id)) {
+      // The ACP projector pages newest-first like the OpenCode route; its
+      // `before` cursor is the oldest message id of the previous page.
+      return call("acp.sessions.messages", () =>
+        acpClient.getSessionMessages(id, { limit: options?.limit, before: options?.cursor }, directory),
+      )
+    }
     const response = await call("message.list", () =>
       this.clientFor(directory).message.list({
         sessionID: id,
@@ -963,6 +1086,9 @@ class OpencodeService {
   }
 
   async getSessionMessage(id: string, messageID: string, directory?: string | null): Promise<{ info: Message; parts: Part[] }> {
+    if (isAcpSessionId(id)) {
+      return call("acp.sessions.message", () => acpClient.getSessionMessage(id, messageID, directory))
+    }
     const info = await call("session.message.get", () => this.clientFor(directory).session.message.get({ sessionID: id, messageID }))
     const [projected] = projectMessages([info], id)
     return { info: projected.message, parts: projected.parts }
@@ -1116,13 +1242,19 @@ class OpencodeService {
     directory: string | null | undefined,
     runtimeKey: string | undefined,
   ): Promise<void> {
+    // ACP sends use the lenient switch: the composer retains native defaults
+    // the agent never offered, and an ordinary prompt must not fail for that.
+    if (isAcpSessionId(sessionID) && (selection.model || selection.agent)) {
+      await this.switchAcpSessionConfig(sessionID, selection.model, selection.agent, directory, runtimeKey, "lenient")
+      return
+    }
     if (selection.model) {
       this.assertRuntimeUnchanged(runtimeKey)
-      await this.switchSessionModel(sessionID, selection.model, directory)
+      await this.switchSessionModel(sessionID, selection.model, directory, runtimeKey)
     }
     if (selection.agent) {
       this.assertRuntimeUnchanged(runtimeKey)
-      await this.switchSessionAgent(sessionID, selection.agent, directory)
+      await this.switchSessionAgent(sessionID, selection.agent, directory, runtimeKey)
     }
   }
 
@@ -1159,6 +1291,7 @@ class OpencodeService {
     /** Skills named inline; attached to the prompt so OpenCode loads them with it. */
     skills?: SkillMentions
   }): Promise<string> {
+    if (isAcpSessionId(params.id)) return this.sendAcpMessage(params)
     this.assertRuntimeUnchanged(params.runtimeKey)
 
     // Context ids are minted before the prompt's, so the transcript's id order
@@ -1245,6 +1378,55 @@ class OpencodeService {
   }
 
   /**
+   * Sends one user turn to an ACP session. The client-minted `messageId`
+   * travels with the prompt so the projector's echo reconciles the
+   * optimistic message in place. Context items have no synthetic-message
+   * route on ACP, so they are folded into the prompt text ahead of it.
+   */
+  private async sendAcpMessage(params: {
+    runtimeKey?: string
+    id: string
+    model?: ModelRef
+    agent?: string
+    providerID?: string
+    text: string
+    files?: Array<FileInputLite>
+    context?: SyntheticContextInput[]
+    messageId?: string
+    directory?: string | null
+  }): Promise<string> {
+    this.assertRuntimeUnchanged(params.runtimeKey)
+    const messageId = params.messageId ?? ascendingId("msg")
+    const inputs = params.files ?? []
+    const files = await Promise.all(inputs.map(async (file) => ({ input: file, prompt: await this.toPromptFile(file) })))
+    if (!params.text.trim() && files.length === 0 && (params.context?.length ?? 0) === 0) {
+      throw new Error("Message must have at least one part (text or file)")
+    }
+    // The command route carries no provider; only real prompts run the breaker.
+    if (params.providerID) assertProviderCircuitClosed(params.providerID)
+    try {
+      await this.applySendSelection(params.id, { model: params.model, agent: params.agent }, params.directory, params.runtimeKey)
+      // Context folds into the prompt text (no synthetic route on ACP); the
+      // optimistic layer folds identically so the echo reconciles in place.
+      const text = foldAcpPromptText(params.text, params.context ?? [])
+      const parts: AcpPromptPart[] = []
+      if (text.trim()) parts.push({ type: "text", text })
+      for (const { input, prompt } of files) {
+        parts.push({ type: "file", mime: input.mime, url: prompt.uri, ...(prompt.name ? { filename: prompt.name } : {}) })
+      }
+      this.assertRuntimeUnchanged(params.runtimeKey)
+      await call("acp.sessions.prompt", () => acpClient.promptSession(params.id, messageId, parts, params.directory))
+    } catch (error) {
+      if (params.providerID && !(error instanceof Error && isDefiniteTransportFailure(error))) {
+        recordProviderError(params.providerID, error instanceof AcpApiError ? error.status : undefined)
+      }
+      throw error
+    }
+    if (params.providerID) recordProviderSuccess(params.providerID)
+    return messageId
+  }
+
+  /**
    * Runs a slash command in the session. The server assigns the message id.
    * Attached context (quoted selections, pinned knowledge) goes in first as
    * synthetic messages that do not start execution, so the command template
@@ -1262,6 +1444,11 @@ class OpencodeService {
     delivery?: SessionInboxDelivery
     directory?: string | null
   }): Promise<void> {
+    if (isAcpSessionId(params.id)) {
+      // ACP has no command route: available commands run as prompt text.
+      await this.sendAcpMessage({ ...params, text: `/${params.command}${params.arguments ? ` ${params.arguments}` : ""}` })
+      return
+    }
     this.assertRuntimeUnchanged(params.runtimeKey)
     const files = await Promise.all((params.files ?? []).map((file) => this.toPromptFile(file)))
     await this.applySendSelection(params.id, { model: params.model, agent: params.agent }, params.directory, params.runtimeKey)
@@ -1294,6 +1481,7 @@ class OpencodeService {
 
   /** Interrupts the running turn. Resolves false when nothing was running. */
   async abortSession(id: string, directory?: string | null): Promise<boolean> {
+    if (isAcpSessionId(id)) return call("acp.sessions.cancel", () => acpClient.cancelSession(id, directory))
     const result = await call("session.interrupt", () => this.clientFor(directory).session.interrupt({ sessionID: id }))
     return result.interrupted
   }
@@ -1305,6 +1493,7 @@ class OpencodeService {
    * A no-op when nothing blocks.
    */
   async backgroundSessionWork(id: string, directory?: string | null): Promise<void> {
+    if (isAcpSessionId(id)) throw new AcpUnsupportedError("session.background", id)
     await call("session.background", () => this.clientFor(directory).session.background({ sessionID: id }))
   }
 
@@ -1316,6 +1505,7 @@ class OpencodeService {
     messageId?: string
     directory?: string | null
   }): Promise<string> {
+    if (isAcpSessionId(params.sessionId)) throw new AcpUnsupportedError("session.shell", params.sessionId)
     this.assertRuntimeUnchanged(params.runtimeKey)
     const id = params.messageId ?? ascendingId("msg")
     await call("session.shell", () =>
@@ -1330,6 +1520,7 @@ class OpencodeService {
    * {@link clearRevert} puts everything back.
    */
   async stageRevert(sessionId: string, messageId: string, options?: { files?: boolean; directory?: string | null }): Promise<SessionRevert> {
+    if (isAcpSessionId(sessionId)) throw new AcpUnsupportedError("session.revert.stage", sessionId)
     return call("session.revert.stage", () =>
       this.clientFor(options?.directory).session.revert.stage({
         sessionID: sessionId,
@@ -1340,11 +1531,13 @@ class OpencodeService {
   }
 
   async clearRevert(sessionId: string, directory?: string | null): Promise<void> {
+    if (isAcpSessionId(sessionId)) throw new AcpUnsupportedError("session.revert.clear", sessionId)
     await call("session.revert.clear", () => this.clientFor(directory).session.revert.clear({ sessionID: sessionId }))
   }
 
   /** Compacts the transcript; the result arrives as a compaction message through events. */
   async compactSession(sessionId: string, directory?: string | null): Promise<void> {
+    if (isAcpSessionId(sessionId)) throw new AcpUnsupportedError("session.compact", sessionId)
     await call("session.compact", () => this.clientFor(directory).session.compact({ sessionID: sessionId }))
   }
 
@@ -1354,6 +1547,7 @@ class OpencodeService {
    * the `boundary` object with this single optional message id).
    */
   async forkSession(sessionId: string, options?: { before?: string; directory?: string | null }): Promise<Session> {
+    if (isAcpSessionId(sessionId)) throw new AcpUnsupportedError("session.fork", sessionId)
     const info = await call("session.fork", () =>
       this.clientFor(options?.directory).session.fork({ sessionID: sessionId, before: options?.before }),
     )
@@ -1374,10 +1568,19 @@ class OpencodeService {
    */
   async getActiveSessionStatuses(directory?: string | null): Promise<Record<string, SessionStatus> | null> {
     try {
-      const client = isSpaceDirectory(directory) && directory ? this.getScopedSdkClient(directory) : this.client
+      const spaceDirectory = typeof directory === "string" && directory && isSpaceDirectory(directory) ? directory : undefined
+      const client = spaceDirectory ? this.getScopedSdkClient(spaceDirectory) : this.client
       const active = activeSessionSnapshotSchema.parse(await call("session.active", () => client.session.active()))
       const statuses: Record<string, SessionStatus> = {}
       for (const sessionID of Object.keys(active)) statuses[sessionID] = { type: "busy" }
+      // ACP busy state lives beside OpenCode's; a failed ACP read must not
+      // wipe the OpenCode statuses already collected. A space's directory
+      // skips the merge: the host's ACP state never covers a space.
+      const resolved = spaceDirectory ? undefined : this.resolveDirectory(directory)
+      if (resolved) {
+        const acp = await acpClient.getSessionStatuses(resolved).catch(() => null)
+        if (acp) Object.assign(statuses, acp)
+      }
       return statuses
     } catch {
       return null
@@ -1453,6 +1656,7 @@ class OpencodeService {
     sessionId: string,
     options?: { from?: string; to?: string; context?: number; directory?: string | null },
   ): Promise<FileDiffInfo[]> {
+    if (isAcpSessionId(sessionId)) throw new AcpUnsupportedError("session.diff", sessionId)
     const { from, to, context } = options ?? {}
     // The client's input type marks every field read-only, so it is built in one go.
     const input: SessionDiffInput = { sessionID: sessionId, from, to, context }

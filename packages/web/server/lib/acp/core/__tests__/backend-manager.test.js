@@ -1,8 +1,6 @@
-import { execFile } from 'node:child_process';
 import { mkdtemp } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { promisify } from 'node:util';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 
@@ -11,7 +9,6 @@ import { AcpBackendError, createAcpBackendManager } from '../backend-manager.js'
 import { createAcpBackendRegistry } from '../registry.js';
 
 const FAKE_AGENT = fileURLToPath(new URL('./fake-agent.mjs', import.meta.url));
-const execFileAsync = promisify(execFile);
 
 const tempDir = () => mkdtemp(join(tmpdir(), 'acp-manager-'));
 
@@ -37,14 +34,28 @@ const fakeEntry = (overrides = {}) => ({
   ...overrides,
 });
 
-const livePids = async () => {
-  // Windows: `tasklist` CSV; POSIX: `ps`. Used to prove no orphan survives.
-  if (process.platform === 'win32') {
-    const { stdout } = await execFileAsync('tasklist', ['/FO', 'CSV', '/NH'], { windowsHide: true });
-    return new Set(stdout.split('\n').map((line) => line.split(',')[1]).filter(Boolean));
+const isAlive = (pid) => {
+  if (typeof pid !== 'number') return false;
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch {
+    return false;
   }
-  const { stdout } = await execFileAsync('ps', ['-e', '-o', 'pid=']);
-  return new Set(stdout.split(/\s+/).filter(Boolean));
+};
+
+// The child `exit` event lands just after the kill resolves; wait for the
+// kernel to reap the PID rather than sleeping a fixed beat.
+const untilExited = async (child, timeoutMs) => {
+  if (child.exitCode !== null || child.signalCode !== null) return;
+  await new Promise((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error(`timed out waiting for PID ${child.pid} to exit`)), timeoutMs);
+    timer.unref?.();
+    child.once('exit', () => {
+      clearTimeout(timer);
+      resolve();
+    });
+  });
 };
 
 describe('backend manager', () => {
@@ -225,24 +236,26 @@ describe('backend manager', () => {
   });
 
   it('leaves no agent process behind after shutdown', async () => {
-    const pidsBefore = await livePids();
+    // Capture the exact PIDs this manager spawns (via the spawnAgent
+    // injection) and assert those — and only those — exited. Machine-wide
+    // PID snapshots flaked under parallel workers.
+    const spawned = [];
+    const baseSpawn = await isolatedSpawn();
     const manager = createAcpBackendManager({
-      spawnAgent: await isolatedSpawn(),
+      spawnAgent: (options) => {
+        const agent = baseSpawn(options);
+        spawned.push(agent.child);
+        return agent;
+      },
       registry: await seedRegistry([fakeEntry(), fakeEntry({ id: 'fake2', label: 'fake2' })]),
     });
     await manager.ensureReady('fake');
     await manager.ensureReady('fake2');
+    expect(spawned.map((child) => child.pid)).toHaveLength(2);
     await manager.shutdown();
-    await new Promise((resolve) => setTimeout(resolve, 500));
-    const pidsAfter = await livePids();
-    if (process.platform === 'win32') {
-      // tasklist CSV quotes pids ("1234"); compare as sets of raw fields.
-      for (const pid of pidsAfter) {
-        if (!pidsBefore.has(pid)) {
-          const { stdout } = await execFileAsync('tasklist', ['/FI', `PID eq ${pid.replace(/"/g, '')}`, '/FO', 'CSV', '/NH'], { windowsHide: true }).catch(() => ({ stdout: '' }));
-          expect(stdout).not.toMatch(/node\.exe/i);
-        }
-      }
+    for (const child of spawned) {
+      await untilExited(child, 10_000);
+      expect(isAlive(child.pid)).toBe(false);
     }
     expect((await manager.status('fake')).state).toBe('idle');
     expect((await manager.status('fake2')).state).toBe('idle');
