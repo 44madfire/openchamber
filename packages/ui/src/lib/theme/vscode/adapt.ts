@@ -4,7 +4,7 @@ import { colorHue, contrastRatio, mixColor, onColor, readableText, tintColor, wi
 
 // Share of the primary's hue and chroma a user bubble takes on, at the
 // bubble's own lightness. The same chroma reads stronger on a light canvas.
-const BUBBLE_TINT = { dark: 0.16, light: 0.1 } as const;
+const BUBBLE_TINT = { dark: 0.16, light: 0.06 } as const;
 
 // Both file imports and live VS Code palettes pass through this policy once.
 export function adaptVSCodeRoles(theme: Theme, authored: Readonly<VSCodeThemePalette['colors']>, highContrast = false): void {

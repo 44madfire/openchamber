@@ -90,7 +90,7 @@
     },
     "chat": {
       "background": "#f6f3fe",
-      "userMessageBackground": "#eae5f9",
+      "userMessageBackground": "#e9e5f6",
       "divider": "#0000001a"
     },
     "markdown": {

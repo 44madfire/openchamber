@@ -87,13 +87,13 @@
     },
     "chat": {
       "background": "#ffffff",
-      "userMessageBackground": "#e9f2ff",
+      "userMessageBackground": "#ecf2f9",
       "divider": "#0000001a"
     },
     "markdown": {
       "link": "#0768de",
       "linkHover": "#0661cf",
-      "inlineCode": "#337a41",
+      "inlineCode": "#337b41",
       "inlineCodeBackground": "#f9f9f9",
       "blockquote": "#666666",
       "blockquoteBorder": "#0000001a",

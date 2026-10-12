@@ -48,7 +48,7 @@ Built-in palettes place the sidebar below the chat canvas in luminance. Fields
 and elevated panels are lighter than the canvas in dark mode and darker in light
 mode. Mono and Mono Plus keep their pure-black dark canvas, so their sidebars are
 the exception. User-message backgrounds take on the primary's hue at their own
-lightness (`tintColor`: 16% of its chroma in dark, 10% in light), so the bubble
+lightness (`tintColor`: 16% of its chroma in dark, 6% in light), so the bubble
 reads as colored without becoming a brighter patch, with enough separation from
 the canvas to remain visible. Mono keeps every role grayscale.
 Body, secondary and bold text retain the palette's neutral cast with distinct

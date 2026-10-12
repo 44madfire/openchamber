@@ -79,7 +79,7 @@ test('user bubbles take on the primary hue without becoming a brighter patch', (
     } });
     const bubble = c.chat?.userMessageBackground ?? '', canvas = c.surface.background;
     // A neutral bubble would sit as far from the primary's hue as the canvas does.
-    expect(chromaticDistance(bubble, c.primary.base, canvas, canvas)! + 0.015)
+    expect(chromaticDistance(bubble, c.primary.base, canvas, canvas)! + 0.008)
       .toBeLessThan(chromaticDistance(canvas, c.primary.base, canvas, canvas)!);
     expect(contrastRatio(bubble, canvas)).toBeLessThan(1.2);
   }

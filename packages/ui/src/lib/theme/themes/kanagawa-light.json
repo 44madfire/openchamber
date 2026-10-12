@@ -92,7 +92,7 @@
     },
     "chat": {
       "background": "#f4ede3",
-      "userMessageBackground": "#e2e1dd",
+      "userMessageBackground": "#e4e1da",
       "divider": "#0000001a"
     },
     "markdown": {
