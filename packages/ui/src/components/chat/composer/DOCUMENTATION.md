@@ -257,7 +257,7 @@ so a long preview does not hide its entry actions behind the chat header.
 | `parallel/` | "Run in parallel": the launch state of a new-session draft (prompt variants, models per variant, worktrees, setup, auto-fusion) and the strip that renders it above the editor |
 | `text.ts` | How inserted text meets the text already there |
 | `largeTextPaste.ts` | Detect large plain-text pastes, own the double-paste gesture, and build virtual `.txt` files |
-| `largeTextPasteOffer.ts` | Ask-toast offer id begin/resolve (supersede + double-apply guards) |
+| `largeTextPasteOffer.ts` | Large-paste choice offer id begin/resolve (supersede + double-apply guards) |
 
 `ChatInput.handlePaste` owns paste orchestration: URL-over-selection markdown
 links, clipboard files, and large plain-text pastes. Pasted and dropped files
@@ -281,7 +281,8 @@ Large pastes (about 2,000 characters or 25 lines) follow the composer setting
 `largeTextPasteBehavior` (`ask` / `attach` / `inline` / `inline-double-paste`). Attaching creates an
 in-memory `text/plain` file named `pasted-context-N.txt`, inserts a bracket
 citation, and sends it through the same attachment pipeline as a manually
-picked `.txt` file. Ask-toast actions read live composer/attachment state so
+picked `.txt` file. In `ask`, `ui/LargeTextPasteChoice` floats above the
+composer's start edge, styled like the chat text-selection menu. Its actions read live composer/attachment state so
 typing or other attaches between paste and choice stay consistent. Short text,
 images, and URL wraps keep their existing paths.
 In `inline-double-paste`, the first paste uses CodeMirror's native paste path.
@@ -295,11 +296,16 @@ the inline text until attachment succeeds and rechecks the live document,
 selection and draft scope before replacement. Failed attachments keep the text.
 If editing invalidates a conversion already attaching, its accepted file remains
 in the source draft but the newer text is never replaced.
-On mobile, choosing either ask-toast action restores editor focus, expanding
-the collapsed pill if needed. Hosted mobile focuses inside the tap; Capacitor
-uses the shell's existing next-frame keyboard timing when the pill expands.
-Dismissing the toast still inserts inline without taking focus from another
-control.
+On desktop the choice takes focus with "Attach as file" selected: Enter picks
+the focused option, arrows and Tab switch, Escape pastes inline, and a printable
+key pastes inline and is then typed. Every answer returns focus to the editor.
+Focus moving elsewhere in the window pastes inline and leaves focus there;
+switching to another window leaves the choice waiting. On mobile the editor
+keeps focus (taps do not move it, so the keyboard stays up); a choice restores
+editor focus, expanding the collapsed pill if needed. Hosted mobile focuses
+inside the tap; Capacitor uses the shell's existing next-frame keyboard timing
+when the pill expands. A newer large paste replaces an unanswered choice, and a
+draft, mode or runtime change drops it, so it never lands in another draft.
 
 ## The prompt language
 

@@ -142,7 +142,6 @@ import {
     type LargeTextPasteCandidate,
 } from './composer/largeTextPaste';
 import {
-    LARGE_TEXT_PASTE_TOAST_CLASSNAME,
     beginLargeTextPasteOffer,
     resolveLargeTextPasteOffer,
 } from './composer/largeTextPasteOffer';
@@ -220,6 +219,7 @@ import { ComposerAutocompletePopups } from './composer/ui/ComposerAutocompletePo
 import { ComposerFooter } from './composer/ui/ComposerFooter';
 import { MobilePillComposer } from './composer/ui/MobilePillComposer';
 import { ComposerContextChips } from './composer/ui/ComposerContextChips';
+import { LargeTextPasteChoice, type LargeTextPasteChoiceAction } from './composer/ui/LargeTextPasteChoice';
 import { LinkedReferenceRow } from './composer/ui/LinkedReferenceRow';
 import { RevertedMessagesStrip } from './RevertedMessagesStrip';
 import { SessionSuggestionChip } from '@/components/chat/SessionSuggestionChip';
@@ -466,7 +466,11 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({
     const dictationSendInFlightRef = React.useRef(false);
     const currentChatDraftIdentityRef = React.useRef<ChatDraftIdentity | null>(initialDraftIdentityRef.current);
     const pendingPastedAttachmentFilenamesRef = React.useRef<Set<string>>(new Set());
-    const largeTextPasteToastIdRef = React.useRef<string | number | null>(null);
+    // The unanswered large-paste choice; `resolve` applies the answer once.
+    const [largeTextPasteOffer, setLargeTextPasteOffer] = React.useState<{
+        id: number;
+        resolve: (action: LargeTextPasteChoiceAction, explicitlyChosen: boolean, typedText?: string) => void;
+    } | null>(null);
     const largeTextPasteOfferIdRef = React.useRef(0);
     const [largeTextPasteGesture] = React.useState(() => new LargeTextPasteGesture());
 
@@ -666,6 +670,10 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({
     React.useLayoutEffect(() => {
         largeTextPasteScopeRef.current = largeTextPasteScope;
         largeTextPasteGesture.invalidate();
+        // An unanswered choice belongs to the draft it was pasted into; it
+        // must not land in another one. The text is still on the clipboard.
+        largeTextPasteOfferIdRef.current += 1;
+        setLargeTextPasteOffer(null);
         return () => largeTextPasteGesture.invalidate();
     }, [largeTextPasteGesture, largeTextPasteScope]);
     React.useEffect(() => subscribeRuntimeEndpointWillChange(() => largeTextPasteGesture.invalidate()), [largeTextPasteGesture]);
@@ -3005,40 +3013,36 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({
                 return;
             }
 
+            // A newer large paste replaces an unanswered choice.
             const offerId = beginLargeTextPasteOffer(largeTextPasteOfferIdRef.current);
             largeTextPasteOfferIdRef.current = offerId;
 
-            if (largeTextPasteToastIdRef.current !== null) {
-                // Invalidate first so a synchronous onDismiss from dismiss()
-                // cannot apply the superseded paste.
-                toast.dismiss(largeTextPasteToastIdRef.current);
-                largeTextPasteToastIdRef.current = null;
-            }
-
-            const resolveLargePaste = (action: 'attach' | 'inline', explicitlyChosen: boolean) => {
+            const resolveLargePaste = (action: LargeTextPasteChoiceAction, explicitlyChosen: boolean, typedText?: string) => {
                 const resolution = resolveLargeTextPasteOffer(
                     largeTextPasteOfferIdRef.current,
                     offerId,
-                    { isMobile, explicitlyChosen },
+                    { explicitlyChosen },
                 );
                 largeTextPasteOfferIdRef.current = resolution.nextOfferId;
                 if (!resolution.accepted) {
                     return;
                 }
-                largeTextPasteToastIdRef.current = null;
+                setLargeTextPasteOffer(null);
                 if (action === 'attach') {
                     void attachAsFile();
                 } else {
                     pasteInline();
                 }
-                // Keep this in the toast tap's gesture: iOS won't raise the
+                if (typedText) {
+                    insertTextAtSelection(typedText);
+                }
+                // Keep this in the tap's gesture: iOS won't raise the
                 // keyboard when focus is restored after the attachment awaits.
                 if (resolution.restoreFocus) {
                     if (composerRef.current) {
                         composerRef.current.focus({ preventScroll: isCapacitorApp() });
                     } else {
-                        // The toast captures the paste-time shell state, but
-                        // the editor may have collapsed since then. The
+                        // The editor may have collapsed since the paste. The
                         // insertion above appends to its draft; expand mounts
                         // and focuses the editor with the platform's keyboard timing.
                         mobileShell.expand();
@@ -3046,26 +3050,7 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({
                 }
             };
 
-            largeTextPasteToastIdRef.current = toast.info(
-                t('chat.chatInput.toast.largeTextPaste.title'),
-                {
-                    duration: Infinity,
-                    className: LARGE_TEXT_PASTE_TOAST_CLASSNAME,
-                    action: {
-                        label: t('chat.chatInput.toast.largeTextPaste.attach'),
-                        onClick: () => resolveLargePaste('attach', true),
-                    },
-                    cancel: {
-                        label: t('chat.chatInput.toast.largeTextPaste.inline'),
-                        onClick: () => resolveLargePaste('inline', true),
-                    },
-                    onDismiss: () => {
-                        // Dismissing without a choice keeps the paste — insert inline
-                        // so clipboard content is not lost.
-                        resolveLargePaste('inline', false);
-                    },
-                },
-            );
+            setLargeTextPasteOffer({ id: offerId, resolve: resolveLargePaste });
             return;
         }
 
@@ -3078,7 +3063,7 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({
 
         e.preventDefault();
         await attachFilesWithCitation([...imageFiles, ...otherFiles], pastedText);
-    }, [addAttachedFile, attachFilesWithCitation, currentSessionId, inputMode, isMobile, largeTextPasteBehavior, largeTextPasteGesture, readLargeTextPasteSnapshot, markFileMentionPasteSuppression, message, mobileShell, newSessionDraftOpen, insertTextAtSelection, setMessage, t, updateAutocompleteState]);
+    }, [addAttachedFile, attachFilesWithCitation, currentSessionId, inputMode, largeTextPasteBehavior, largeTextPasteGesture, readLargeTextPasteSnapshot, markFileMentionPasteSuppression, message, mobileShell, newSessionDraftOpen, insertTextAtSelection, setMessage, t, updateAutocompleteState]);
 
     // Android commits an image through the IME instead of the page (see nativeImagePaste).
     React.useEffect(() => {
@@ -4208,6 +4193,14 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({
                     ref={isMobile ? undefined : setContextPreviewHost}
                     className={cn('relative', isComposerExpanded && 'flex flex-1 min-h-0 flex-col')}
                 >
+                    {largeTextPasteOffer ? (
+                        <LargeTextPasteChoice
+                            key={largeTextPasteOffer.id}
+                            takeFocus={!isMobile}
+                            onChoose={(action, explicitlyChosen) => largeTextPasteOffer.resolve(action, explicitlyChosen)}
+                            onTypeThrough={(text) => largeTextPasteOffer.resolve('inline', true, text)}
+                        />
+                    ) : null}
                     <ComposerAutocompletePopups
                         open={openAutocomplete}
                         query={autocompleteQuery}
