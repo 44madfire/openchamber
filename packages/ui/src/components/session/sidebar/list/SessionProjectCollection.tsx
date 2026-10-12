@@ -933,9 +933,7 @@ const VisibleSessionProjects: React.FC<SessionProjectCollectionProps> = ({ topol
     alwaysShowActions,
     projectSortOrder: view.projectSortOrder,
     worktreeSortOrder,
-    timelineView: timelineMode,
   }), [
-    timelineMode,
     worktreeSortOrder,
     view.homeDirectory,
     view.hasSessionSearchQuery,

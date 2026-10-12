@@ -98,7 +98,6 @@ type View = {
   alwaysShowActions: boolean;
   projectSortOrder: ProjectSortOrder;
   worktreeSortOrder: WorktreeSortOrder;
-  timelineView: boolean;
 };
 
 type Actions = {
@@ -290,7 +289,6 @@ function SessionProjectScrollerComponent({ model, view, actions }: Props): React
           collapsed={row.collapsed}
           forceExpanded={row.forceExpanded}
           alwaysShowActions={view.alwaysShowActions}
-          timelineView={view.timelineView}
           onToggle={() => {
             // Collapsing a zone forgets its Show more state: reopening it
             // starts from the default reveal, like a group or project.

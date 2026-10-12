@@ -267,8 +267,9 @@ toggles, then Collapse all / Expand all.
   In work) together, in both views. Session folders keep their own
   collapse state.
 - Zone and project headers are sticky in both views; there is no user toggle.
-  Timeline zone headers drop the leading icon and use a taller band; its
-  project headers are the grouped view's, with the same hover actions and menu.
+  Both views draw the same zone headers, with the leading icon that turns
+  into the collapse chevron on hover and the Chats new-chat button; project
+  headers are shared too, with the same hover actions and menu.
 - Below Chats and In work it renders one project
   header per project followed by that project's non-archived root sessions
   from every worktree and space, in the shared lifecycle order with pinned
