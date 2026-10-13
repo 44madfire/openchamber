@@ -462,6 +462,12 @@ const ChatMessage: React.FC<ChatMessageProps> = ({
         if (isUser) {
             return undefined;
         }
+        // A step whose stream broke off (the provider dropped its connection)
+        // is recorded as failed, and OpenCode carries the turn on in the next
+        // step. The turn did not fail, so the step's error is not shown.
+        if (isFollowedByAssistant) {
+            return undefined;
+        }
         const errorInfo = (message.info as { error?: unknown } | undefined)?.error as
             | { data?: { message?: unknown }; message?: unknown; name?: unknown }
             | undefined;
@@ -493,7 +499,7 @@ const ChatMessage: React.FC<ChatMessageProps> = ({
         return {
             text: `Opencode failed to send message with error: ${detail}`,
         };
-    }, [isUser, message.info]);
+    }, [isFollowedByAssistant, isUser, message.info]);
 
     const assistantErrorText = assistantError?.text;
     // The provider's raw response behind the error, offered as expandable details.
