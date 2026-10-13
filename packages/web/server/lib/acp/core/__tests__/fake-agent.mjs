@@ -60,6 +60,14 @@
  * - `FAKE_ACP_AUTHENTICATE` — JSON object: when set, `authenticate` stores
  *   the received `methodId` on stderr as `AUTHENTICATE:<methodId>` and
  *   answers `{}`; otherwise `authenticate` throws method-not-found.
+ * - `FAKE_ACP_CONFIG_SILENT_KEEP` — when `true`, `set_config_option` answers
+ *   success while keeping the old `currentValue` (the omp/pi-acp
+ *   cross-provider silent-keep, D4).
+ * - `FAKE_ACP_UNSOLICITED_UPDATES` — JSON array of update bodies sent after
+ *   every `session/new` response (pi-acp startup-banner shape, D2);
+ *   `FAKE_ACP_UNSOLICITED_DELAY_MS` delays them (default 50).
+ * - `FAKE_ACP_DELETE_ERROR` — JSON `{ code?, message? }`: `session/delete`
+ *   throws it instead of deleting (zombie-session shape, D5).
  */
 
 import { Readable, Writable } from 'node:stream';
@@ -122,6 +130,10 @@ const SUPPORTS_RESUME = process.env.FAKE_ACP_RESUME === 'true';
 const SUPPORTS_FORK = process.env.FAKE_ACP_FORK === 'true';
 const LOAD_ERROR = readJson(process.env.FAKE_ACP_LOAD_ERROR, null);
 const RECORD_PROMPTS = process.env.FAKE_ACP_PROMPT_RECORD !== undefined && process.env.FAKE_ACP_PROMPT_RECORD !== '';
+// D2: updates emitted outside any prompt turn (setup banners after
+// session/new), sent once the new session's response is on the wire.
+const UNSOLICITED_UPDATES = readJson(process.env.FAKE_ACP_UNSOLICITED_UPDATES, []);
+const UNSOLICITED_DELAY_MS = Number(process.env.FAKE_ACP_UNSOLICITED_DELAY_MS ?? 50);
 
 const cancelledSessions = new Set();
 const sessionOptions = () => ({
@@ -221,6 +233,18 @@ const agent = new AgentSideConnection((client) => ({
   newSession: async (params) => {
     const sessionId = `fake-session-${nextSession++}`;
     sessions.set(sessionId, { sessionId, cwd: params?.cwd ?? null, title: '' });
+    // D2: like pi-acp's setTimeout-0 startup banner, setup traffic goes out
+    // AFTER the response resolves, outside any prompt turn.
+    if (Array.isArray(UNSOLICITED_UPDATES) && UNSOLICITED_UPDATES.length > 0) {
+      const delay = Number.isFinite(UNSOLICITED_DELAY_MS) ? UNSOLICITED_DELAY_MS : 50;
+      setTimeout(() => {
+        (async () => {
+          for (const update of UNSOLICITED_UPDATES) {
+            await client.sessionUpdate({ sessionId, update });
+          }
+        })().catch(() => {});
+      }, Math.max(0, delay));
+    }
     return { sessionId, ...sessionOptions() };
   },
   loadSession: async (params) => {
@@ -250,6 +274,14 @@ const agent = new AgentSideConnection((client) => ({
     if (!SUPPORTS_DELETE) {
       const error = new Error('Method not found: session/delete');
       error.code = -32601;
+      throw error;
+    }
+    // D5: fail the delete RPC with an injected error (a session/connection
+    // that is already gone must still drop local state).
+    const failure = readJson(process.env.FAKE_ACP_DELETE_ERROR, null);
+    if (failure) {
+      const error = new Error(failure.message ?? 'fake delete error');
+      if (failure.code !== undefined) error.code = failure.code;
       throw error;
     }
     sessions.delete(params?.sessionId);
@@ -287,7 +319,17 @@ const agent = new AgentSideConnection((client) => ({
   },
   setSessionConfigOption: async (params) => {
     process.stderr.write(`CONFIG:${JSON.stringify({ sessionId: params?.sessionId, configId: params?.configId, value: params?.value })}\n`);
-    return { configOptions: CONFIG_OPTIONS ?? [] };
+    // FAKE_ACP_CONFIG_SILENT_KEEP=true: answer success while keeping the old
+    // value (the omp/pi-acp cross-provider silent-keep, D4). The caller must
+    // detect the mismatch from `currentValue`, not from the RPC status.
+    const silentKeep = process.env.FAKE_ACP_CONFIG_SILENT_KEEP === 'true';
+    const options = CONFIG_OPTIONS ?? [];
+    const next = (Array.isArray(options) ? options : []).map((option) => (
+      silentKeep && option?.id === params?.configId
+        ? option
+        : (option?.id === params?.configId ? { ...option, currentValue: params?.value ?? option?.currentValue } : option)
+    ));
+    return { configOptions: next };
   },
   setSessionMode: async (params) => {
     process.stderr.write(`MODE:${JSON.stringify({ sessionId: params?.sessionId, modeId: params?.modeId })}\n`);

@@ -24,6 +24,9 @@ const SKIPPED_ROLES = new Set<Message['role']>([
     'idle',
     'agent-switched',
     'model-switched',
+    // D2: standalone agent notices (setup banners) live in the transcript
+    // for paging/replay stability but never render as timeline rows.
+    'agent-notice',
 ]);
 
 export const isTimelineNoticeRole = (role: Message['role']): boolean => NOTICE_ROLES.has(role);

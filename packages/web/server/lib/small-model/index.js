@@ -4,6 +4,7 @@ import { setTimeout as delay } from 'node:timers/promises';
 import os from 'os';
 import path from 'path';
 import { readMergedSettingsSync } from '../opencode/settings-files.js';
+import { isAcpSessionKey } from '../acp/core/session-key.js';
 import {
   findModelInfo,
   getConfiguredSmallModelRef,
@@ -27,25 +28,25 @@ export const setUnavailableRetryDelaysForTest = (delays = UNAVAILABLE_RETRY_DELA
   unavailableRetryDelaysMs = delays;
 };
 
-// ACP one-off fallback (Phase 1.6): the host registers its provider once ACP
-// backends exist; `generateSmallModelText` consults it only after the OpenCode
-// path reports one of the two explicit unavailability 404s below. Null is not
-// a misconfiguration — it means the OpenCode path stands alone, and every
-// unavailability error keeps its historical shape and status code.
+// ACP one-off routing (Phase 1.6): the host registers its provider once ACP
+// backends exist. ACP is used ONLY when the caller names an ACP session (an
+// `isAcpSessionKey` sessionKey) or an explicit backendId — then ACP-first,
+// without touching OpenCode. Every other caller keeps historical
+// OpenCode-only behavior, including unavailability errors and reporting.
 let acpOneOffFallbackProvider = null;
 
 /**
- * Wires (or clears, with `null`) the ACP one-off provider the small model
- * falls back to when OpenCode is unavailable.
+ * Wires (or clears, with `null`) the ACP one-off provider used for
+ * ACP-scoped helper requests.
  */
 export const setAcpOneOffFallback = (provider) => {
   acpOneOffFallbackProvider = provider ?? null;
 };
 
-/** The wired ACP one-off provider, or `null` when the fallback is unset. */
+/** The wired ACP one-off provider, or `null` when unset. */
 export const getAcpOneOffFallback = () => acpOneOffFallbackProvider;
 
-// Output budget for the fallback, which has no model context to measure
+// Output budget for ACP-routed calls, which have no model context to measure
 // against: ~4 chars per token, with a floor for callers that name no budget.
 const fallbackOutputChars = (maxOutputTokens) => (Number(maxOutputTokens) > 0
   ? Math.floor(Number(maxOutputTokens) * 4)
@@ -54,16 +55,17 @@ const fallbackOutputChars = (maxOutputTokens) => (Number(maxOutputTokens) > 0
 const ACP_ONEOFF_SYSTEM = 'Reply with exactly what is requested and nothing else.';
 
 /**
- * Runs the prompt on the ACP one-off provider after the OpenCode path reported
- * unavailability. Provider failures surface as-is: routes map unknown shapes
- * to 500, so re-wrapping would only hide which layer failed.
+ * Runs the prompt on the ACP one-off provider. Provider failures surface
+ * as-is: routes map unknown shapes to 500, so re-wrapping would only hide
+ * which layer failed.
  */
-const generateViaAcpOneOff = async ({ provider, prompt, system, maxOutputTokens, sessionKey }) => {
-  const backendId = await provider.resolveBackend(
-    typeof sessionKey === 'string' && sessionKey ? { sessionKey } : {},
-  );
+const generateViaAcpOneOff = async ({ provider, prompt, system, maxOutputTokens, sessionKey, backendId }) => {
+  const backend = await provider.resolveBackend({
+    ...(typeof backendId === 'string' && backendId ? { backendId } : {}),
+    ...(typeof sessionKey === 'string' && sessionKey ? { sessionKey } : {}),
+  });
   const generated = await provider.generate({
-    backendId,
+    backendId: backend,
     instruction: typeof system === 'string' && system.trim() ? system : ACP_ONEOFF_SYSTEM,
     input: prompt.trim(),
     maxChars: fallbackOutputChars(maxOutputTokens),
@@ -71,7 +73,7 @@ const generateViaAcpOneOff = async ({ provider, prompt, system, maxOutputTokens,
   return {
     text: typeof generated?.text === 'string' ? generated.text.trim() : '',
     source: 'acp-oneoff',
-    backendId,
+    backendId: backend,
     ...(Array.isArray(generated?.warnings) ? { warnings: generated.warnings } : {}),
   };
 };
@@ -329,26 +331,31 @@ const requestOptions = ({ timeoutMs, signal }) => {
  * Generates text with the user's small model through the running OpenCode.
  * Credentials stay inside OpenCode; this server only sends a prompt.
  *
- * `sessionKey` is forwarded to the ACP fallback's backend selection only; the
- * OpenCode path ignores it. Only a string is forwarded — anything else is
- * treated as absent rather than rejected.
+ * ACP-scoped callers (`sessionKey` that is an ACP session key, or an
+ * explicit `backendId`) route to the ACP one-off provider first and never
+ * touch OpenCode. Non-string/foreign keys are treated as absent rather
+ * than rejected, preserving OpenCode-only behavior for those callers.
  */
-export async function generateSmallModelText({ prompt, system, maxOutputTokens, model, directory, preferredProviderID, preferredModelID, responseSchema, timeoutMs, signal, sessionKey, onOverflow = 'truncate' }) {
+export async function generateSmallModelText({ prompt, system, maxOutputTokens, model, directory, preferredProviderID, preferredModelID, responseSchema, timeoutMs, signal, sessionKey, backendId, onOverflow = 'truncate' }) {
   if (typeof prompt !== 'string' || !prompt.trim()) {
     throw Object.assign(new Error('prompt is required'), { statusCode: 400 });
   }
 
-  // When OpenCode cannot even name a model, the ACP one-off provider answers
-  // instead — but only then. A 503, a 413, an abort, or a generation failure
-  // all mean OpenCode picked a model and the attempt belongs to it.
-  const fallback = getAcpOneOffFallback();
-  const fallBackOrThrow = (error) => {
-    if (error?.code !== 'small-model-unavailable' || !fallback) throw error;
-    return generateViaAcpOneOff({ provider: fallback, prompt, system, maxOutputTokens, sessionKey });
-  };
+  // ACP-scoped callers go ACP-first and never touch OpenCode: an ACP
+  // session key selects the session's backend, an explicit backendId
+  // selects it directly. Anything else is an OpenCode caller.
+  const wantsAcp = (typeof backendId === 'string' && backendId)
+    || (typeof sessionKey === 'string' && sessionKey && isAcpSessionKey(sessionKey));
+  if (wantsAcp) {
+    const provider = getAcpOneOffFallback();
+    if (!provider) {
+      throw Object.assign(new Error('No ACP backend is available for this session'), { statusCode: 404, code: 'small-model-unavailable' });
+    }
+    return generateViaAcpOneOff({ provider, prompt, system, maxOutputTokens, sessionKey, backendId });
+  }
 
   const client = getSmallModelClient(directory);
-  if (!client) return fallBackOrThrow(noClientError());
+  if (!client) throw noClientError();
 
   const resolved = await resolveSmallModel({
     client,
@@ -358,7 +365,7 @@ export async function generateSmallModelText({ prompt, system, maxOutputTokens, 
     preferredModelID,
   });
 
-  if (!resolved) return fallBackOrThrow(noModelError(preferredProviderID));
+  if (!resolved) throw noModelError(preferredProviderID);
 
   const models = await listModelInfos(client, directory);
   const modelInfo = findModelInfo(models, resolved.providerID, resolved.modelID);

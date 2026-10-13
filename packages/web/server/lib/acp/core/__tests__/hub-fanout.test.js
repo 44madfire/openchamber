@@ -9,6 +9,7 @@ import { createAcpBackendManager } from '../backend-manager.js';
 import { createAcpBackendRegistry } from '../registry.js';
 import { createAcpSessionIndex } from '../session-index.js';
 import { createAcpSessionService } from '../sessions.js';
+import { normalizeDirectory } from '../directory-key.js';
 
 const FAKE_AGENT = fileURLToPath(new URL('./fake-agent.mjs', import.meta.url));
 
@@ -34,7 +35,7 @@ describe('acp hub fan-out', () => {
       stderrFlushMs: 10,
       connectionHooks: (backendId, generation) => holder.current?.hooksForBackend(backendId, generation) ?? {},
     });
-    const service = createAcpSessionService({
+    const service = createAcpSessionService({ canonicalDirectory: async (d) => normalizeDirectory(d),
       manager,
       index: createAcpSessionIndex({ dataDir: await mkdtemp(join(tmpdir(), 'acp-hub-idx-')) }),
       registry,

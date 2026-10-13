@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test"
 import type { Message } from "@/lib/opencode/model"
-import { acpTurnOf, canRevertTurn, completeCheckpoints, revertDidFork, skippedPathLines } from "./revert"
+import { acpRevertedFromTurnOf, acpTurnOf, canRevertTurn, completeCheckpoints, resolveRevertBoundaryMessageID, revertDidFork, skippedPathLines } from "./revert"
 
 const ACP_ID = "ses_acp-omp_r1"
 
@@ -94,5 +94,44 @@ describe("revertDidFork / skippedPathLines", () => {
       "a.ts — obstructed",
     ])
     expect(skippedPathLines({ skipped: [] } as never)).toEqual([])
+  })
+})
+
+describe("resolveRevertBoundaryMessageID", () => {
+  const messages = [
+    user("proj-t1", 1),
+    assistant("proj-a1"),
+    user("proj-t2", 2),
+    assistant("proj-a2"),
+  ]
+
+  test("a boundary naming a loaded message wins", () => {
+    expect(resolveRevertBoundaryMessageID(messages, "proj-t2", 2)).toBe("proj-t2")
+  })
+
+  test("a client-minted boundary the transcript lacks falls back to the stamped turn", () => {
+    expect(resolveRevertBoundaryMessageID(messages, "client-u2", 2)).toBe("proj-t2")
+    expect(resolveRevertBoundaryMessageID(messages, "client-u1", 1)).toBe("proj-t1")
+  })
+
+  test("OpenCode sessions keep an unresolvable boundary untouched", () => {
+    expect(resolveRevertBoundaryMessageID(messages, "client-u2", null)).toBe("client-u2")
+    expect(resolveRevertBoundaryMessageID(messages, "client-u2", undefined)).toBe("client-u2")
+  })
+
+  test("no boundary means no cut even with a stale turn stamp", () => {
+    expect(resolveRevertBoundaryMessageID(messages, undefined, 2)).toBeUndefined()
+  })
+
+  test("an unstamped window resolves to no cut", () => {
+    const unstamped = [user("u1"), assistant("a1")]
+    expect(resolveRevertBoundaryMessageID(unstamped, "client-u2", 2)).toBeUndefined()
+  })
+
+  test("acpRevertedFromTurnOf reads the metadata stamp", () => {
+    expect(acpRevertedFromTurnOf({ metadata: { acp: { revertedFromTurn: 2 } } })).toBe(2)
+    expect(acpRevertedFromTurnOf({ metadata: { acp: {} } })).toBeNull()
+    expect(acpRevertedFromTurnOf({ metadata: {} })).toBeNull()
+    expect(acpRevertedFromTurnOf(null)).toBeNull()
   })
 })

@@ -50,7 +50,7 @@
 
 import { EventEmitter } from 'node:events';
 
-import { directoryKey, normalizeDirectory } from './directory-key.js';
+import { canonicalDirectory, directoryKey, normalizeDirectory } from './directory-key.js';
 import {
   choiceFormFor,
   contentForAnswer,
@@ -90,7 +90,22 @@ export class AcpSessionError extends Error {
 const busyError = (key) => new AcpSessionError(`ACP session is busy: ${key}`, { code: 'ACP_SESSION_BUSY' });
 const unknownError = (key) => new AcpSessionError(`Unknown ACP session: ${key}`, { code: 'ACP_SESSION_UNKNOWN' });
 
-export { normalizeDirectory, directoryKey } from './directory-key.js';
+/**
+ * True when an agent call failed because the session (or the whole
+ * connection) is already gone: a closed stdio pipe, an unknown session id,
+ * or a method the restarted backend no longer serves. D5 treats these as
+ * "already deleted" and drops local state anyway. Anything else (quota,
+ * auth, provider errors) means the session may be alive — the delete must
+ * throw so the index entry survives. The SDK wraps agent-thrown text as
+ * `internalError({ details })`, so the match runs over the unwrapped text
+ * (same rule as `promptErrorDetails`).
+ */
+const isGoneSessionError = (error) => {
+  const { message } = promptErrorDetails(error);
+  if (error?.code === -32601) return true;
+  return /acp connection closed|unknown session|session not found|no such session|session .* (gone|deleted|expired|does not exist|could not be found)/i.test(message);
+};
+export { canonicalDirectory, normalizeDirectory, directoryKey } from './directory-key.js';
 
 const hasCap = (caps, name) => {
   if (!caps || typeof caps !== 'object') return false;
@@ -159,6 +174,7 @@ export const createAcpSessionService = ({
   idleEvictMs = DEFAULT_IDLE_EVICT_MS,
   sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
   createProjector = createSessionProjector,
+  canonicalDirectory: canonicalDirectoryImpl = canonicalDirectory,
 } = {}) => {
   if (!manager || typeof manager.ensureReady !== 'function') {
     throw new Error('createAcpSessionService requires a backend manager');
@@ -193,6 +209,10 @@ export const createAcpSessionService = ({
   const latestConnected = new Map();
   // In-flight crash end-settlements (best-effort, never block teardown).
   const pendingCrashSettles = new Set();
+  // Keys the user deleted this process lifetime. A close-only backend keeps
+  // the closed session in `session/list`; without the tombstone the next
+  // listing resurrects it into the index and the sidebar.
+  const deletedKeys = new Set();
 
   const emitSync = (directory, syncEvents) => {
     if (!Array.isArray(syncEvents) || syncEvents.length === 0) return;
@@ -438,6 +458,11 @@ export const createAcpSessionService = ({
   };
 
   const ensurePendingMaps = (record) => {
+    // D7: parked permission/form requests are memory-only by design. The
+    // parked entry holds the live JSON-RPC resolver for the agent's turn,
+    // and the agent turn dies with the process — after an API restart the
+    // agent is gone, so there is nothing a persisted request could answer
+    // and every reply 404s. Pending cards are intentionally not restored.
     if (!record.pendingPermissions) record.pendingPermissions = new Map();
     if (!record.pendingForms) record.pendingForms = new Map();
     if (!record.pendingRequests) record.pendingRequests = [];
@@ -585,9 +610,10 @@ export const createAcpSessionService = ({
       if (params?.update?.sessionUpdate === 'config_option_update') {
         refreshConfigCache(backendId, currentConfigOptions(record));
       }
-      // Announcements add transcript messages outside any turn.
+      // Announcements and agent notices add transcript messages outside any
+      // turn; their ids persist so post-restart rebuilds can remove them.
       if (syncEvents.some((event) => event.type === 'message.updated'
-        && (event.properties.info?.role === 'model-switched' || event.properties.info?.role === 'agent-switched'))) {
+        && (event.properties.info?.role === 'model-switched' || event.properties.info?.role === 'agent-switched' || event.properties.info?.role === 'agent-notice'))) {
         persistTranscriptIds(record);
       }
       // Rebuild traffic buffers until the load completes; the service then
@@ -966,7 +992,8 @@ export const createAcpSessionService = ({
     const { record: child } = ensureChildRecord(parent, nativeChildId, { title: childMeta.title });
     if (!child) return;
     emitParentLink(parent, child.key, childMeta.toolCallId);
-    const syncEvents = child.projector.applyUpdate({ sessionId: nativeChildId, update }, { replay: child.replaying === true });
+    // The agent's own subagent turn: never a standalone notice (D2).
+    const syncEvents = child.projector.applyUpdate({ sessionId: nativeChildId, update }, { replay: child.replaying === true, agentTurn: true });
     child.lastUpdateAt = now();
     touch(child);
     sinkFor(child).emit(syncEvents);
@@ -991,7 +1018,7 @@ export const createAcpSessionService = ({
       const child = key ? live.get(key) : null;
       if (!child?.projector || child.backendId !== backendId || child.generation !== generation) return;
       if (params?.type === 'update' && params?.update && typeof params.update === 'object') {
-        const syncEvents = child.projector.applyUpdate({ sessionId: nativeChildId, update: params.update }, { replay: child.replaying === true });
+        const syncEvents = child.projector.applyUpdate({ sessionId: nativeChildId, update: params.update }, { replay: child.replaying === true, agentTurn: true });
         touch(child);
         sinkFor(child).emit(syncEvents);
       } else if (params?.type === 'status') {
@@ -1003,7 +1030,7 @@ export const createAcpSessionService = ({
     if (!child) return;
     emitParentLink(parent, child.key, params?.toolCallId);
     if (params?.type === 'update' && params?.update && typeof params.update === 'object') {
-      const syncEvents = child.projector.applyUpdate({ sessionId: nativeChildId, update: params.update }, { replay: child.replaying === true });
+      const syncEvents = child.projector.applyUpdate({ sessionId: nativeChildId, update: params.update }, { replay: child.replaying === true, agentTurn: true });
       child.lastUpdateAt = now();
       touch(child);
       sinkFor(child).emit(syncEvents);
@@ -1539,7 +1566,7 @@ export const createAcpSessionService = ({
   // -- core operations -------------------------------------------------------
 
   const create = async ({ backendId, directory, title }) => {
-    const cwd = normalizeDirectory(directory);
+    const cwd = await canonicalDirectoryImpl(directory);
     const connected = await connectionOf(backendId);
     const response = await connected.connection.newSession({ cwd, mcpServers: [] });
     const nativeId = response?.sessionId;
@@ -1593,7 +1620,7 @@ export const createAcpSessionService = ({
   };
 
   const listSessions = async ({ directory }) => {
-    const cwd = normalizeDirectory(directory);
+    const cwd = await canonicalDirectoryImpl(directory);
     const wanted = directoryKey(cwd);
     pruneIdle();
     const rows = await index.listByDirectory(cwd);
@@ -1661,6 +1688,7 @@ export const createAcpSessionService = ({
             } catch {
               continue;
             }
+            if (deletedKeys.has(itemKey)) continue;
             const updated = typeof info.updatedAt === 'string' && Number.isFinite(Date.parse(info.updatedAt))
               ? Date.parse(info.updatedAt)
               : now();
@@ -2059,6 +2087,17 @@ export const createAcpSessionService = ({
       }
       throw error;
     }
+    // D4: some agents answer success while keeping the old value (a
+    // cross-provider model switch the provider rejects server-side). The
+    // `currentValue` in the response is the source of truth: when the
+    // agent did not apply the requested value, the projection still syncs
+    // to what the agent reports, but the caller gets a 409 with the
+    // agent's resulting value so the UI's error toast shows it.
+    const applied = Array.isArray(response?.configOptions)
+      ? (response.configOptions.find((option) => option?.id === configId)?.currentValue ?? undefined)
+      : undefined;
+    const want = typeof value === 'boolean' ? value : String(value);
+    const mismatch = applied !== undefined && String(applied) !== String(want);
     if (response?.configOptions) {
       const syncEvents = record.projector.applyUpdate({
         sessionId: record.nativeId,
@@ -2069,9 +2108,18 @@ export const createAcpSessionService = ({
     }
     await index.upsert(key, {
       updated: now(),
-      lastConfig: { ...(record.entry.lastConfig ?? {}), [configId]: value },
+      // Session state follows the agent, not the request: a silent keep
+      // persists the agent's value so reopen/reconcile cannot resurrect
+      // the rejected one.
+      lastConfig: { ...(record.entry.lastConfig ?? {}), [configId]: applied ?? value },
     }).catch(() => {});
     touch(record);
+    if (mismatch) {
+      throw new AcpSessionError(
+        `ACP agent kept ${JSON.stringify(applied)} for ${configId} instead of the requested ${JSON.stringify(want)}`,
+        { code: 'ACP_CONFIG_NOT_APPLIED' },
+      );
+    }
   };
 
   // -- Phase 1.4 operations: permissions, forms, commands, config cache -----
@@ -2125,7 +2173,7 @@ export const createAcpSessionService = ({
   };
 
   const listPendingPermissions = async ({ directory }) => {
-    const cwd = normalizeDirectory(directory);
+    const cwd = await canonicalDirectoryImpl(directory);
     const wanted = directoryKey(cwd);
     const out = [];
     for (const record of live.values()) {
@@ -2212,7 +2260,7 @@ export const createAcpSessionService = ({
   };
 
   const listPendingForms = async ({ directory }) => {
-    const cwd = normalizeDirectory(directory);
+    const cwd = await canonicalDirectoryImpl(directory);
     const wanted = directoryKey(cwd);
     const out = [];
     for (const record of live.values()) {
@@ -2272,20 +2320,40 @@ export const createAcpSessionService = ({
     if (record) answerPendingTree(record);
     const connected = record?.connected ?? await connectionOf(entry.backendId).catch(() => null);
     const caps = sessionCaps(capsOf(connected));
-    if (connected && hasCap(caps, 'delete')) {
-      await connected.connection.deleteSession({ sessionId: entry.nativeId });
-    } else if (connected && hasCap(caps, 'close')) {
-      await connected.connection.closeSession({ sessionId: entry.nativeId });
+    // D5: delete is idempotent. When the agent call fails because the
+    // session or the whole connection is already gone, the local state
+    // (index entry + checkpoint refs) still drops and the delete reports
+    // success with a warning — otherwise the zombie survives restarts.
+    // Any other agent failure still throws (the session may be alive).
+    let warning = null;
+    const forget = async () => {
+      dropLive(key, { onlyRecord: record });
+      deletedKeys.add(key);
+      await index.remove(key);
+      // Checkpoint refs die with the session (best-effort; a GC failure
+      // must not fail the delete).
+      if (checkpoints) {
+        await checkpoints.gc({ sessionKey: key, cwd: entry.cwd }).catch(() => {});
+      }
+      const deleted = { type: 'session.deleted', properties: { sessionID: key } };
+      emitSync(entry.cwd, [deleted]);
+    };
+    if (connected && (hasCap(caps, 'delete') || hasCap(caps, 'close'))) {
+      try {
+        if (hasCap(caps, 'delete')) {
+          await connected.connection.deleteSession({ sessionId: entry.nativeId });
+        } else {
+          await connected.connection.closeSession({ sessionId: entry.nativeId });
+        }
+      } catch (error) {
+        if (!isGoneSessionError(error)) throw error;
+        warning = promptErrorDetails(error).message;
+      }
+    } else if (!connected) {
+      warning = `ACP backend ${entry.backendId} is unreachable; dropped local session state`;
     }
-    dropLive(key, { onlyRecord: record });
-    await index.remove(key);
-    // Checkpoint refs die with the session (best-effort; a GC failure must
-    // not fail the delete).
-    if (checkpoints) {
-      await checkpoints.gc({ sessionKey: key, cwd: entry.cwd }).catch(() => {});
-    }
-    emitSync(entry.cwd, [{ type: 'session.deleted', properties: { sessionID: key } }]);
-    return true;
+    await forget();
+    return warning ? { deleted: true, warning } : true;
   };
 
   const rename = async ({ key, title }) => {
@@ -2647,7 +2715,7 @@ export const createAcpSessionService = ({
   };
 
   const status = async ({ directory }) => {
-    const cwd = normalizeDirectory(directory);
+    const cwd = await canonicalDirectoryImpl(directory);
     const wanted = directoryKey(cwd);
     pruneIdle();
     const statuses = {};

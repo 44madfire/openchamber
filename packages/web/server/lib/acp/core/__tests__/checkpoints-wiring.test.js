@@ -18,10 +18,12 @@ const tempDir = (prefix) => mkdtemp(join(tmpdir(), prefix));
 
 const managers = [];
 const services = [];
+const stores = [];
 
 afterEach(async () => {
   while (services.length > 0) services.pop().dispose();
   while (managers.length > 0) await managers.pop().shutdown();
+  while (stores.length > 0) await stores.pop().dispose().catch(() => {});
 });
 
 const fakeEntry = (overrides = {}) => ({
@@ -60,6 +62,7 @@ const setup = async ({ entry = {}, serviceOptions = {}, indexDir = null } = {}) 
     GIT_CONFIG_SYSTEM: join(home, 'system-gitconfig'),
   };
   const checkpoints = createCheckpointStore({ dataDir, environment: isolatedEnv });
+  if (typeof checkpoints.dispose === 'function') stores.push(checkpoints);
   const service = createAcpSessionService({
     manager, index, registry, checkpoints, settleMs: 5, watchdogMs: 500, ...serviceOptions,
   });

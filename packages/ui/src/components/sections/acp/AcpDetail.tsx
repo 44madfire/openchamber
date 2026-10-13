@@ -320,6 +320,7 @@ export const AcpDetail: React.FC<{ backendId: string | null; creating: boolean }
   const capabilities = backend?.agentCapabilities ? Object.keys(backend.agentCapabilities) : [];
 
   return (
+    <div data-backend-id={backendId ?? ''} className="contents">
     <SettingsPageLayout
       title={(
         <span className="flex items-center gap-2">
@@ -553,5 +554,6 @@ export const AcpDetail: React.FC<{ backendId: string | null; creating: boolean }
         </DialogContent>
       </Dialog>
     </SettingsPageLayout>
+    </div>
   );
 };

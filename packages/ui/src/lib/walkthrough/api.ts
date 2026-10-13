@@ -101,6 +101,8 @@ interface WalkthroughQuery {
   primaryRemote?: string;
   model?: string;
   language?: string;
+  /** ACP session key: routes generation to that session's backend. */
+  sessionKey?: string;
 }
 
 interface WalkthroughReadContextBody {
@@ -120,6 +122,8 @@ interface GenerateWalkthroughBody extends WalkthroughReadContextBody {
   providerID?: string;
   modelID?: string;
   language?: string;
+  /** ACP session key: routes generation to that session's backend. */
+  sessionKey?: string;
 }
 
 interface CancelWalkthroughBody extends WalkthroughReadContextBody {
@@ -153,13 +157,14 @@ export const buildTargetQuery = (directory: string, target: WalkthroughTarget): 
 export async function fetchWalkthrough(
   directory: string,
   target: WalkthroughTarget,
-  options: { model?: string; providerID?: string; modelID?: string; language?: string; signal?: AbortSignal } = {}
+  options: { model?: string; providerID?: string; modelID?: string; language?: string; sessionKey?: string; signal?: AbortSignal } = {}
 ): Promise<WalkthroughResult> {
   const query = buildTargetQuery(directory, target);
   if (options.model) query.model = options.model;
   if (options.providerID) query.providerID = options.providerID;
   if (options.modelID) query.modelID = options.modelID;
   if (options.language) query.language = options.language;
+  if (options.sessionKey) query.sessionKey = options.sessionKey;
   const response = await runtimeFetch(BASE, {
     query,
     signal: options.signal,
@@ -173,7 +178,7 @@ export async function fetchWalkthrough(
 export async function generateWalkthrough(
   directory: string,
   target: WalkthroughTarget,
-  options: { force?: boolean; model?: string; providerID?: string; modelID?: string; language?: string; signal?: AbortSignal } = {}
+  options: { force?: boolean; model?: string; providerID?: string; modelID?: string; language?: string; sessionKey?: string; signal?: AbortSignal } = {}
 ): Promise<WalkthroughResult> {
   const body: GenerateWalkthroughBody = {
     directory,
@@ -185,6 +190,7 @@ export async function generateWalkthrough(
   if (options.providerID) body.providerID = options.providerID;
   if (options.modelID) body.modelID = options.modelID;
   if (options.language) body.language = options.language;
+  if (options.sessionKey) body.sessionKey = options.sessionKey;
   const response = await runtimeFetch(`${BASE}/generate`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },

@@ -1544,10 +1544,15 @@ class OpencodeService {
   /**
    * Forks the session. `before` copies the transcript up to but excluding that
    * message; omitting it copies the whole transcript (OpenCode 2.0.8 replaced
-   * the `boundary` object with this single optional message id).
+   * the `boundary` object with this single optional message id). ACP backends
+   * fork whole transcripts only (T6: no fork-at-message), so an ACP `before`
+   * is rejected and the bare call goes to the ACP fork route.
    */
   async forkSession(sessionId: string, options?: { before?: string; directory?: string | null }): Promise<Session> {
-    if (isAcpSessionId(sessionId)) throw new AcpUnsupportedError("session.fork", sessionId)
+    if (isAcpSessionId(sessionId)) {
+      if (options?.before !== undefined) throw new AcpUnsupportedError("session.fork.before", sessionId)
+      return call("acp.sessions.fork", () => acpClient.forkSession(sessionId, options?.directory))
+    }
     const info = await call("session.fork", () =>
       this.clientFor(options?.directory).session.fork({ sessionID: sessionId, before: options?.before }),
     )

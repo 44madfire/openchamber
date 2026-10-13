@@ -561,6 +561,22 @@ export class AcpClient {
     return parsed.data
   }
 
+  /**
+   * Whole-transcript fork (§3.2, T6: no fork-at-message, so no body). The
+   * returned session carries the new key and is warm. 409
+   * `ACP_FORK_UNSUPPORTED` when the backend does not advertise fork, 409
+   * `ACP_SESSION_BUSY` while a turn runs.
+   */
+  async forkSession(key: string, directory?: string | null): Promise<Session> {
+    const operation = "acp.sessions.fork"
+    const response = await runtimeFetch(`/api/acp/sessions/${encodeURIComponent(key)}/fork`, {
+      method: "POST",
+      headers: { Accept: "application/json", ...directoryHeader(directory) },
+    })
+    const parsed = sessionEnvelopeSchema.safeParse(await readJson(operation, response))
+    if (!parsed.success) throw invalidEnvelope(operation, "session")
+    return parsed.data.session
+  }
   /** Replaces the backend registry (validated server-side); returns fresh statuses. */
   async saveBackends(backends: AcpBackendEntry[]): Promise<AcpBackendStatus[]> {
     const operation = "acp.backends.save"

@@ -62,7 +62,7 @@ export interface AcpProjector {
   seed(response: { configOptions?: unknown; modes?: unknown } | null | undefined, capabilities?: unknown): void;
   setUserTitle(userTitle: string | undefined): void;
   acceptPrompt(messageId: string, parts: Array<{ type: string; text?: string; url?: string; mime?: string; filename?: string }>): AcpSyncEvent[];
-  applyUpdate(notification: SessionNotification, options?: { replay?: boolean }): AcpSyncEvent[];
+  applyUpdate(notification: SessionNotification, options?: { replay?: boolean; agentTurn?: boolean }): AcpSyncEvent[];
   applyPromptResult(result: { stopReason?: string } | null | undefined, flags?: { cancelledByUs?: boolean; declinedInTurn?: boolean }): AcpSyncEvent[];
   applyPromptError(error: { message?: string; code?: unknown } | null | undefined): AcpSyncEvent[];
   applyTerminalError(error: { message?: string; code?: unknown } | null | undefined): AcpSyncEvent[];

@@ -9,7 +9,7 @@ import {
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { useSessionUIStore } from '@/sync/session-ui-store';
-import { useSessionMessageRecords } from '@/sync/sync-context';
+import { useSession, useSessionMessageRecords } from '@/sync/sync-context';
 import { isAcpUnsupported } from '@/lib/acp/capabilities';
 import { acpTurnOf, canRevertTurn } from '@/lib/acp/revert';
 import { isAcpSessionId } from '@/lib/acp/session-key';
@@ -113,10 +113,11 @@ const TimelineDialogBody: React.FC<TimelineDialogBodyProps> = ({
 }) => {
     const { t } = useI18n();
     const messages = useSessionMessageRecords(currentSessionId, currentSessionDirectory);
+    const sessionForCapabilities = useSession(currentSessionId, currentSessionDirectory);
     const revertToMessage = useSessionUIStore((state) => state.revertToMessage);
     const forkFromMessage = useSessionUIStore((state) => state.forkFromMessage);
     const checkpoints = useAcpCheckpoints(currentSessionId, currentSessionDirectory);
-    const forkHidden = isAcpUnsupported(currentSessionId, "fork");
+    const forkHidden = isAcpUnsupported(currentSessionId, "fork", sessionForCapabilities);
     const revertHiddenForMessage = React.useCallback((message: Pick<Message, "metadata" | "role">) => {
         if (!isAcpSessionId(currentSessionId)) return isAcpUnsupported(currentSessionId, "revert");
         return !canRevertTurn(currentSessionId, acpTurnOf(message), checkpoints);

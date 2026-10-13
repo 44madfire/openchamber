@@ -86,6 +86,8 @@ export function registerWalkthroughRoutes(app, { getWalkthroughService, validate
           modelID: modelIdSchema.parse(req.query.modelID),
           language: typeof req.query.language === 'string' ? req.query.language : undefined,
           readContext,
+          sessionKey: typeof req.query.sessionKey === 'string' ? req.query.sessionKey : undefined,
+          backendId: typeof req.query.backendId === 'string' ? req.query.backendId : undefined,
         },
         { getPullRequestDiff },
       );
@@ -168,6 +170,8 @@ export function registerWalkthroughRoutes(app, { getWalkthroughService, validate
           modelID: modelIdSchema.parse(modelID),
           language: typeof language === 'string' ? language : undefined,
           readContext,
+          sessionKey: typeof req.body?.sessionKey === 'string' ? req.body.sessionKey : undefined,
+          backendId: typeof req.body?.backendId === 'string' ? req.body.backendId : undefined,
         },
         { getPullRequestDiff },
       );

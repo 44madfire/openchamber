@@ -22,15 +22,20 @@ export type SmallModelAvailability = 'unknown' | 'available' | 'unavailable';
 
 const MAX_AGE_MS = 60_000;
 
-const toKey = (directory: string | null | undefined): string =>
-  `${getRuntimeKey()}::${directory?.trim() || '__global__'}`;
+const toKey = (directory: string | null | undefined, sessionKey?: string | null): string =>
+  `${getRuntimeKey()}::${directory?.trim() || '__global__'}::${sessionKey?.trim() || ''}`;
 
 const inFlight = new Map<string, Promise<void>>();
 
 interface SmallModelStore {
   byKey: Record<string, { availability: SmallModelAvailability; fetchedAt: number }>;
-  /** Fetch when unknown or stale; concurrent callers share one request. */
-  ensureFresh: (directory?: string | null) => Promise<void>;
+  /**
+   * Fetch when unknown or stale; concurrent callers share one request.
+   * `sessionKey` scopes the answer to an ACP session's backend (the server
+   * reports ACP-scoped availability when given one); OpenCode callers omit
+   * it and the request stays directory-only, as before.
+   */
+  ensureFresh: (directory?: string | null, sessionKey?: string | null) => Promise<void>;
   /** Forget every answer; the next reader fetches again. */
   invalidate: () => void;
 }
@@ -38,8 +43,8 @@ interface SmallModelStore {
 export const useSmallModelStore = create<SmallModelStore>()((set, get) => ({
   byKey: {},
 
-  ensureFresh: async (directory) => {
-    const key = toKey(directory);
+  ensureFresh: async (directory, sessionKey) => {
+    const key = toKey(directory, sessionKey);
     const entry = get().byKey[key];
     if (entry && Date.now() - entry.fetchedAt < MAX_AGE_MS) return;
     const pending = inFlight.get(key);
@@ -48,7 +53,11 @@ export const useSmallModelStore = create<SmallModelStore>()((set, get) => ({
     const request = (async () => {
       try {
         const trimmed = directory?.trim() ?? '';
-        const query = trimmed ? `?directory=${encodeURIComponent(trimmed)}` : '';
+        const params = new URLSearchParams();
+        if (trimmed) params.set('directory', trimmed);
+        const trimmedKey = sessionKey?.trim() ?? '';
+        if (trimmedKey) params.set('sessionKey', trimmedKey);
+        const query = params.size > 0 ? `?${params.toString()}` : '';
         const response = await runtimeFetch(`/api/small-model${query}`);
         if (!response.ok) return;
         // SAFETY: `GET /api/small-model` (server `small-model/routes.js`)
@@ -84,7 +93,8 @@ export const useSmallModelStore = create<SmallModelStore>()((set, get) => ({
 export const selectSmallModelAvailability = (
   state: SmallModelStore,
   directory: string | null | undefined,
-): SmallModelAvailability => state.byKey[toKey(directory)]?.availability ?? 'unknown';
+  sessionKey?: string | null,
+): SmallModelAvailability => state.byKey[toKey(directory, sessionKey)]?.availability ?? 'unknown';
 
 // Logging into a provider, or changing the Small Model setting, changes the
 // answer; a runtime switch points at a different OpenCode entirely.

@@ -77,6 +77,7 @@ export interface CheckpointStore {
   diff(args: { cwd: string; from: string; to: string }): Promise<CheckpointFileDiff[]>;
   restore(args: { cwd: string; tree: string; current?: string }): Promise<CheckpointRestoreResult>;
   gc(args: { sessionKey: string; cwd?: string }): Promise<CheckpointGcResult>;
+  dispose(): Promise<void>;
 }
 
 export function createCheckpointStore(options: CheckpointStoreOptions): CheckpointStore;

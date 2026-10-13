@@ -1,18 +1,40 @@
+import { isAcpSessionKey } from '../acp/core/session-key.js';
+
 export function registerSmallModelRoutes(app, { getSmallModelService }) {
   app.get('/api/small-model', async (req, res) => {
     try {
       const { describeSmallModel, listAuthenticatedProviders, getAcpOneOffFallback } = await getSmallModelService();
+      const sessionKey = typeof req.query.sessionKey === 'string' ? req.query.sessionKey : undefined;
+      const backendId = typeof req.query.backendId === 'string' ? req.query.backendId : undefined;
+      // ACP-scoped availability: the caller named an ACP session or
+      // backend, so report the ACP route — but only when a backend can
+      // actually be resolved, not merely because a provider is wired.
+      if ((backendId || (sessionKey && isAcpSessionKey(sessionKey))) && getAcpOneOffFallback?.()) {
+        const provider = getAcpOneOffFallback();
+        try {
+          const resolvedBackend = await provider.resolveBackend({
+            ...(backendId ? { backendId } : {}),
+            ...(sessionKey ? { sessionKey } : {}),
+          });
+          res.json({
+            available: true,
+            model: { source: 'acp-oneoff', backendId: resolvedBackend },
+            authenticatedProviders: await listAuthenticatedProviders(),
+          });
+          return;
+        } catch {
+          res.json({ available: false, model: null, authenticatedProviders: await listAuthenticatedProviders() });
+          return;
+        }
+      }
       const resolved = await describeSmallModel({
         directory: typeof req.query.directory === 'string' ? req.query.directory : undefined,
         preferredProviderID: typeof req.query.providerID === 'string' ? req.query.providerID : undefined,
         preferredModelID: typeof req.query.modelID === 'string' ? req.query.modelID : undefined,
       });
-      // A wired ACP fallback answers generations OpenCode cannot name a model
-      // for, so the endpoint reports available without probing backends.
-      const fallback = resolved ? null : getAcpOneOffFallback?.();
       res.json({
-        available: Boolean(resolved ?? fallback),
-        model: resolved ?? (fallback ? { source: 'acp-oneoff' } : resolved),
+        available: Boolean(resolved),
+        model: resolved,
         authenticatedProviders: await listAuthenticatedProviders(),
       });
     } catch (error) {
@@ -24,7 +46,7 @@ export function registerSmallModelRoutes(app, { getSmallModelService }) {
   app.post('/api/small-model/generate', async (req, res) => {
     try {
       const { generateSmallModelText } = await getSmallModelService();
-      const { prompt, system, maxOutputTokens, model, directory, preferredProviderID, preferredModelID, sessionKey } = req.body || {};
+      const { prompt, system, maxOutputTokens, model, directory, preferredProviderID, preferredModelID, sessionKey, backendId } = req.body || {};
       const result = await generateSmallModelText({
         prompt,
         system,
@@ -34,6 +56,7 @@ export function registerSmallModelRoutes(app, { getSmallModelService }) {
         preferredProviderID,
         preferredModelID,
         ...(typeof sessionKey === 'string' && sessionKey ? { sessionKey } : {}),
+        ...(typeof backendId === 'string' && backendId ? { backendId } : {}),
       });
       res.json(result);
     } catch (error) {

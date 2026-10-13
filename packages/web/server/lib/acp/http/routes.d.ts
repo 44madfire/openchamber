@@ -7,7 +7,7 @@ import type {
 
 import type { AcpBackendManager, AcpBackendState } from '../core/backend-manager.js';
 import type { AcpOneOffService } from '../core/oneoff.js';
-import type { AcpBackendRegistry } from '../core/registry.js';
+import type { AcpBackendEntry, AcpBackendRegistry } from '../core/registry.js';
 import type { AcpSessionService } from '../core/sessions.js';
 
 // ---------------------------------------------------------------------------
@@ -144,10 +144,12 @@ export interface AcpMessageRecord {
 
 /**
  * `DELETE /api/acp/sessions/:key` — delete (`delete` cap) else close (`close`
- * cap), then drop the index entry. 200 `{ deleted: true }`; unknown key → 404.
+ * cap), then drop the index entry. 200 `{ deleted: true }` (D5: plus an
+ * optional `warning` when the agent side was already gone); unknown key → 404.
  */
 export interface AcpDeleteSessionResponse {
   deleted: true;
+  warning?: string;
 }
 
 /**
@@ -423,6 +425,18 @@ export interface AcpRevertResponse {
   session: AcpSession;
 }
 
+/**
+ * `POST /api/acp/sessions/:key/fork` — whole-transcript fork (§3.2, T6:
+ * no fork-at-message, so no request body). Gated server-side on
+ * `agentCapabilities.sessionCapabilities.fork`; unsupported → 409
+ * `ACP_FORK_UNSUPPORTED`; busy session → 409 `ACP_SESSION_BUSY`. The
+ * forked session (new key) is warm: its transcript is rebuilt via its
+ * own load before the response.
+ */
+export interface AcpForkResponse {
+  session: AcpSession;
+}
+
 // ---------------------------------------------------------------------------
 // One-off generation (Phase 1.6): single-turn ask without a live session.
 // ---------------------------------------------------------------------------
@@ -498,6 +512,8 @@ export interface AcpBackendStatus {
   label: string;
   /** Registry entry enabled flag, flattened (also under `entry.enabled`). */
   enabled: boolean;
+  /** Full registry entry (command/args/env/helper/cache) — the edit form reads it here. */
+  entry: AcpBackendEntry;
   state: AcpBackendState;
   protocolVersion: number | null;
   agentInfo: Implementation | null;

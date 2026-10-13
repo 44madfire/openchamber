@@ -426,3 +426,50 @@ describe('wave-d auth-terminal route', () => {
     expect(payload.code).toBe('ACP_AUTH_NOT_TERMINAL');
   });
 });
+
+describe('explicit fork route', () => {
+  it('returns the forked session', async () => {
+    const session = { id: 'fork-1' };
+    const calls = [];
+    const { call } = setup({
+      sessions: { fork: async (args) => { calls.push(args); return { session }; } },
+    });
+    const { statusCode, payload } = await call('POST', '/api/acp/sessions/:key/fork', {
+      params: { key: 'sess-1' },
+    });
+    expect(statusCode).toBe(200);
+    expect(payload).toEqual({ session });
+    expect(calls).toEqual([{ key: 'sess-1' }]);
+  });
+
+  it('answers 503 without sessions', async () => {
+    const { call } = setup({ sessions: null });
+    const { statusCode, payload } = await call('POST', '/api/acp/sessions/:key/fork', {
+      params: { key: 'sess-1' },
+    });
+    expect(statusCode).toBe(503);
+    expect(payload.code).toBe('ACP_SESSIONS_UNAVAILABLE');
+  });
+
+  it('maps unsupported fork to 409', async () => {
+    const { call } = setup({
+      sessions: { fork: async () => { throw coded('ACP_FORK_UNSUPPORTED'); } },
+    });
+    const { statusCode, payload } = await call('POST', '/api/acp/sessions/:key/fork', {
+      params: { key: 'sess-1' },
+    });
+    expect(statusCode).toBe(409);
+    expect(payload.code).toBe('ACP_FORK_UNSUPPORTED');
+  });
+
+  it('maps busy session to 409', async () => {
+    const { call } = setup({
+      sessions: { fork: async () => { throw coded('ACP_SESSION_BUSY'); } },
+    });
+    const { statusCode, payload } = await call('POST', '/api/acp/sessions/:key/fork', {
+      params: { key: 'sess-1' },
+    });
+    expect(statusCode).toBe(409);
+    expect(payload.code).toBe('ACP_SESSION_BUSY');
+  });
+});

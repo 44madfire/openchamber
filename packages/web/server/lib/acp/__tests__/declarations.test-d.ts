@@ -12,9 +12,10 @@ import type { AcpProjector, AcpSyncEvent } from '../core/projector.js';
 import type { AcpBackendEntry, AcpBackendRegistry } from '../core/registry.js';
 import type { AcpSessionEntry, AcpSessionIndex } from '../core/session-index.js';
 import type { AcpSessionRecord, AcpSessionService } from '../core/sessions.js';
-import type { AcpSession, AcpSyncFrame } from '../http/routes.js';
+import type { AcpForkResponse, AcpSession, AcpSyncFrame } from '../http/routes.js';
  import type { AcpSpawnedAgent } from '../core/spawn.js';
 import type { AcpOneOffHooks, AcpOneOffResult, AcpOneOffService } from '../core/oneoff.js';
+import type { AcpEnterpriseError } from '../core/enterprise.js';
 
 export async function exerciseAcpDeclarations(
   manager: AcpBackendManager,
@@ -135,4 +136,10 @@ export async function exerciseAcpWaveDDeclarations(
   void terminal.methodId;
   const turn: number | null = projector.turnNumberOf('msg_1');
   void turn;
+  const boundary = projector.setRevertBoundary(2, 'msg_2');
+  void boundary.length;
+  const forkResponse: AcpForkResponse = { session: forked.session as unknown as AcpSession };
+  void forkResponse.session.id;
+  const enterprise: AcpEnterpriseError | null = null;
+  void enterprise?.code;
 }

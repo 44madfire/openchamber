@@ -104,6 +104,7 @@ import {
 } from "./location-release"
 import { isChatDirectoryPath } from "@/lib/chatDirectories"
 import { isAcpSessionId } from "@/lib/acp/session-key"
+import { acpRevertedFromTurnOf, resolveRevertBoundaryMessageID } from "@/lib/acp/revert"
 import type { State } from "./types"
 import {
   getSessionMaterializationRequestKey,
@@ -3870,11 +3871,31 @@ const snapshotPartsMatchState = (snapshot: SessionMessageRecordsSnapshot, state:
 
 // Session lists are ID-sorted; snapshot reads run on every store notification,
 // so the revert lookup must not scan the directory's whole session list.
-const getSessionRevertMessageID = (sessions: State["session"], sessionID: string): string | undefined => {
+const getSessionRevert = (sessions: State["session"], sessionID: string): Session | undefined => {
   const result = Binary.search(sessions, sessionID, (session) => session.id)
-  return result.found ? sessions[result.index]?.revert?.messageID : undefined
+  return result.found ? sessions[result.index] : undefined
 }
 
+// The marker the timeline cuts before: the server's boundary id when it names
+// a loaded message, else (ACP in-place reverts) the first message stamped at
+// or after `revertedFromTurn`. Resolved here — not cached raw — so the
+// snapshot key stays the id the cut actually used.
+const getEffectiveRevertMessageID = (state: State, sessionID: string): string | undefined => {
+  const session = getSessionRevert(state.session, sessionID)
+  return resolveRevertBoundaryMessageID(
+    state.message[sessionID] ?? EMPTY_MESSAGES,
+    session?.revert?.messageID,
+    session ? acpRevertedFromTurnOf(session) : null,
+  )
+}
+
+// Session-derived revert identity for subscription guards: the boundary id
+// plus the ACP turn stamp, since an in-place revert can move the cut by
+// stamping a new turn while the boundary id stays put.
+const getSessionRevertKey = (sessions: State["session"], sessionID: string): string => {
+  const session = getSessionRevert(sessions, sessionID)
+  return `${session?.revert?.messageID ?? ""}#${acpRevertedFromTurnOf(session) ?? ""}`
+}
 const getReusableSessionMessageRecordsSnapshot = (
   store: StoreApi<DirectoryStore>,
   state: State,
@@ -3885,7 +3906,7 @@ const getReusableSessionMessageRecordsSnapshot = (
   const cached = readCachedSessionMessageRecordsSnapshot(store, sessionID, suspendPartUpdates, suspendedPartUpdatesMessageID)
   if (!cached) return undefined
   const sourceMessages = state.message[sessionID] ?? EMPTY_MESSAGES
-  const revertMessageID = getSessionRevertMessageID(state.session, sessionID)
+  const revertMessageID = getEffectiveRevertMessageID(state, sessionID)
   if (
     cached.sourceMessages === sourceMessages
     && cached.revertMessageID === revertMessageID
@@ -3904,7 +3925,7 @@ function getVisibleMessagesForSession(state: State, sessionID: string, previous?
   revertMessageID?: string
 } {
   const sourceMessages = state.message[sessionID] ?? EMPTY_MESSAGES
-  const revertMessageID = getSessionRevertMessageID(state.session, sessionID)
+  const revertMessageID = getEffectiveRevertMessageID(state, sessionID)
 
   if (
     previous
@@ -4053,7 +4074,7 @@ export function useUserMessageHistory(sessionID: string, directory?: string): Tr
     })
     const unsubscribeSession = store.subscribe((state, previous) => {
       if (state.session === previous.session) return
-      if (getSessionRevertMessageID(state.session, sessionID) !== getSessionRevertMessageID(previous.session, sessionID)) notify()
+      if (getSessionRevertKey(state.session, sessionID) !== getSessionRevertKey(previous.session, sessionID)) notify()
     })
     return () => {
       unsubscribeMessages()
@@ -4152,7 +4173,7 @@ export function useSessionMessageRecords(
     })
     const unsubscribeSession = store.subscribe((state, previous) => {
       if (state.session === previous.session) return
-      if (getSessionRevertMessageID(state.session, sessionID) !== getSessionRevertMessageID(previous.session, sessionID)) notify()
+      if (getSessionRevertKey(state.session, sessionID) !== getSessionRevertKey(previous.session, sessionID)) notify()
     })
     return () => {
       unsubscribeMessages()

@@ -327,7 +327,7 @@ describe('acp interaction through the real UI reducer (Phase 1.4)', () => {
     feed(store, child.applyUpdate({
       sessionId: 'child',
       update: { sessionUpdate: 'agent_message_chunk', content: { type: 'text', text: 'child text' } },
-    }));
+    }, { agentTurn: true }));
     // The child nests under the parent id.
     const sessions = store.session ?? [];
     expect(sessions.find((session) => session.id === 'ses_acp-omp_rchild')?.parentID).toBe('ses_acp-omp_rparent');

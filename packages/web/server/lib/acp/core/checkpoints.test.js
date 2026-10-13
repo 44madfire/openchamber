@@ -53,6 +53,7 @@ beforeEach(async () => {
 });
 
 afterEach(async () => {
+  await store?.dispose?.().catch(() => {});
   await fs.rm(root, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 });
 });
 
@@ -1062,5 +1063,54 @@ describe('restore robustness', () => {
     } finally {
       fs.lstat = realLstat;
     }
+  });
+});
+
+describe('checkpoint store dispose', () => {
+  it('removes only its own temp dirs and is idempotent', async () => {
+    // A fresh store (not the shared `store`, which afterEach disposes):
+    // snapshot to force temp creation, then dispose must remove exactly
+    // this store's owned dirs — asserted via the store's own hook, never
+    // by scanning the process-global temp dir (other test files create
+    // same-prefix dirs concurrently).
+    const local = createCheckpointStore({ dataDir, environment: isolatedEnv });
+    const cwd = path.join(root, 'dispose-proj');
+    await fs.mkdir(cwd, { recursive: true });
+    await fs.writeFile(path.join(cwd, 'f.txt'), 'x\n');
+    await local.snapshot({ cwd, sessionKey: 'ses_dispose', turn: 1, phase: 'start' });
+    const owned = await local.__testOnly.ownedTempDirs();
+    expect(owned.length).toBeGreaterThan(0);
+    for (const dir of owned) expect((await fs.stat(dir)).isDirectory()).toBe(true);
+    await local.dispose();
+    await local.dispose();
+    for (const dir of owned) await expect(fs.stat(dir)).rejects.toMatchObject({ code: 'ENOENT' });
+  });
+
+  it('awaits an in-flight first-use snapshot and leaks no owned temps', async () => {
+    const local = createCheckpointStore({ dataDir, environment: isolatedEnv });
+    const cwd = path.join(root, 'dispose-race-proj');
+    await fs.mkdir(cwd, { recursive: true });
+    await fs.writeFile(path.join(cwd, 'f.txt'), 'x\n');
+    // First-use race: the snapshot registers synchronously, so a dispose
+    // starting before its temps exist still awaits it and removes what it
+    // created — nothing leaks post-dispose.
+    const pending = local.snapshot({ cwd, sessionKey: 'ses_dispose_race', turn: 1, phase: 'start' });
+    await local.dispose();
+    const { tree } = await pending;
+    expect(tree).toMatch(/^[0-9a-f]{40}$/);
+    const owned = await local.__testOnly.ownedTempDirs();
+    expect(owned.length).toBeGreaterThan(0);
+    for (const dir of owned) await expect(fs.stat(dir)).rejects.toMatchObject({ code: 'ENOENT' });
+  });
+
+  it('refuses new operations once disposal starts', async () => {
+    const local = createCheckpointStore({ dataDir, environment: isolatedEnv });
+    const cwd = path.join(root, 'dispose-refuse-proj');
+    await fs.mkdir(cwd, { recursive: true });
+    await local.dispose();
+    await expect(local.snapshot({ cwd, sessionKey: 'ses_disposed', turn: 1, phase: 'start' }))
+      .rejects.toMatchObject({ code: 'ACP_CHECKPOINT_DISPOSED' });
+    await expect(local.gc({ sessionKey: 'ses_disposed' }))
+      .rejects.toMatchObject({ code: 'ACP_CHECKPOINT_DISPOSED' });
   });
 });

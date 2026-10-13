@@ -81,7 +81,7 @@ export interface AcpSessionService {
   fork(options: { key: string }): Promise<{ session: AcpSessionRecord; events: AcpSyncEvent[] }>;
   hasNativeSession(backendId: string, nativeId: string): boolean;
   config(options: { key: string; configId: string; value: string | number | boolean }): Promise<void>;
-  delete(options: { key: string }): Promise<boolean>;
+  delete(options: { key: string }): Promise<boolean | { deleted: true; warning: string }>;
   rename(options: { key: string; title: string }): Promise<{ session: AcpSessionRecord; events: AcpSyncEvent[] }>;
   status(options: { directory: string }): Promise<Record<string, { type: string; [key: string]: unknown }>>;
   replyPermission(options: { key: string; requestId: string; reply: 'once' | 'always' | 'reject' }): Promise<{ events: AcpSyncEvent[] }>;
@@ -109,6 +109,7 @@ export declare function createAcpSessionService(options?: {
   idleEvictMs?: number;
   sleep?: (ms: number) => Promise<void>;
   createProjector?: (options: { key: string; backendId: string; directory: string; index?: unknown; now?: () => number }) => AcpProjector;
+  canonicalDirectory?: (directory: string) => Promise<string>;
 }): AcpSessionService;
 
 /** The checkpoint-store surface the session service consumes (D12–D14). */

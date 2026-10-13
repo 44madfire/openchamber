@@ -252,6 +252,20 @@ type IdleMessage = MessageBase & {
   outcome: SessionOutcome
 }
 
+/**
+ * D2: agent content emitted outside any prompt turn (a setup banner after
+ * `session/new`, e.g. pi-acp's Skills/Extensions notice). The ACP projector
+ * publishes these as standalone sealed messages so they never merge into a
+ * turn; the text renders like a system notice and title/one-off inputs skip
+ * the role (not conversation). Never produced by OpenCode HTTP sessions.
+ */
+export type AgentNoticeMessage = MessageBase & {
+  role: "agent-notice"
+  time: { created: number }
+  text: string
+  description?: string
+}
+
 export type Message =
   | UserMessage
   | AssistantMessage
@@ -264,7 +278,7 @@ export type Message =
   | ModelSwitchedMessage
   | LocationSwitchedMessage
   | IdleMessage
-
+  | AgentNoticeMessage
 type MessageRole = Message["role"]
 
 // ---------------------------------------------------------------------------

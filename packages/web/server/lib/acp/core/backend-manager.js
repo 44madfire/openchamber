@@ -24,6 +24,7 @@
 import { EventEmitter } from 'node:events';
 
 import { AcpVersionMismatchError } from './protocol-version.js';
+import { AcpEnterpriseError, enterpriseDecisionForBackend } from './enterprise.js';
 import { resolveAuthTerminalInvocation } from './auth-terminal.js';
 import { connectAcpAgent } from './connection.js';
 import { spawnAcpAgent } from './spawn.js';
@@ -228,6 +229,19 @@ export const createAcpBackendManager = ({
     }
     if (entry.enabled === false) {
       throw new AcpBackendError(`ACP backend is disabled: ${backendId}`, { code: 'ACP_BACKEND_DISABLED', backendId });
+    }
+    // Enterprise enforcement at launch (not only at PUT): a registry file
+    // written out-of-band, or before the policy landed, must not bypass
+    // the route check. Read live on every call, like the opencodeBinary
+    // pin — a removed allowlist entry stops serving immediately.
+    const decision = enterpriseDecisionForBackend(entry);
+    if (!decision.allowed) {
+      throw new AcpEnterpriseError(decision.error, { backendId });
+    }
+    // Under the allowlist user env is ignored (it could reroute provider
+    // credentials); outside enterprise mode the entry passes through.
+    if (decision.env !== undefined && decision.env !== entry.env) {
+      return { ...entry, env: decision.env };
     }
     return entry;
   };

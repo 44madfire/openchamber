@@ -96,13 +96,15 @@ interface WalkthroughActions {
   /**
    * `providerID` / `modelID` are the composer's: without a model of its own
    * the walkthrough stays on that provider, and on that model when the
-   * provider has no small one.
+   * provider has no small one. `sessionKey` routes generation to an ACP
+   * session's backend; callers pass it only for an ACP session of this
+   * directory, otherwise the historical provider/model path applies.
    */
-  load: (directory: string, target: WalkthroughTarget, options?: { language?: string; providerID?: string; modelID?: string }) => Promise<void>;
+  load: (directory: string, target: WalkthroughTarget, options?: { language?: string; providerID?: string; modelID?: string; sessionKey?: string }) => Promise<void>;
   generate: (
     directory: string,
     target: WalkthroughTarget,
-    options?: { force?: boolean; language?: string; providerID?: string; modelID?: string }
+    options?: { force?: boolean; language?: string; providerID?: string; modelID?: string; sessionKey?: string }
   ) => Promise<void>;
   cancel: (directory: string, target: WalkthroughTarget) => void;
   requestTarget: (directory: string, target: WalkthroughTarget) => void;
@@ -196,6 +198,7 @@ export const useWalkthroughStore = create<WalkthroughState & WalkthroughActions>
             providerID: options.providerID,
             modelID: options.modelID,
             language: options.language,
+            sessionKey: options.sessionKey,
             signal: controller.signal,
           });
           if (controller.signal.aborted) return;
@@ -272,6 +275,7 @@ export const useWalkthroughStore = create<WalkthroughState & WalkthroughActions>
             providerID: options.providerID,
             modelID: options.modelID,
             language: options.language,
+            sessionKey: options.sessionKey,
             signal: controller.signal,
           });
           if (controller.signal.aborted) return;

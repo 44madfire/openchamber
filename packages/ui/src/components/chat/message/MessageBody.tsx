@@ -266,6 +266,12 @@ interface MessageBodyProps {
     turnGroupingContext?: TurnGroupingContext;
     onRevert?: () => void;
     onFork?: () => void;
+    /**
+     * Whether fork is unavailable for this message's session. Overrides the
+     * id-shape gate below; owners that hold the live session record (with
+     * ACP capabilities) pass their own verdict so capable backends enable it.
+     */
+    forkUnsupported?: boolean;
     errorMessage?: string;
     /** Raw provider response behind `errorMessage`, shown as collapsed details. */
     errorResponseBody?: string;
@@ -1173,10 +1179,12 @@ const AssistantMessageBody = React.memo(({
     footerVariant,
     isDarkTheme = false,
     extraActions,
+    forkUnsupported: forkUnsupportedOverride,
 }: Omit<MessageBodyProps, 'isUser'>) => {
     const { t, locale } = useI18n();
     const chatSurfaceMode = useChatSurfaceMode();
     const streamPhase = _streamPhase;
+    const forkUnsupported = forkUnsupportedOverride ?? isAcpUnsupported(sessionId, 'fork');
     void _allowAnimation;
     const messageContentRef = React.useRef<HTMLDivElement>(null);
     const messageTextContentRef = React.useRef<HTMLDivElement>(null);
@@ -2231,7 +2239,7 @@ const AssistantMessageBody = React.memo(({
                 onSelect: () => { onToggleContextPin(); },
             });
         }
-        if (!isMiniChatSurface && !isReviewSessionView && !isAcpUnsupported(sessionId, 'fork')) {
+        if (!isMiniChatSurface && !isReviewSessionView && !forkUnsupported) {
             actions.push({
                 id: 'fork-from-here',
                 label: t('chat.messageBody.actions.fork'),
@@ -2251,7 +2259,7 @@ const AssistantMessageBody = React.memo(({
             }
         }
         return actions;
-    }, [assistantPlanText, canUseProjectPlanActions, contextPinPending, contextPinned, currentProjectRef, extraActions, handleForkClick, handleForkFromHere, handleSaveAsPlanClick, hasCopyableText, isFooterTTSPlaying, isMiniChatSurface, isReviewSessionView, onCopyLink, onCopyMessage, onToggleContextPin, playFooterTTS, reviewTransferAction, shareMessageAsImage, showMessageTTSButtons, stopFooterTTS, t]);
+    }, [assistantPlanText, canUseProjectPlanActions, contextPinPending, contextPinned, currentProjectRef, extraActions, forkUnsupported, handleForkClick, handleForkFromHere, handleSaveAsPlanClick, hasCopyableText, isFooterTTSPlaying, isMiniChatSurface, isReviewSessionView, onCopyLink, onCopyMessage, onToggleContextPin, playFooterTTS, reviewTransferAction, shareMessageAsImage, showMessageTTSButtons, stopFooterTTS, t]);
 
     const finalTurnActionButtons = (
         <>
@@ -2344,7 +2352,7 @@ const AssistantMessageBody = React.memo(({
                         <TooltipContent sideOffset={6}>{t('chat.messageBody.actions.branchMenu')}</TooltipContent>
                     </Tooltip>
                     <DropdownMenuContent align="end" onPointerDown={(event) => event.stopPropagation()}>
-                        {isAcpUnsupported(sessionId, 'fork') ? null : (
+                        {forkUnsupported ? null : (
                         <DropdownMenuItem className="typography-meta" onSelect={handleForkFromHere}>
                             <Icon name="git-branch" className="h-3.5 w-3.5" />
                             {t('chat.messageBody.actions.fork')}
