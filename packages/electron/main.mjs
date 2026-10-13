@@ -3161,7 +3161,9 @@ const createMiniChatWindow = async ({ mode, sessionId = '', directory = '', proj
   browserWindow.__ocInitScript = buildInitScript(desktopLocalOrigin, state.bootOutcome, desktopApiBaseUrl, desktopClientToken, desktopRequestHeaders);
   browserWindow.__ocMiniChat = true;
   browserWindow.__ocMiniChatSessionId = sessionWindowKey;
-  browserWindow.__ocPinned = false;
+  // A mini chat is for keeping a chat in view while working elsewhere, so it
+  // opens on top of other windows; the pin button unpins this window only.
+  setMiniChatPinned(browserWindow, true);
 
   attachRendererRecovery(browserWindow, { log, label: 'mini chat' });
 

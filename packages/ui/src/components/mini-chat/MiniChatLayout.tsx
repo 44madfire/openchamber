@@ -67,7 +67,8 @@ const MiniChatHeader: React.FC<{ mode: MiniChatMode }> = ({ mode }) => {
     if (!state.newSessionDraft?.open) return '';
     return normalizePath(state.newSessionDraft.bootstrapPendingDirectory ?? state.newSessionDraft.directoryOverride ?? '');
   });
-  const [pinned, setPinned] = React.useState(false);
+  // New mini chat windows open pinned; the shell's answer below confirms it.
+  const [pinned, setPinned] = React.useState(true);
   const macosMajor = typeof window !== 'undefined' ? window.__OPENCHAMBER_MACOS_MAJOR__ ?? 0 : 0;
   const hasMacTrafficLights = Number.isFinite(macosMajor) && macosMajor > 0;
   const { usesFramelessChrome, side: windowControlsSide } = useDesktopWindowControlsLayout();

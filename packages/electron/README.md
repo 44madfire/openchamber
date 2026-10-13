@@ -311,7 +311,8 @@ Use an explicit override when testing a different OpenCode CLI build or when a u
 
 ## Native Features Owned Here
 
-- Floating Mini Chat windows.
+- Floating Mini Chat windows. Each new one opens pinned on top of other
+  windows; its pin button unpins that window only, and nothing is persisted.
 - Quake Mode (Windows Terminal-style): one configurable global hotkey
   (``Ctrl+` `` by default, deliberately without the Win key) toggles the existing
   main window between hidden and a top-attached dropdown on the display holding
