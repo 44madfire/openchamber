@@ -74,6 +74,12 @@ preview's footer holds actions instead of what the agent gets.
 - The board keeps its own project, tab and Linear team per runtime
   (`stores/useSourceBoardStore.ts`). Switching them never changes the app's
   selected project.
+- On desktop and web the board stays mounted once opened and is only hidden
+  (`invisible`, `inert`) while closed, so it reopens where it was left,
+  whichever way it was opened (its button, a link): the previewed item, the
+  search, both scroll positions, a reply draft. A reopen puts focus back in
+  the search. A new project or tab still starts a fresh list. The phone's
+  board page is not kept.
 - The repository tab is the project's host only: GitHub or GitLab, whichever
   `useRepositoryHostProvider` names; a project with no supported remote shows
   Linear alone.

@@ -71,13 +71,31 @@ function useLinearMapping(enabled: boolean, workspaceId: string): LinearMappingR
     return loaded && loaded.workspaceId === workspaceId ? loaded.mapping : null;
 }
 
+/**
+ * Once opened, the board stays mounted and is only hidden while closed, so it
+ * reopens exactly where it was left however it was opened: the item, the
+ * search, the list and preview scrolled where they were, a reply half typed.
+ */
 export const SourceBoardView: React.FC = () => {
     const open = useUIStore((state) => state.isSourceBoardOpen);
-    if (!open) return null;
+    const [opened, setOpened] = React.useState(open);
+    if (open && !opened) setOpened(true);
+    // The search took focus when it mounted; a reopen gives it back, as before.
+    const boardRef = React.useRef<HTMLDivElement>(null);
+    const wasOpenRef = React.useRef(open);
+    React.useEffect(() => {
+        if (open && !wasOpenRef.current) boardRef.current?.querySelector<HTMLInputElement>('input')?.focus({ preventScroll: true });
+        wasOpenRef.current = open;
+    }, [open]);
+    if (!opened) return null;
     return (
-        <div className="absolute inset-0 z-10 flex flex-col bg-background">
+        <div
+            ref={boardRef}
+            className={cn('absolute inset-0 z-10 flex flex-col bg-background', !open && 'invisible')}
+            inert={!open || undefined}
+        >
             {/* Inside the overlay, so a crash shows its fallback in the board's
-                place and closing the board clears it. */}
+                place, with its own way to try again. */}
             <ErrorBoundary><SourceBoard layout="desktop" /></ErrorBoundary>
         </div>
     );
