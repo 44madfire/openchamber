@@ -2572,6 +2572,7 @@ const createBrowserWindow = ({ label, restoreGeometry, url, runtimeConfig = {}, 
       requestHeaders: desktopRequestHeaders,
       bootOutcome: state.bootOutcome || null,
       relayHostId: rendererRuntimeConfig.relayHostId || '',
+      explicitRuntime: runtimeConfig.explicitRuntime === true,
       trayEnabled: isMacMenuBarEnabled(),
     }),
   }));
@@ -3069,7 +3070,7 @@ const openHostWindow = async (host, route = null, { reuseOpenWindow = false } = 
       requestHeaders: sanitizeRuntimeRequestHeaders(host.requestHeaders || {}),
     };
   }
-  const browserWindow = await createAdditionalWindow(withSessionRoute(windowUrl, route), runtimeConfig);
+  const browserWindow = await createAdditionalWindow(withSessionRoute(windowUrl, route), { ...runtimeConfig, explicitRuntime: true });
   if (browserWindow) {
     browserWindow.__ocHostWindowId = host.id;
     browserWindow.__ocHostWindowBaseUrl = windowUrl;
@@ -5339,7 +5340,7 @@ const handleInvoke = async (browserWindow, command, args = {}) => {
       if (shouldUsePackagedUi()) {
         windowUrl = buildPackagedUiUrl('/index.html');
       }
-      await createAdditionalWindow(windowUrl, runtimeConfig);
+      await createAdditionalWindow(windowUrl, { ...runtimeConfig, explicitRuntime: true });
       return null;
     }
 
