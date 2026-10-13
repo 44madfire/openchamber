@@ -14,6 +14,7 @@ import {
 } from 'jsonc-parser';
 import { readSectionEntry, readMcpEntry } from './config-v2.js';
 import { resolveWorktreeDirectory } from './worktree-directory.js';
+import { writeFileAtomic } from './atomic-write.js';
 
 // ============== PATH CONSTANTS ==============
 
@@ -135,7 +136,13 @@ function writeMdFile(filePath, frontmatter, body, { flag = 'w' } = {}) {
     );
     const yamlStr = yaml.stringify(cleanedFrontmatter);
     const content = `---\n${yamlStr}---\n\n${body}`;
-    fs.writeFileSync(filePath, content, { encoding: 'utf8', flag });
+    if (flag === 'wx') {
+      fs.writeFileSync(filePath, content, { encoding: 'utf8', flag });
+    } else {
+      // OpenCode watches its agent and command folders, so a rewrite must not
+      // expose a half-written file.
+      writeFileAtomic(filePath, content);
+    }
     console.log(`Successfully wrote markdown file: ${filePath}`);
   } catch (error) {
     if (error?.code === 'EEXIST') throw error;
@@ -521,50 +528,6 @@ function buildConfigFileContent(desired, existingRaw, existingParse) {
   }
   console.warn('Comment-preserving config edit did not round-trip; writing a normalized config instead');
   return JSON.stringify(desired, null, 2);
-}
-
-const isTransientWindowsReplaceError = (error) =>
-  process.platform === 'win32' && ['EPERM', 'EACCES', 'EBUSY'].includes(error?.code);
-
-/**
- * Replace a file's contents without ever exposing a partial file. OpenCode
- * watches its config files and reloads on every change, so an in-place write
- * can be read half-finished, and a crash mid-write would leave it truncated.
- * The bytes go to a temp file beside the target (same directory, so the rename
- * stays on one filesystem) and are renamed over it. A symlinked target is
- * resolved first, so the link keeps pointing at the file that gets replaced.
- */
-function writeFileAtomic(filePath, content) {
-  const target = fs.existsSync(filePath) ? fs.realpathSync(filePath) : filePath;
-  const mode = fs.existsSync(target) ? fs.statSync(target).mode & 0o7777 : null;
-  const tmp = `${target}.tmp-${process.pid}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-  try {
-    const fd = fs.openSync(tmp, 'wx', mode ?? 0o666);
-    try {
-      fs.writeFileSync(fd, content, 'utf8');
-      fs.fsyncSync(fd);
-    } finally {
-      fs.closeSync(fd);
-    }
-    // openSync's mode is masked by the umask; an existing file keeps its own.
-    if (mode !== null && process.platform !== 'win32') {
-      fs.chmodSync(tmp, mode);
-    }
-    try {
-      fs.renameSync(tmp, target);
-    } catch (error) {
-      if (!isTransientWindowsReplaceError(error)) {
-        throw error;
-      }
-      // Windows rejects the replacement while another process has the target
-      // open; fall back to a direct write rather than failing the save.
-      fs.copyFileSync(tmp, target);
-      fs.rmSync(tmp, { force: true });
-    }
-  } catch (error) {
-    fs.rmSync(tmp, { force: true });
-    throw error;
-  }
 }
 
 function writeConfig(config, filePath = CONFIG_FILE) {

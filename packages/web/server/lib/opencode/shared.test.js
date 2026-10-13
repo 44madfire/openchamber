@@ -696,9 +696,11 @@ describe('writeConfig replaces the file atomically', () => {
 
     writeConfig({ a: 2 }, file);
 
+    // The writer resolves symlinks, and on macOS the temp dir lives under one.
+    const realFile = fs.realpathSync(file);
     expect(seen).toHaveLength(1);
-    expect(path.dirname(seen[0].from)).toBe(path.dirname(file));
-    expect(seen[0].to).toBe(file);
+    expect(path.dirname(seen[0].from)).toBe(path.dirname(realFile));
+    expect(seen[0].to).toBe(realFile);
     expect(seen[0].target).toBe(OLD_CONFIG);
     expect(seen[0].temp).toBe('{\n  // keep me\n  "a": 2,\n}\n');
     expect(fs.statSync(file).ino).not.toBe(inodeBefore);
@@ -713,6 +715,15 @@ describe('writeConfig replaces the file atomically', () => {
     writeConfig({ a: 2 }, file);
 
     expect(fs.statSync(file).mode & 0o777).toBe(0o640);
+  });
+
+  it.skipIf(process.platform === 'win32' || process.getuid?.() === 0)('refuses a read-only config', () => {
+    const file = writeFixture('opencode.jsonc', OLD_CONFIG);
+    fs.chmodSync(file, 0o444);
+
+    expect(() => writeConfig({ a: 2 }, file)).toThrow('Failed to write OpenCode configuration');
+
+    expect(fs.readFileSync(file, 'utf8')).toBe(OLD_CONFIG);
   });
 
   it('still writes the backup of the previous content', () => {
@@ -749,6 +760,17 @@ describe('writeConfig replaces the file atomically', () => {
 
   it.skipIf(process.platform === 'win32')('writes through a symlinked config instead of replacing the link', () => {
     const real = writeFixture('dotfiles/opencode.jsonc', OLD_CONFIG);
+    const link = path.join(FIXTURE_DIR, 'opencode.jsonc');
+    fs.symlinkSync(real, link);
+
+    writeConfig({ a: 2 }, link);
+
+    expect(fs.lstatSync(link).isSymbolicLink()).toBe(true);
+    expect(readConfigFile(real)).toEqual({ a: 2 });
+  });
+
+  it.skipIf(process.platform === 'win32')('creates the file a dangling symlinked config points at', () => {
+    const real = path.join(FIXTURE_DIR, 'dotfiles', 'opencode.jsonc');
     const link = path.join(FIXTURE_DIR, 'opencode.jsonc');
     fs.symlinkSync(real, link);
 
