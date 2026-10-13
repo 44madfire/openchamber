@@ -1031,6 +1031,16 @@ export const ContextPanel: React.FC<{ zone?: ContextZone }> = ({ zone = 'right' 
   // any app that reads other windows, common on macOS); removing it costs a
   // few ms. After the layout effect above, which begins the animation.
   const contentHidden = !useOpenUntilSettled(isOpen);
+  // Expanded, and through the collapse animation, the zone floats over the
+  // chat while a spacer holds its docked size in the layout, so the chat
+  // never changes size under it. Back in the layout at once on collapse, the
+  // zone started at the full area and squeezed the chat to nothing: the
+  // transcript measured its rows at that width, thousands of pixels tall, and
+  // stayed blank until the session was reopened.
+  const overlaid = useOpenUntilSettled(isExpanded);
+  const dockedSize = !isOpen
+    ? (workStatusColumn ? `${WORK_STATUS_COLUMN_WIDTH}px` : '0px')
+    : `${size}px`;
 
   const panelStyle: React.CSSProperties = {
     [geometry.sizeVariable]: isOpen && isExpanded ? expandedSize : `${size}px`,
@@ -1049,6 +1059,14 @@ export const ContextPanel: React.FC<{ zone?: ContextZone }> = ({ zone = 'right' 
     : `calc(var(${geometry.sizeVariable}) - ${geometry.gutterSize})`;
 
   return (
+    <>
+    {overlaid ? (
+      <div
+        aria-hidden="true"
+        className="flex-shrink-0"
+        style={isVertical ? { height: dockedSize, maxHeight: '100%' } : { width: dockedSize, maxWidth: '100%' }}
+      />
+    ) : null}
     <aside
       ref={panelRef}
       data-context-panel="true"
@@ -1070,7 +1088,7 @@ export const ContextPanel: React.FC<{ zone?: ContextZone }> = ({ zone = 'right' 
         // Anchored to its window edge while expanded: `inset-0` would teleport
         // the far edge instantly (position does not transition), so only the
         // size animates and the zone grows toward the chat from where it docks.
-        isExpanded
+        overlaid
           ? geometry.expanded
           : isVertical ? 'relative w-full flex-shrink-0' : 'relative h-full flex-shrink-0',
         isVertical ? 'transition-[height]' : 'transition-[width]',
@@ -1135,5 +1153,6 @@ export const ContextPanel: React.FC<{ zone?: ContextZone }> = ({ zone = 'right' 
       </div>
       </div>
     </aside>
+    </>
   );
 };
