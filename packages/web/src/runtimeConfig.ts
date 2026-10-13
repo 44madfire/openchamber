@@ -81,26 +81,25 @@ export const createConfiguredWebAPIs = () => {
     void refreshLocalRuntimeUrlAuthToken(localOrigin).catch(() => {});
   }
   installRuntimeFetchBridge();
-  // Desktop only: reconnect a relay-capable host now that the fetch bridge is
-  // installed — either the host this window was opened for (injected id) or the
-  // default host on relaunch. A window opened for a specific instance carries an
-  // explicit runtime and keeps it; only its own relay id may override that, or
-  // the default-host relaunch would hijack the instance the user asked for.
-  // No-op elsewhere; resolves in milliseconds when no relay host is involved.
-  // main.tsx holds the app render on this promise so the user sees the splash
-  // instead of a transient auth screen against an endpoint still being selected.
-  const keepInjectedRuntime = explicitRuntime && !relayHostId;
-  desktopRelayRestoreReady = (keepInjectedRuntime
-    ? Promise.resolve()
-    : Promise.race([
-      // An explicit relay target may already carry its runtime key from boot
-      // (`relayHostId` sets it), which would make the restore skip an
-      // unconnected window; force it so the tunnel is actually opened.
-      restoreDesktopRelayRuntime(relayHostId || undefined, relayHostId ? { reconnectActive: true } : undefined).catch(() => {}),
-      // Never hold the app hostage: a stuck probe/tunnel gives up to the UI.
-      new Promise<void>((resolve) => { window.setTimeout(resolve, 10_000); }),
-    ])
-  ).then(() => {
+  // Desktop only: connect a relay-capable host now that the fetch bridge is
+  // installed. No-op elsewhere; resolves in milliseconds when no relay host is
+  // involved. main.tsx holds the app render on this promise so the user sees the
+  // splash instead of a transient auth screen against an endpoint still being
+  // selected.
+  const restoreRelayRuntime = (): Promise<void> => {
+    // Opened for this relay host. Boot already set its runtime key, so force the
+    // restore past its already-active check, or the tunnel never opens.
+    if (relayHostId) return restoreDesktopRelayRuntime(relayHostId, { reconnectActive: true });
+    // Opened for a specific direct instance: keep the injected endpoint.
+    if (explicitRuntime) return Promise.resolve();
+    // Main window and menu New Window: the default host on relaunch.
+    return restoreDesktopRelayRuntime();
+  };
+  desktopRelayRestoreReady = Promise.race([
+    restoreRelayRuntime().catch(() => {}),
+    // Never hold the app hostage: a stuck probe/tunnel gives up to the UI.
+    new Promise<void>((resolve) => { window.setTimeout(resolve, 10_000); }),
+  ]).then(() => {
     // Relay-capable windows may select a reachable direct leg before React
     // subscribes to runtime-change events, so bind the SDK explicitly.
     opencodeClient.reconnectToRuntimeBaseUrl();

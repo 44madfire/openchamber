@@ -3107,7 +3107,9 @@ const buildMiniChatUrl = ({ mode, sessionId, directory, projectId }) => {
 };
 
 const miniChatSessionWindowKey = (runtimeConfig, sessionId) => {
-  const runtimeKey = normalizeHostUrl(runtimeConfig?.apiBaseUrl || state.apiBaseUrl || state.localOrigin || state.sidecarUrl || '') || 'local';
+  const runtimeKey = runtimeConfig?.relayHostId
+    ? `host:${runtimeConfig.relayHostId}`
+    : normalizeHostUrl(runtimeConfig?.apiBaseUrl || state.apiBaseUrl || state.localOrigin || state.sidecarUrl || '') || 'local';
   return `${runtimeKey}\n${sessionId}`;
 };
 
@@ -3128,16 +3130,21 @@ const getWindowRuntimeConfig = (browserWindow) => {
 
 const createMiniChatWindow = async ({ mode, sessionId = '', directory = '', projectId = '', runtimeConfig = {} } = {}) => {
   const relayHostId = typeof runtimeConfig.relayHostId === 'string' ? runtimeConfig.relayHostId : '';
-  const effectiveRuntimeConfig = {
-    // A relay-target window resolves its own base from the host's transport, so
-    // the app's startup base (which may be another instance) must not stand in.
-    apiBaseUrl: relayHostId
-      ? (normalizeHostUrl(runtimeConfig.apiBaseUrl || '') || '')
-      : normalizeHostUrl(runtimeConfig.apiBaseUrl || state.apiBaseUrl || state.localOrigin || state.sidecarUrl || ''),
-    clientToken: sanitizeClientTokenForStorage(runtimeConfig.clientToken || state.clientToken || ''),
-    requestHeaders: sanitizeRuntimeRequestHeaders(runtimeConfig.requestHeaders || state.requestHeaders || {}),
-    relayHostId,
-  };
+  // A relay-target window resolves its own transport from the host id, so the
+  // app's startup runtime (another instance) must not stand in for any of it.
+  const effectiveRuntimeConfig = relayHostId
+    ? {
+      apiBaseUrl: '',
+      clientToken: sanitizeClientTokenForStorage(runtimeConfig.clientToken || ''),
+      requestHeaders: sanitizeRuntimeRequestHeaders(runtimeConfig.requestHeaders || {}),
+      relayHostId,
+    }
+    : {
+      apiBaseUrl: normalizeHostUrl(runtimeConfig.apiBaseUrl || state.apiBaseUrl || state.localOrigin || state.sidecarUrl || ''),
+      clientToken: sanitizeClientTokenForStorage(runtimeConfig.clientToken || state.clientToken || ''),
+      requestHeaders: sanitizeRuntimeRequestHeaders(runtimeConfig.requestHeaders || state.requestHeaders || {}),
+      relayHostId: '',
+    };
   const sessionWindowKey = mode === 'session' && sessionId ? miniChatSessionWindowKey(effectiveRuntimeConfig, sessionId) : '';
   if (mode === 'session' && sessionId) {
     const existing = state.miniChatWindowsBySession.get(sessionWindowKey);

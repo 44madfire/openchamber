@@ -148,6 +148,6 @@ describe('createConfiguredWebAPIs', () => {
 
     createConfiguredWebAPIs();
 
-    expect(restoreDesktopRelayRuntime).toHaveBeenCalledWith(undefined, undefined);
+    expect(restoreDesktopRelayRuntime).toHaveBeenCalledWith();
   });
 });
