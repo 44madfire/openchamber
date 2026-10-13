@@ -1,4 +1,4 @@
-import { asNonEmptyString } from '../shared/guards.js';
+import { asNonEmptyString, isBoolean } from '../shared/guards.js';
 import {
   OPENCHAMBER_AGENT_TOOL_ACTION_DEFINITIONS,
   OPENCHAMBER_AGENT_TOOL_ACTIONS,
@@ -177,6 +177,29 @@ const MEMORY_TOOL_DESCRIPTION = "Keep what you learn across sessions, so the use
 const KNOWLEDGE_TOOL_DESCRIPTION = "The project's Notes, Todos and Plans: what the user keeps in OpenChamber's Project knowledge panel, shared by every session in the project. Use one action per call; list shows everything at once. Notes are short facts and decisions the user wants at hand; what you learn for yourself belongs in memory. Todos are the user's backlog: add one when the user asks, or when you stop with work left for later, never to track the steps of your current task. Plans are markdown files: list gives each one's path, so read a plan and make small changes to it with your own file tools, and use save to create a plan or replace it whole. Start a plan with a # title line and a short ## Steps checklist of its coarse steps (- [ ] each), then the detail. When you write a plan for the user, save it, show it, and wait: the user reads it, comments on lines, asks for changes, and sends it to a session when it is ready. When you implement a saved plan, tick its step (- [x]) in the file as you finish each one, so the user sees the progress; change nothing else in it unless the user asks, and never drop a constraint from it on your own. Before replacing a note or a plan whole, pass the text you last read as expected: the save then fails instead of overwriting a change made after your read. Scope with projectId or directory, or leave both out for this session's project.";
 
 const NOTIFY_TOOL_DESCRIPTION = "Send the user a notification through OpenChamber, so they learn about something without watching the session. Use it when you finish work that took long enough for the user to step away, when you are blocked on something only the user can resolve, or when the user asked to be told about something. Do not use it for routine progress, for every finished step, or to repeat what your reply already says to a user who is present. Keep the title short and put detail in the body.";
+
+// A field means the same thing in every tool that declares it, so one set
+// covers them all.
+const BOOLEAN_PARAMETER_NAMES = [...new Set([
+  ALL_PARAMETER_PROPERTIES,
+  MEMORY_PARAMETER_PROPERTIES,
+  KNOWLEDGE_PARAMETER_PROPERTIES,
+  NOTIFY_PARAMETER_PROPERTIES,
+].flatMap((properties) => Object.entries(properties)
+  .filter(([, schema]) => schema.type === 'boolean')
+  .map(([name]) => name)))];
+
+/**
+ * The plugin forwards the model's arguments as raw JSON, so a boolean can
+ * arrive as the string "true", and every `=== true` downstream would read it as
+ * false and quietly do something else (a dispatch without Goal Mode, a result
+ * never delivered). Such a call fails here with the field named, so the model
+ * retries it with a real boolean.
+ */
+const nonBooleanParameterError = (input) => {
+  const field = BOOLEAN_PARAMETER_NAMES.find((name) => input[name] !== undefined && !isBoolean(input[name]));
+  return field ? `${field} must be a boolean` : null;
+};
 
 const DISPATCH_ACTIONS = new Set(['session.create', 'session.send', 'session.fork']);
 
@@ -465,7 +488,7 @@ export const createAgentToolRuntime = (dependencies) => {
     if (!ACTIONS.has(action)) {
       return createResult({ ok: false, action, error: { message: `Unsupported OpenChamber action: ${action}`, kind: 'usage' } });
     }
-    const usageError = agentOnlyUsageError(action, payload.input ?? {});
+    const usageError = nonBooleanParameterError(payload.input ?? {}) ?? agentOnlyUsageError(action, payload.input ?? {});
     if (usageError) {
       return createResult({ ok: false, action, error: { message: usageError, kind: 'usage' } });
     }

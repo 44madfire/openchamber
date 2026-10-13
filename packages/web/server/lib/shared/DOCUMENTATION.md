@@ -25,9 +25,8 @@ Variants that answer differently for real inputs stay with their owner.
   objects, class instances, `Date`, `Map`, boxed primitives, and null-prototype
   objects.
 - `isBoolean(value)`: true only for a primitive boolean (`true` or `false`).
-  `Object.prototype.toString` reports a boxed `Boolean` as `[object Boolean]`
-  too, so the identity check keeps the guard to primitives. Use it where a value
-  crosses a JSON boundary and must be a real boolean, not the string `"true"`.
+  Use it where a value crosses a JSON boundary and must be a real boolean, not
+  the string `"true"`.
 - Modules that call the predicate `isObjectRecord` import `isRecord` under that
   local name; the shared module exposes one canonical export.
 - `asNonEmptyString(value)`: trims a string and returns it, or returns `null`

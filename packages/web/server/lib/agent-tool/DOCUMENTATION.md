@@ -97,6 +97,11 @@ both settings are `false`.
   `lastAssistant` on a dispatch with a usage error naming `returnResult`
   (`agentOnlyUsageError`). `session.messages` does not wait either: it reads
   what is there. The control service keeps `wait` for the CLI only.
+- Boolean inputs are checked at the tool boundary: the plugin forwards raw
+  JSON, so a field declared `type: 'boolean'` in any tool's schema that
+  arrives as anything else (the string `"true"`) fails the call with a usage
+  error naming the field (`nonBooleanParameterError`), before any action runs.
+  Downstream `=== true` checks would otherwise read it as false.
 - The description draws the line against OpenCode's own `subagent` tool:
   `subagent` when the agent delegates part of its own task and wants the
   answer for itself, `session.*` when the user asks for a separate session

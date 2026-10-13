@@ -35,13 +35,10 @@ export const isPlainObject = (value) => typeof value === 'object'
   && Object.getPrototypeOf(value) === Object.prototype;
 
 /**
- * True only for a primitive boolean. `Object.prototype.toString` distinguishes
- * a boxed `Boolean` from the primitive and reports both as `[object Boolean]`,
- * so the identity check keeps the guard to primitives. Use this where a value
- * crosses a JSON boundary and must be a real boolean, not the string `"true"`.
+ * True only for a primitive boolean. Use this where a value crosses a JSON
+ * boundary and must be a real boolean, not the string `"true"`.
  */
-export const isBoolean = (value) => Object.prototype.toString.call(value) === '[object Boolean]'
-  && (value === true || value === false);
+export const isBoolean = (value) => value === true || value === false;
 
 /**
  * True for any non-null, non-array object: plain objects, class instances,
