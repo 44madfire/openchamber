@@ -42,7 +42,7 @@
     "lint:ui": "bun run --cwd packages/ui lint",
     "lint:electron": "bun run --cwd packages/electron lint",
     "lint:mobile": "bun run --cwd packages/mobile lint",
-    "lint:anti-slop": "oxlint",
+    "lint:anti-slop": "oxlint -c oxlint.anti-slop.config.ts",
     "check:changed": "node scripts/check-changed.mjs",
     "test": "node scripts/run-isolated-tests.mjs scripts && bun run --cwd packages/sdk test && bun run --cwd packages/ui test && bun run --cwd packages/vscode test && bun run --cwd packages/electron test && bun run --cwd packages/web test",
     "clean": "node scripts/clean.mjs",

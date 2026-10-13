@@ -23,7 +23,7 @@
     "build:watch": "bun ../../scripts/build-builtin-extensions.mjs && vite build --watch",
     "prepack": "bun ../../scripts/build-builtin-extensions.mjs",
     "type-check": "tsc -b",
-    "lint": "oxlint -c ../../oxlint.lint.config.ts --report-unused-disable-directives src",
+    "lint": "oxlint -c ../../oxlint.config.ts --report-unused-disable-directives src",
     "test": "vitest run",
     "start": "node bin/cli.js serve"
   },

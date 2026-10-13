@@ -27,7 +27,7 @@
     "open:ios": "cap open ios",
     "open:android": "cap open android",
     "type-check": "tsc --noEmit",
-    "lint": "oxlint -c ../../oxlint.lint.config.ts --report-unused-disable-directives ."
+    "lint": "oxlint -c ../../oxlint.config.ts --report-unused-disable-directives ."
   },
   "dependencies": {
     "@aparajita/capacitor-secure-storage": "^8.0.0",

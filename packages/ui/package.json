@@ -9,7 +9,7 @@
     "build": "tsc -b",
     "build:ghostty-wasm": "bash scripts/build-libghostty-wasm.sh",
     "type-check": "tsc -b",
-    "lint": "oxlint -c ../../oxlint.lint.config.ts --report-unused-disable-directives src",
+    "lint": "oxlint -c ../../oxlint.config.ts --report-unused-disable-directives src",
     "test": "node ../../scripts/run-isolated-tests.mjs src"
   },
   "dependencies": {
