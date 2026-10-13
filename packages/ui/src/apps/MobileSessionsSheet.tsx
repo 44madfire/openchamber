@@ -35,7 +35,14 @@ import { Icon } from '@/components/icon/Icon';
 import type { IconName } from '@/components/icon/icons';
 import { NewWorktreeDialog } from '@/components/session/NewWorktreeDialog';
 import { Button } from '@/components/ui/button';
-import { MobileOverlayPanel } from '@/components/ui/MobileOverlayPanel';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { ScrollShadow } from '@/components/ui/ScrollShadow';
 import { toast } from '@/components/ui';
 import { getProjectLabel, normalizePath } from './mobilePaths';
@@ -162,6 +169,9 @@ const VIEW_MODE_OPTIONS = [
 ] as const;
 
 type SidebarViewMode = (typeof VIEW_MODE_OPTIONS)[number][0];
+
+/** Menu rows tall enough for a thumb. */
+const MOBILE_MENU_ITEM_CLASS = 'min-h-10 items-center justify-between';
 
 type ProjectMeta = {
   id: string;
@@ -845,7 +855,6 @@ export const MobileSessionsSheet: React.FC<MobileSessionsSheetProps> = ({ open, 
   } | null>(null);
   // Bumped to force a re-list of worktrees (e.g. after one is deleted in the editor).
   const [worktreeRefreshKey, setWorktreeRefreshKey] = React.useState(0);
-  const [sortPanelOpen, setSortPanelOpen] = React.useState(false);
   const [directoryDialogOpen, setDirectoryDialogOpen] = React.useState(false);
   const [newWorktreeDialogOpen, setNewWorktreeDialogOpen] = React.useState(false);
   const [worktreeDialogProjectId, setWorktreeDialogProjectId] = React.useState<string | null>(null);
@@ -1548,25 +1557,12 @@ export const MobileSessionsSheet: React.FC<MobileSessionsSheetProps> = ({ open, 
     void updateDesktopSettings({ sidebarDetailedZoneRows: next });
   };
 
-  /** A display-panel switch; choosing closes the panel, like the other choices there. */
-  const renderPanelToggle = (labelKey: I18nKey, checked: boolean, onToggle: () => void, className?: string): React.ReactNode => (
-    <button
-      type="button"
-      aria-pressed={checked}
-      className={cn(
-        'flex min-h-11 w-full items-center justify-between rounded-lg px-3 text-start transition-colors active:bg-interactive-active focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring',
-        checked ? 'text-primary' : 'text-foreground',
-        className,
-      )}
-      onClick={() => {
-        onToggle();
-        setSortPanelOpen(false);
-      }}
-      style={{ touchAction: 'manipulation' }}
-    >
-      <span className="typography-ui-label">{t(labelKey)}</span>
-      {checked ? <Icon name="check" className="size-4" /> : null}
-    </button>
+  /** One choice or switch in the display menu, checked when it is in effect. */
+  const renderMenuChoice = (key: string, labelKey: I18nKey, checked: boolean, onSelect: () => void): React.ReactNode => (
+    <DropdownMenuItem key={key} onClick={onSelect} className={MOBILE_MENU_ITEM_CLASS}>
+      <span>{t(labelKey)}</span>
+      {checked ? <Icon name="check" className="size-4 text-primary" /> : null}
+    </DropdownMenuItem>
   );
 
   const handleReorderDragEnd = (event: DragEndEvent) => {
@@ -1845,31 +1841,64 @@ export const MobileSessionsSheet: React.FC<MobileSessionsSheetProps> = ({ open, 
   // a project row for a setting touched once a month.
   // Reachable with a single project too: the panel also holds the view switch,
   // which matters long before a second project exists.
+  // The menu also starts reordering; while it runs, the menu's button gives
+  // way to Done.
   const sortToggle = !editingOrder && !normalizedQuery && projectsMeta.length > 0 ? (
-    <Button
-      type="button"
-      variant="chip"
-      size="sm"
-      aria-label={t('sessions.sidebar.header.displayMode.label')}
-      title={t('sessions.sidebar.header.displayMode.label')}
-      onClick={() => setSortPanelOpen(true)}
-      style={{ touchAction: 'manipulation' }}
-    >
-      <Icon name="equalizer-2" className="size-4" />
-    </Button>
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button
+          type="button"
+          variant="chip"
+          size="sm"
+          aria-label={t('sessions.sidebar.header.displayMode.label')}
+          title={t('sessions.sidebar.header.displayMode.label')}
+          style={{ touchAction: 'manipulation' }}
+        >
+          <Icon name="equalizer-2" className="size-4" />
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="w-64">
+        <DropdownMenuLabel>{t('mobile.sessions.viewMode.label')}</DropdownMenuLabel>
+        {VIEW_MODE_OPTIONS.map(([mode, labelKey]) => renderMenuChoice(mode, labelKey, sidebarViewMode === mode, () => handleViewModeChange(mode)))}
+        {/* Project order only means something while projects are groups. */}
+        {sidebarViewMode === 'timeline' ? null : (
+          <>
+            <DropdownMenuSeparator />
+            <DropdownMenuLabel>{t('sessions.sidebar.header.actions.sortProjects')}</DropdownMenuLabel>
+            {PROJECT_SORT_OPTIONS.map(([order, labelKey]) => renderMenuChoice(order, labelKey, projectSortOrder === order, () => handleProjectSortChange(order)))}
+          </>
+        )}
+        <DropdownMenuSeparator />
+        {renderMenuChoice('pinned', 'sessions.sidebar.header.displayMode.showPinned', showPinnedSection, handleTogglePinnedSection)}
+        {sessionWorkEnabled ? renderMenuChoice('work', 'sessions.sidebar.header.displayMode.showWork', showWorkSection, handleToggleWorkSection) : null}
+        {/* List rows always carry two lines; Tree keeps Pinned and In work on one unless asked. */}
+        {sidebarViewMode === 'timeline' ? null : renderMenuChoice('detailed', 'sessions.sidebar.header.displayMode.detailedZoneRows', detailedZoneRows, handleToggleDetailedZoneRows)}
+        {canEditOrder ? (
+          <>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem onClick={() => setEditingOrder(true)} className={MOBILE_MENU_ITEM_CLASS}>
+              <span className="flex items-center gap-2">
+                <Icon name="drag-move-2" className="size-4" />
+                {t('mobile.sessions.editOrder')}
+              </span>
+            </DropdownMenuItem>
+          </>
+        ) : null}
+      </DropdownMenuContent>
+    </DropdownMenu>
   ) : null;
 
-  const editToggle = canEditOrder ? (
+  const doneEditingButton = editingOrder ? (
     <Button
       type="button"
       variant="chip"
       size="sm"
-      aria-label={editingOrder ? t('mobile.sessions.doneEditing') : t('mobile.sessions.editOrder')}
-      aria-pressed={editingOrder}
-      onClick={() => setEditingOrder((value) => !value)}
+      aria-label={t('mobile.sessions.doneEditing')}
+      aria-pressed
+      onClick={() => setEditingOrder(false)}
       style={{ touchAction: 'manipulation' }}
     >
-      {editingOrder ? <RiCheckLine className="size-4" /> : <RiEdit2Line className="size-4" />}
+      <RiCheckLine className="size-4" />
     </Button>
   ) : null;
 
@@ -1906,11 +1935,11 @@ export const MobileSessionsSheet: React.FC<MobileSessionsSheetProps> = ({ open, 
   // it is the one action people reach for without looking, so it must not slide
   // around as the icons beside it come and go.
   const trailingActions =
-    newChatButton || addProjectButton || sortToggle || editToggle ? (
+    newChatButton || addProjectButton || sortToggle || doneEditingButton ? (
       <>
         {addProjectButton}
         {sortToggle}
-        {editToggle}
+        {doneEditingButton}
         {newChatButton}
       </>
     ) : null;
@@ -2085,15 +2114,7 @@ export const MobileSessionsSheet: React.FC<MobileSessionsSheetProps> = ({ open, 
                           {chatRootCount}
                         </span>
                       </button>
-                      {/* Same "+" every project header carries, so a new chat is
-                          reachable from its own section, not only the title bar. */}
-                      {!editingOrder ? (
-                        <NewSessionIconButton
-                          className="me-2"
-                          label={t('mobile.sessions.newChat')}
-                          onClick={handleStartNewChat}
-                        />
-                      ) : null}
+                      {/* No "+" here: the header's New chat starts the same chat. */}
                     </div>
                     <MobileDisclosure open={chatsExpanded}>{() => (
                       <div className="pb-2">
@@ -2408,48 +2429,12 @@ export const MobileSessionsSheet: React.FC<MobileSessionsSheetProps> = ({ open, 
                 variant="default"
                 size="lg"
                 className="w-10 px-0"
-                onClick={footer.onOpenScheduled}
-                aria-label={t('sessions.sidebar.header.actions.scheduledTasks')}
-                title={t('sessions.sidebar.header.actions.scheduledTasks')}
-                style={{ touchAction: 'manipulation' }}
-              >
-                <Icon name="calendar-schedule" className="size-5" />
-              </Button>
-              <Button
-                type="button"
-                variant="default"
-                size="lg"
-                className="w-10 px-0"
                 onClick={footer.onOpenSourceBoard}
                 aria-label={t('sourceBoard.title')}
                 title={t('sourceBoard.title')}
                 style={{ touchAction: 'manipulation' }}
               >
                 <Icon name="todo" className="size-5" />
-              </Button>
-              <Button
-                type="button"
-                variant="default"
-                size="lg"
-                className="w-10 px-0"
-                onClick={footer.onOpenArchive}
-                aria-label={t('sessions.sidebar.nav.archive')}
-                title={t('sessions.sidebar.nav.archive')}
-                style={{ touchAction: 'manipulation' }}
-              >
-                <Icon name="archive" className="size-5" />
-              </Button>
-              <Button
-                type="button"
-                variant="default"
-                size="lg"
-                className="w-10 px-0"
-                onClick={footer.onOpenUsage}
-                aria-label={t('usageStats.openAction')}
-                title={t('usageStats.openAction')}
-                style={{ touchAction: 'manipulation' }}
-              >
-                <Icon name="bar-chart" className="size-5" />
               </Button>
               <Button
                 type="button"
@@ -2463,6 +2448,43 @@ export const MobileSessionsSheet: React.FC<MobileSessionsSheetProps> = ({ open, 
               >
                 <Icon name="settings-3" className="size-5" />
               </Button>
+              {/* The pages opened less often share one menu, so the instance
+                  name keeps the width. */}
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    type="button"
+                    variant="default"
+                    size="lg"
+                    className="w-10 px-0"
+                    aria-label={t('mobile.sessions.footer.more')}
+                    title={t('mobile.sessions.footer.more')}
+                    style={{ touchAction: 'manipulation' }}
+                  >
+                    <Icon name="more" className="size-5" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent side="top" align="end" className="w-56">
+                  <DropdownMenuItem onClick={footer.onOpenScheduled} className={MOBILE_MENU_ITEM_CLASS}>
+                    <span className="flex items-center gap-2">
+                      <Icon name="calendar-schedule" className="size-4" />
+                      {t('sessions.sidebar.header.actions.scheduledTasks')}
+                    </span>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={footer.onOpenArchive} className={MOBILE_MENU_ITEM_CLASS}>
+                    <span className="flex items-center gap-2">
+                      <Icon name="archive" className="size-4" />
+                      {t('sessions.sidebar.nav.archive')}
+                    </span>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={footer.onOpenUsage} className={MOBILE_MENU_ITEM_CLASS}>
+                    <span className="flex items-center gap-2">
+                      <Icon name="bar-chart" className="size-4" />
+                      {t('usageStats.openAction')}
+                    </span>
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
             </div>
           </div>
         ) : null}
@@ -2493,63 +2515,6 @@ export const MobileSessionsSheet: React.FC<MobileSessionsSheetProps> = ({ open, 
           onClose={() => setEditingProjectId(null)}
           onWorktreesChanged={() => setWorktreeRefreshKey((value) => value + 1)}
         />
-        <MobileOverlayPanel
-          open={sortPanelOpen}
-          onClose={() => setSortPanelOpen(false)}
-          title={t('sessions.sidebar.header.displayMode.label')}
-        >
-          <div className="flex flex-col">
-            <span className="px-3 pb-1 pt-1 typography-micro font-semibold uppercase tracking-wider text-muted-foreground">
-              {t('mobile.sessions.viewMode.label')}
-            </span>
-            {VIEW_MODE_OPTIONS.map(([mode, labelKey]) => (
-              <button
-                key={mode}
-                type="button"
-                className={cn(
-                  'flex min-h-11 w-full items-center justify-between rounded-lg px-3 text-start transition-colors active:bg-interactive-active focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring',
-                  sidebarViewMode === mode ? 'text-primary' : 'text-foreground',
-                )}
-                onClick={() => {
-                  handleViewModeChange(mode);
-                  setSortPanelOpen(false);
-                }}
-                style={{ touchAction: 'manipulation' }}
-              >
-                <span className="typography-ui-label">{t(labelKey)}</span>
-                {sidebarViewMode === mode ? <Icon name="check" className="size-4" /> : null}
-              </button>
-            ))}
-            {/* Project order only means something while projects are groups. */}
-            {sidebarViewMode === 'timeline' ? null : (
-              <span className="px-3 pb-1 pt-3 typography-micro font-semibold uppercase tracking-wider text-muted-foreground">
-                {t('sessions.sidebar.header.actions.sortProjects')}
-              </span>
-            )}
-            {sidebarViewMode === 'timeline' ? null : PROJECT_SORT_OPTIONS.map(([order, labelKey]) => (
-              <button
-                key={order}
-                type="button"
-                className={cn(
-                  'flex min-h-11 w-full items-center justify-between rounded-lg px-3 text-start transition-colors active:bg-interactive-active focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring',
-                  projectSortOrder === order ? 'text-primary' : 'text-foreground',
-                )}
-                onClick={() => {
-                  handleProjectSortChange(order);
-                  setSortPanelOpen(false);
-                }}
-                style={{ touchAction: 'manipulation' }}
-              >
-                <span className="typography-ui-label">{t(labelKey)}</span>
-                {projectSortOrder === order ? <Icon name="check" className="size-4" /> : null}
-              </button>
-            ))}
-            {renderPanelToggle('sessions.sidebar.header.displayMode.showPinned', showPinnedSection, handleTogglePinnedSection, 'mt-2')}
-            {sessionWorkEnabled ? renderPanelToggle('sessions.sidebar.header.displayMode.showWork', showWorkSection, handleToggleWorkSection) : null}
-            {/* List rows always carry two lines; Tree keeps Pinned and In work on one unless asked. */}
-            {sidebarViewMode === 'timeline' ? null : renderPanelToggle('sessions.sidebar.header.displayMode.detailedZoneRows', detailedZoneRows, handleToggleDetailedZoneRows)}
-          </div>
-        </MobileOverlayPanel>
 
         {worktreeToDelete ? (
           <MobileDeleteWorktreeDialog
@@ -2567,10 +2532,8 @@ export const MobileSessionsSheet: React.FC<MobileSessionsSheetProps> = ({ open, 
     if (!open) return null;
     return (
       <div className="flex h-full min-h-0 flex-col">
-        <div className="flex h-[var(--oc-header-height,56px)] shrink-0 items-center justify-between gap-2 border-b border-border/70 px-4">
-          <h2 className="truncate typography-ui-label font-semibold text-foreground">
-            {t('mobile.sessions.sheet.title')}
-          </h2>
+        {/* No title: the list below says what this is, and the actions need the width. */}
+        <div className="flex h-[var(--oc-header-height,56px)] shrink-0 items-center justify-end gap-2 border-b border-border/70 px-4">
           {trailingActions ? (
             <div className="flex shrink-0 items-center gap-2">{trailingActions}</div>
           ) : null}
@@ -2609,11 +2572,8 @@ export const MobileSessionsSheet: React.FC<MobileSessionsSheetProps> = ({ open, 
         >
           <Icon name="close" className="size-5" />
         </button>
-        <h2 className="min-w-0 flex-1 truncate px-1 typography-ui-label font-semibold text-foreground">
-          {t('mobile.sessions.sheet.title')}
-        </h2>
         {trailingActions ? (
-          <div className="flex shrink-0 items-center gap-2">{trailingActions}</div>
+          <div className="ms-auto flex shrink-0 items-center gap-2">{trailingActions}</div>
         ) : null}
       </div>
       {surfaceContent}

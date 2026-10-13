@@ -86,7 +86,12 @@ their shared managed root for folders and never expose worktree actions. Project
 display can be all projects or one selected project. The mobile sessions sheet
 (`apps/MobileSessionsSheet.tsx`) partitions the same way through
 `partitionSidebarSessions` and lists Chats as a collapsible section above the
-project tree. Rows that span projects are labelled "project · branch" through
+project tree. Its header has no title: close, Add project, the display menu
+(a dropdown with the view, the project sort, the section toggles and Reorder
+projects, which swaps the menu's button for Done while it runs) and New chat;
+Chats has no "+" of its own, as New chat starts the same chat. Its footer
+keeps Issues and PRs and Settings as buttons and puts Scheduled tasks,
+Archive and Usage in a "More" menu. Rows that span projects are labelled "project · branch" through
 `resolveSidebarSessionLocations` (live root branch included; the branch map is
 held while the drawer closes). A session of an isolated space has the space's
 name where the branch goes and `inSpace` set on its location, so the timeline
@@ -107,7 +112,7 @@ separates projects, as zones and projects are sections of equal weight. Its tree
 (`MOBILE_TREE_BASE_PADDING_PX`), so root session titles start where the
 project label does next to the project icon's 32px slot (no tile: a bare
 20px glyph, or a 24px image with rounded corners; zone icons likewise); the phone has no session
-folders. Its display panel offers the Pinned and In work toggles and, in Tree,
+folders. Its display menu offers the Pinned and In work toggles and, in Tree,
 Detailed rows; pinned sessions and sessions in work stay under their project
 in both views. VS Code excludes
 worktrees and managed
@@ -260,7 +265,7 @@ Pinned only. Like In work, its sessions also stay in their projects, search
 lists each of them once, in the zone (`zoneSessionIds` carries both zones' ids),
 and the rows follow the same render context. Pins are the device-local
 `useSessionPinnedStore`, so the zone differs between devices. The phone sheet
-mirrors both toggles: its display panel offers Show pinned section and, in
+mirrors both toggles: its display menu offers Show pinned section and, in
 Tree, Detailed rows, and its Pinned and In work sections render
 `MobileTimelineRows` with `compact` in Tree unless detailed rows are on. VS Code
 shows no section toggles, so it has no Pinned zone and its In work rows stay on

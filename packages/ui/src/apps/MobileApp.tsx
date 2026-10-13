@@ -734,10 +734,10 @@ const MobileShell: React.FC<{ onActiveConnectionDeleted: () => void }> = ({ onAc
             dialogAlign="app"
             onClose={closeSurface}
             ariaLabel={t('sourceBoard.title')}
-            title={t('sourceBoard.title')}
+            headerless
           >
             <ErrorBoundary>
-              <MobileSourceBoard onLeave={leaveSourceBoard} />
+              <MobileSourceBoard onLeave={leaveSourceBoard} onClose={closeSurface} />
             </ErrorBoundary>
           </MobileFullscreenSurface>
         ) : null}
