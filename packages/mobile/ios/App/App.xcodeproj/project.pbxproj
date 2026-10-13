@@ -26,6 +26,7 @@
 		D0B2000000000000000000B5 /* OpenChamberNotificationService.appex in Embed App Extensions */ = {isa = PBXBuildFile; fileRef = D0B1000000000000000000A7 /* OpenChamberNotificationService.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		D0C2000000000000000000B1 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = D0C1000000000000000000A1 /* PrivacyInfo.xcprivacy */; };
 		D0E2000000000000000000B1 /* OpenChamberAppShortcuts.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0E1000000000000000000A1 /* OpenChamberAppShortcuts.swift */; };
+		D0E2000000000000000000B2 /* ShortcutRequests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0E1000000000000000000A2 /* ShortcutRequests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -86,6 +87,7 @@
 		D0B1000000000000000000A7 /* OpenChamberNotificationService.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = OpenChamberNotificationService.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		D0C1000000000000000000A1 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 		D0E1000000000000000000A1 /* OpenChamberAppShortcuts.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OpenChamberAppShortcuts.swift; sourceTree = "<group>"; };
+		D0E1000000000000000000A2 /* ShortcutRequests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShortcutRequests.swift; sourceTree = "<group>"; };
 		FC68EB0AF532CFC21C3344DD /* Pods-App.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-App.debug.xcconfig"; path = "Pods/Target Support Files/Pods-App/Pods-App.debug.xcconfig"; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
@@ -151,6 +153,7 @@
 				50379B222058CBB4000EE86E /* capacitor.config.json */,
 				504EC3071FED79650016851F /* AppDelegate.swift */,
 				D0E1000000000000000000A1 /* OpenChamberAppShortcuts.swift */,
+				D0E1000000000000000000A2 /* ShortcutRequests.swift */,
 				504EC30B1FED79650016851F /* Main.storyboard */,
 				504EC30E1FED79650016851F /* Assets.xcassets */,
 				D0C1000000000000000000A1 /* PrivacyInfo.xcprivacy */,
@@ -370,6 +373,7 @@
 				504EC3081FED79650016851F /* AppDelegate.swift in Sources */,
 				D0A2000000000000000000B6 /* OpenChamberControl.swift in Sources */,
 				D0E2000000000000000000B1 /* OpenChamberAppShortcuts.swift in Sources */,
+				D0E2000000000000000000B2 /* ShortcutRequests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
