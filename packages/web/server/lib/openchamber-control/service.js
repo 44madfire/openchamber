@@ -2,8 +2,9 @@ import { asNonEmptyString } from '../shared/guards.js';
 import path from 'node:path';
 import { OpenCode } from '@opencode/client';
 import { OpenChamberControlError, asControlError } from './error.js';
-import { OPENCHAMBER_ALL_ACTIONS } from './actions.js';
+import { OPENCHAMBER_ALL_ACTIONS, OPENCHAMBER_KNOWLEDGE_ACTIONS } from './actions.js';
 import { writeScreenshot } from './screenshots.js';
+import { createProjectKnowledgeActions } from './project-knowledge.js';
 
 const DEFAULT_WAIT_TIMEOUT_SECONDS = 600;
 const MAX_WAIT_TIMEOUT_SECONDS = 86_400;
@@ -218,6 +219,11 @@ export const createOpenChamberControlService = (dependencies) => {
     notifyUser = null,
     agentMemoryActions = null,
     sessionLinks = null,
+    projectContextRuntime = null,
+    resolveProjectContextId = null,
+    isKnowledgeToolEnabled = async () => true,
+    // Puts a plan in front of the user; answers how many windows it reached.
+    showPlan = null,
     // Delivers a dispatched session's result back to the session that asked
     // (`returnResult`); absent means the server cannot offer it.
     dispatchResults = null,
@@ -294,6 +300,14 @@ export const createOpenChamberControlService = (dependencies) => {
     if (!projectID) return asNonEmptyString(input.directory) || asNonEmptyString(contextDirectory);
     return sessionService.resolveDirectory({ projectId: projectID });
   };
+
+  const knowledgeActions = createProjectKnowledgeActions({
+    projectContextRuntime,
+    resolveProjectContextId,
+    isEnabled: isKnowledgeToolEnabled,
+    showPlan,
+    resolveDirectory: (input) => sessionService.resolveDirectory(input),
+  });
 
   const models = async () => {
     const settings = await readSettingsFromDiskMigrated();
@@ -685,6 +699,9 @@ export const createOpenChamberControlService = (dependencies) => {
     try {
       if (!CONTROL_ACTIONS.has(action)) {
         throw new OpenChamberControlError(`Unsupported OpenChamber action: ${action || 'missing'}`, 400);
+      }
+      if (OPENCHAMBER_KNOWLEDGE_ACTIONS.includes(action)) {
+        return await knowledgeActions.execute(action, input, contextDirectory, options.contextSessionId);
       }
       if (action.startsWith('memory.')) {
         if (!agentMemoryActions) {

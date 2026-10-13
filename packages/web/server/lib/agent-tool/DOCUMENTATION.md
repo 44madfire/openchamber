@@ -16,6 +16,16 @@ the user can want independently:
   `POST /api/notifications/emit`). Off by default: enabled only while
   `agentNotifyToolEnabled` is `true`, and the control service refuses the
   action when the setting is off, so a stale plugin cannot keep paging.
+- `openchamber_knowledge` — the project's Notes, Todos and Plans, the items of
+  the Project knowledge panel (`knowledge.list`, `save`, `delete`, `show`,
+  with `kind` naming note, todo or plan; plans are files, so list and save
+  give their path and the agent reads and edits them with its own file tools;
+  dispatched by
+  `../openchamber-control/project-knowledge.js` into
+  `../project-context/runtime.js`). On by default: enabled while
+  `agentKnowledgeToolEnabled` is not `false`, and the control service refuses
+  these actions when it is, so a stale plugin cannot keep writing. Writes are
+  attributed to the session OpenCode reported, never to a payload field.
 
 Both default to on, are toggled in Settings → General → OpenChamber Tools, and take
 effect in the running OpenCode within a couple of seconds — OpenChamber rewrites

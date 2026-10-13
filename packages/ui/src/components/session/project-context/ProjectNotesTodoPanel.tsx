@@ -5,7 +5,7 @@ import { Icon } from '@/components/icon/Icon';
 import type { IconName } from '@/components/icon/icons';
 import { Input } from '@/components/ui/input';
 import { isRightToLeft, useI18n } from '@/lib/i18n';
-import { resolveProjectContextId, type ProjectRef, type ProjectTodoItem } from '@/lib/projectContextApi';
+import { resolveProjectContextId, type ProjectRef, type ProjectTodoChange, type ProjectTodoItem } from '@/lib/projectContextApi';
 import { observeProjectContext } from '@/lib/projectContextSync';
 import { cn } from '@/lib/utils';
 import { selectProjectMemoryForPath, useAgentMemoryStore } from '@/stores/useAgentMemoryStore';
@@ -307,13 +307,13 @@ export const ProjectNotesTodoPanel: React.FC<ProjectNotesTodoPanelProps> = ({
   }, [activeTab, counts, setStoredTab, trimmedQuery]);
 
   const handlePersistTodos = React.useCallback(
-    (nextTodos: ProjectTodoItem[]) => {
+    (nextTodos: ProjectTodoItem[], change?: ProjectTodoChange) => {
       if (!projectRef) {
         return;
       }
       // The store owns per-project write serialization and rollback; the panel
       // only decides what to persist and how to report a failure.
-      void saveTodos(projectRef, nextTodos).then((saved) => {
+      void saveTodos(projectRef, nextTodos, change).then((saved) => {
         if (!saved) {
           toast.error(t('rightSidebar.contextNotesTodo.toast.saveNotesFailed'));
         }
@@ -528,6 +528,7 @@ export const ProjectNotesTodoPanel: React.FC<ProjectNotesTodoPanelProps> = ({
                 its own title row inside the panel body. */}
             <ContextPanelHeaderSlotProvider value={null}>
               <PlanView
+                visible={visible}
                 savedProjectPlan={{ projectRef, planId: openPlan.id }}
                 onNavigatedToChat={() => setOpenPlan(null)}
               />

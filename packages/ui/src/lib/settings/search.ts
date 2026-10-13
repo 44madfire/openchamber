@@ -766,6 +766,14 @@ const SETTINGS_SEARCH_ITEMS: readonly SettingsSearchItem[] = [
     isAvailable: (ctx) => !ctx.isVSCode,
   },
   {
+    id: 'sessions.agent-knowledge-tool',
+    page: 'general',
+    titleKey: 'settings.openchamber.tools.field.agentKnowledgeTool',
+    descriptionKey: 'settings.openchamber.tools.field.agentKnowledgeToolInfo',
+    keywords: ['agent', 'tool', 'project', 'knowledge', 'notes', 'todos', 'plans', 'openchamber'],
+    isAvailable: (ctx) => !ctx.isVSCode,
+  },
+  {
     id: 'general.isolated-spaces',
     page: 'isolated-spaces',
     titleKey: 'settings.openchamber.spaces.field.enabled',

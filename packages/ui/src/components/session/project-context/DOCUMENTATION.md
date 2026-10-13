@@ -60,6 +60,14 @@ Leaving the section or the project closes it, so its editor never sits over a
 list it no longer matches. Hosts that own a fullscreen plan surface (mobile)
 still pass `onOpenPlan` and keep theirs.
 
+Agents change saved plans too, through the knowledge tool or by editing the
+plan's file directly. An open, visible plan with no unsaved edits takes the
+new text: at once for a save through the API, which announces itself, and
+within two seconds for a file edit, which `PlanView` finds with the same
+`fileContentPoller` the file panel uses. Unsaved typing is never replaced; the
+next save writes it over the agent's version. The editor ignores its own echo
+of text it was handed, so opening a plan no longer writes it back.
+
 The panel owns the only source of truth for which project a plan belongs to,
 and it never lets the editor guess. `PlanView` receives the owner as
 `savedProjectPlan={{ projectRef, planId }}` — load and autosave both go to that
@@ -169,6 +177,12 @@ its own. `NotesSection` and `PlansSection` call the store directly. Todos still
 route through the container only because the container already holds the list it
 sorts for display.
 
+Adding, checking, unchecking and deleting a todo send that one item
+(`ProjectTodoChange`), while the panel shows the whole next list at once. Agents
+add todos through their own tool, and a whole-list write from a panel that has
+not refreshed yet would erase what an agent just added. Reordering and "clear
+completed" still send the whole list.
+
 An earlier version wrote notes and todos together in one request. That forced
 the container to own the notes draft, because otherwise a todo toggle would
 persist whatever notes were last committed and discard unsaved typing. Splitting
@@ -226,8 +240,8 @@ matched the old project would silently hide everything in the new one.
   Deleting is an explicit action.
 - **A load failure never blanks the panel.** The store keeps the last good
   snapshot; the panel toasts once, and only when nothing had loaded yet.
-- **Completed todos sink to the bottom for display only.** Stored order is what
-  the user dragged.
+- **Completed todos sink to the bottom.** The display sorts them there; item
+  writes store them last too, and a drag stores what the user dragged.
 - **Plan creation is not optimistic.** The id and file name come from the
   server, and a row that cannot be opened is worse than a brief wait.
 

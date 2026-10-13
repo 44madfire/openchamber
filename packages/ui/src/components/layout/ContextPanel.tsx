@@ -745,6 +745,7 @@ export const ContextPanel: React.FC<{ zone?: ContextZone }> = ({ zone = 'right' 
                 ? <ContextPanelHeaderSlotProvider value={headerSlotEl}><ProjectContextPanel visible={isOpen} /></ContextPanelHeaderSlotProvider>
         : activeTab?.mode === 'plan'
             ? <React.Suspense fallback={null}><ContextPanelHeaderSlotProvider value={headerSlotEl}><PlanView
+                visible={isOpen}
                 targetPath={activeTab.targetPath}
                 savedProjectPlan={activeTab.projectPlanId && activeTab.projectPlanRef
                   ? { projectRef: activeTab.projectPlanRef, planId: activeTab.projectPlanId }

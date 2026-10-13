@@ -25,6 +25,22 @@ other.
   by the scheduled-task service. An empty update clears the target. Create
   without a model inherits the target selection; an explicit agent overrides
   it. A task without a target still requires a model.
+- `project-knowledge.js` runs the `knowledge.*` actions of the
+  `openchamber_knowledge` agent tool (`list`, `save`, `delete`, `show`;
+  `kind` names note, todo or plan) against
+  `../project-context/runtime.js`. The owner is the session directory (or the
+  given `projectId` / `directory`) resolved by the same resolver session
+  knowledge and memory use, so what an agent writes is what the next session
+  is given. Notes it creates are `source: agent` with the calling session as
+  origin; payload provenance is ignored. Plans are handed out as file paths
+  (`list`, and the answer to `save`), never as text: the agent reads a plan
+  and makes small edits, such as ticking a step, with its own file tools, and
+  `save` creates or replaces one whole. The actions answer `403` while
+  `agentKnowledgeToolEnabled` is `false`. `show` checks the plan exists and
+  sends `openchamber:plan-open-request` to every connected window, like
+  `file.open`; the desktop and web layouts open the plan tab, the mobile app
+  opens the plan the way a tap in the Project knowledge drawer does. No
+  window reached is `503`.
 - `routes.js` is the authenticated CLI HTTP adapter. It forwards one action,
   preserves service status and partial-result details, and propagates request
   cancellation.

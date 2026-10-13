@@ -1110,6 +1110,7 @@ interface UIStore {
   /** Who answers the agent's browser actions: `builtin` (the in-app view) or an extension id. */
   browserProvider: string;
   agentMemoryToolEnabled: boolean;
+  agentKnowledgeToolEnabled: boolean;
   agentNotifyToolEnabled: boolean;
   /** Whether OpenChamber's agent tools sit behind OpenCode's Code Mode instead of being direct tools. */
   agentToolsCodeMode: boolean;
@@ -1370,6 +1371,7 @@ interface UIStore {
   setMessageSearchReasoningEnabled: (value: boolean) => void;
   setBrowserProvider: (value: string) => void;
   setAgentMemoryToolEnabled: (value: boolean) => void;
+  setAgentKnowledgeToolEnabled: (value: boolean) => void;
   setAgentNotifyToolEnabled: (value: boolean) => void;
   setAgentToolsCodeMode: (value: boolean) => void;
   setAgentWorktreeMoveWithoutAsking: (value: boolean) => void;
@@ -1579,6 +1581,7 @@ export const useUIStore = create<UIStore>()(
         messageSearchReasoningEnabled: false,
         browserProvider: 'builtin',
         agentMemoryToolEnabled: false,
+        agentKnowledgeToolEnabled: true,
         agentNotifyToolEnabled: false,
         agentToolsCodeMode: false,
         agentWorktreeMoveWithoutAsking: false,
@@ -3123,6 +3126,9 @@ export const useUIStore = create<UIStore>()(
         setAgentMemoryToolEnabled: (value) => {
           set({ agentMemoryToolEnabled: value });
         },
+        setAgentKnowledgeToolEnabled: (value) => {
+          set({ agentKnowledgeToolEnabled: value });
+        },
         setIsolatedSpacesEnabled: (value) => {
           set({ isolatedSpacesEnabled: value });
         },
@@ -3637,6 +3643,7 @@ export const useUIStore = create<UIStore>()(
           messageSearchReasoningEnabled: state.messageSearchReasoningEnabled,
           browserProvider: state.browserProvider,
           agentMemoryToolEnabled: state.agentMemoryToolEnabled,
+          agentKnowledgeToolEnabled: state.agentKnowledgeToolEnabled,
           agentNotifyToolEnabled: state.agentNotifyToolEnabled,
           agentToolsCodeMode: state.agentToolsCodeMode,
           agentWorktreeMoveWithoutAsking: state.agentWorktreeMoveWithoutAsking,

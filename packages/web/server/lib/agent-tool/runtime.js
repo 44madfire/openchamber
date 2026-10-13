@@ -2,6 +2,8 @@ import { asNonEmptyString } from '../shared/guards.js';
 import {
   OPENCHAMBER_AGENT_TOOL_ACTION_DEFINITIONS,
   OPENCHAMBER_AGENT_TOOL_ACTIONS,
+  OPENCHAMBER_KNOWLEDGE_ACTION_DEFINITIONS,
+  OPENCHAMBER_KNOWLEDGE_ACTIONS,
   OPENCHAMBER_MEMORY_ACTION_DEFINITIONS,
   OPENCHAMBER_MEMORY_ACTIONS,
   OPENCHAMBER_NOTIFY_ACTION_DEFINITIONS,
@@ -20,6 +22,7 @@ const ACTIONS = new Set([
   ...OPENCHAMBER_AGENT_TOOL_ACTIONS,
   ...OPENCHAMBER_WEB_ACTIONS,
   ...OPENCHAMBER_MEMORY_ACTIONS,
+  ...OPENCHAMBER_KNOWLEDGE_ACTIONS,
   ...OPENCHAMBER_NOTIFY_ACTIONS,
 ]);
 const AGENT_TOOL_ACTION_TITLES = Object.fromEntries(
@@ -27,6 +30,7 @@ const AGENT_TOOL_ACTION_TITLES = Object.fromEntries(
     ...OPENCHAMBER_AGENT_TOOL_ACTION_DEFINITIONS,
     ...OPENCHAMBER_WEB_ACTION_DEFINITIONS,
     ...OPENCHAMBER_MEMORY_ACTION_DEFINITIONS,
+    ...OPENCHAMBER_KNOWLEDGE_ACTION_DEFINITIONS,
     ...OPENCHAMBER_NOTIFY_ACTION_DEFINITIONS,
   ].map(({ action, title }) => [action, title]),
 );
@@ -132,6 +136,17 @@ const MEMORY_PARAMETER_PROPERTIES = {
   ...MEMORY_PARAMETER_OVERRIDES,
 };
 
+// Its own names, not the shared map: `title`, `body` and `text` mean something
+// else in the other tools.
+const KNOWLEDGE_PARAMETER_PROPERTIES = {
+  ...pickParameters(['projectId', 'directory']),
+  kind: { type: 'string', enum: ['note', 'todo', 'plan'], description: 'What the action is about; list needs none' },
+  id: { type: 'string', description: 'ID from list or from the save that created it; leave it out of save to create' },
+  body: { type: 'string', description: 'Note text (at most 3000 characters), todo text (at most 1000) or the whole plan markdown (at most 200000)' },
+  completed: { type: 'boolean', description: 'Todo state; false reopens it' },
+  expected: { type: 'string', description: 'The note text or plan file exactly as you last read it; replacing fails if it changed since' },
+};
+
 // Its own names, not the shared map: `title` and `body` mean something else in
 // the control and memory tools.
 const NOTIFY_PARAMETER_PROPERTIES = {
@@ -158,6 +173,8 @@ const controlToolDescription = ({ worktreeMoveWithoutAsking }) => "When the user
 const WEB_TOOL_DESCRIPTION = "Look at and interact with a web page in OpenChamber's browser panel, so you can check your own work rather than describing what you expect. Use one action per call. Open a page, snapshot it to read its text and its interactive elements, then click, type or scroll using the selectors the snapshot returned; snapshots also report any errors the page logged. Pass a selector to browser.snapshot to read one part of a long page. browser.inspect returns computed styles when the question is how something renders. Set viewport to check a layout at mobile, tablet or desktop size. The page runs with the user's real logins, so treat what you see as their live session.";
 
 const MEMORY_TOOL_DESCRIPTION = "Keep what you learn across sessions, so the user does not have to explain the same thing twice. Use one action per call. The session already lists the titles of what is stored. A title is an abbreviation, not the memory: read the entry with memory.read once before acting on it (it then stays in your context; do not re-read it on later turns), because titles leave out the conditions and exceptions that decide how the memory applies, and the ones that look self-explanatory hide them most often. Save something only when it will still be true in a later session — a stable preference, a project convention, a decision and its reason, or a hard-won pointer. Do not save one-off task state, anything you can read from the code, secrets or credentials, or anything the user asked you not to keep; when the user explicitly asks you to remember something, save it, unless it is a secret or credential. Choose the scope deliberately: global is about the user and reaches every project, so put a project's conventions in project scope. Save in the moment, without asking first, when the user corrects how you work or states a preference, confirms that a non-obvious approach worked, or when you learn a project fact that took real effort to find. One fact per entry. The user can review and remove what you save, so save when it fits and mention it briefly.";
+
+const KNOWLEDGE_TOOL_DESCRIPTION = "The project's Notes, Todos and Plans: what the user keeps in OpenChamber's Project knowledge panel, shared by every session in the project. Use one action per call; list shows everything at once. Notes are short facts and decisions the user wants at hand; what you learn for yourself belongs in memory. Todos are the user's backlog: add one when the user asks, or when you stop with work left for later, never to track the steps of your current task. Plans are markdown files: list gives each one's path, so read a plan and make small changes to it with your own file tools, and use save to create a plan or replace it whole. Start a plan with a # title line and a short ## Steps checklist of its coarse steps (- [ ] each), then the detail. When you write a plan for the user, save it, show it, and wait: the user reads it, comments on lines, asks for changes, and sends it to a session when it is ready. When you implement a saved plan, tick its step (- [x]) in the file as you finish each one, so the user sees the progress; change nothing else in it unless the user asks, and never drop a constraint from it on your own. Before replacing a note or a plan whole, pass the text you last read as expected: the save then fails instead of overwriting a change made after your read. Scope with projectId or directory, or leave both out for this session's project.";
 
 const NOTIFY_TOOL_DESCRIPTION = "Send the user a notification through OpenChamber, so they learn about something without watching the session. Use it when you finish work that took long enough for the user to step away, when you are blocked on something only the user can resolve, or when the user asked to be told about something. Do not use it for routine progress, for every finished step, or to repeat what your reply already says to a user who is present. Keep the title short and put detail in the body.";
 
@@ -287,7 +304,7 @@ const createToolEntry = ({ name, description, definitions, parameters, codeMode 
     })
 `;
 
-const createPluginSource = ({ includeControl, includeWeb, includeMemory, includeNotify, codeMode, worktreeMoveWithoutAsking }) => {
+const createPluginSource = ({ includeControl, includeWeb, includeMemory, includeKnowledge, includeNotify, codeMode, worktreeMoveWithoutAsking }) => {
   const entries = [];
   if (includeControl) {
     entries.push(createToolEntry({
@@ -313,6 +330,15 @@ const createPluginSource = ({ includeControl, includeWeb, includeMemory, include
       description: MEMORY_TOOL_DESCRIPTION,
       definitions: OPENCHAMBER_MEMORY_ACTION_DEFINITIONS,
       parameters: MEMORY_PARAMETER_PROPERTIES,
+      codeMode,
+    }));
+  }
+  if (includeKnowledge) {
+    entries.push(createToolEntry({
+      name: 'openchamber_knowledge',
+      description: KNOWLEDGE_TOOL_DESCRIPTION,
+      definitions: OPENCHAMBER_KNOWLEDGE_ACTION_DEFINITIONS,
+      parameters: KNOWLEDGE_PARAMETER_PROPERTIES,
       codeMode,
     }));
   }
@@ -388,13 +414,13 @@ export const createAgentToolRuntime = (dependencies) => {
    * change while it runs, so the source on disk always matches the settings —
    * the running OpenCode reloads the directory it already has configured.
    */
-  const materializePlugin = async ({ includeControl = true, includeWeb = true, includeMemory = true, includeNotify = false, codeMode = false, worktreeMoveWithoutAsking = false } = {}) => {
-    if (!includeControl && !includeWeb && !includeMemory && !includeNotify) {
+  const materializePlugin = async ({ includeControl = true, includeWeb = true, includeMemory = true, includeKnowledge = false, includeNotify = false, codeMode = false, worktreeMoveWithoutAsking = false } = {}) => {
+    if (!includeControl && !includeWeb && !includeMemory && !includeKnowledge && !includeNotify) {
       throw new Error('At least one OpenChamber managed tool must be enabled to inject the plugin');
     }
     await fsPromises.mkdir(pluginDirectory, { recursive: true });
     await fsPromises.writeFile(pluginManifestPath, PLUGIN_PACKAGE_JSON, { mode: 0o600 });
-    await fsPromises.writeFile(pluginPath, createPluginSource({ includeControl, includeWeb, includeMemory, includeNotify, codeMode, worktreeMoveWithoutAsking }), { mode: 0o600 });
+    await fsPromises.writeFile(pluginPath, createPluginSource({ includeControl, includeWeb, includeMemory, includeKnowledge, includeNotify, codeMode, worktreeMoveWithoutAsking }), { mode: 0o600 });
     return pluginDirectory;
   };
 
@@ -449,7 +475,10 @@ export const createAgentToolRuntime = (dependencies) => {
     // OpenCode 2 tools no longer receive a directory, so the plugin sends the
     // session id and the directory is resolved here. An unresolvable session
     // falls through with no directory, exactly like the old "no directory" path.
-    let contextDirectory = asNonEmptyString(payload.contextDirectory) ?? undefined;
+    // Knowledge writes are attributed to the calling session, so no payload
+    // field may stand in for the session OpenCode reported.
+    const knowledgeAction = OPENCHAMBER_KNOWLEDGE_ACTIONS.includes(action);
+    let contextDirectory = knowledgeAction ? undefined : asNonEmptyString(payload.contextDirectory) ?? undefined;
     const sessionID = asNonEmptyString(payload.sessionID);
     if (!contextDirectory && sessionID && typeof resolveSessionDirectory === 'function') {
       contextDirectory = await Promise.resolve(resolveSessionDirectory(sessionID))
@@ -458,7 +487,7 @@ export const createAgentToolRuntime = (dependencies) => {
     }
     try {
       // The calling session scopes browser actions to that session's page.
-      const contextSessionId = asNonEmptyString(payload.contextSessionId) ?? sessionID;
+      const contextSessionId = knowledgeAction ? sessionID : asNonEmptyString(payload.contextSessionId) ?? sessionID;
       const data = await executeAction(action, { ...payload.input, action }, contextDirectory, contextSessionId
         ? { ...options, contextSessionId }
         : options);

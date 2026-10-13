@@ -1,6 +1,7 @@
 import { afterAll, afterEach, beforeEach, expect, test } from 'bun:test';
 import React, { act } from 'react';
 import { Window } from 'happy-dom';
+import { z } from 'zod';
 import type { fetchProjectContext, ProjectNote } from '@/lib/projectContextApi';
 
 class TestEventSource {
@@ -26,6 +27,7 @@ for (const [name, value] of Object.entries({
   Node: browser.Node,
   HTMLInputElement: browser.HTMLInputElement,
   HTMLTextAreaElement: browser.HTMLTextAreaElement,
+  PointerEvent: browser.PointerEvent,
   ResizeObserver: browser.ResizeObserver,
   MutationObserver: browser.MutationObserver,
   EventSource: TestEventSource,
@@ -48,10 +50,18 @@ let readFailed = false;
 let readContext = async (): Promise<Response> => Response.json(serverContext);
 let reads = 0;
 const noteWrites: string[] = [];
+const todoWrites: string[] = [];
 const originalFetch = globalThis.fetch;
 globalThis.fetch = Object.assign(async (input: RequestInfo | URL, init?: RequestInit) => {
   const url = new URL(input instanceof Request ? input.url : String(input), 'http://runtime.test');
   if (url.pathname.startsWith('/api/project-context/')) {
+    const todoId = url.pathname.match(/\/todos\/([^/]+)$/)?.[1];
+    if (todoId && init?.method === 'PATCH') {
+      todoWrites.push(`${todoId} ${String(init.body)}`);
+      const { completed } = z.object({ completed: z.boolean() }).parse(JSON.parse(String(init.body)));
+      serverContext = { ...serverContext, todos: serverContext.todos.map(todo => todo.id === todoId ? { ...todo, completed } : todo) };
+      return Response.json(serverContext);
+    }
     if (init?.method === 'PATCH') {
       noteWrites.push(String(init.body));
       const saved = { ...peerNote, body: 'Local autosave draft', updatedAt: 2 };
@@ -105,6 +115,7 @@ beforeEach(() => {
   readContext = async () => Response.json(serverContext);
   reads = 0;
   noteWrites.length = 0;
+  todoWrites.length = 0;
   Object.defineProperty(browser.document, 'visibilityState', { value: 'visible', configurable: true });
   Object.defineProperty(browser.navigator, 'onLine', { value: true, configurable: true });
   useProjectContextStore.getState().reset();
@@ -156,6 +167,26 @@ test('adopts peer note creation, edits, and todo completion without remounting',
   await announce();
   expect(host.querySelector('[role="checkbox"]')?.getAttribute('aria-checked')).toBe('true');
   expect(TestEventSource.instances).toHaveLength(1);
+});
+
+test('checking a todo sends that todo alone and keeps one an agent added meanwhile', async () => {
+  serverContext = { ...serverContext, todos: [{ id: 'mine', text: 'Mine', completed: false, createdAt: 1 }] };
+  await mount();
+  const todoTab = Array.from(host.querySelectorAll<HTMLButtonElement>('nav button'))
+    .find(button => button.textContent?.startsWith('Todo'));
+  if (!todoTab) throw new Error('Todo tab missing');
+  await act(async () => todoTab.click());
+  // Added on the server with no announcement reaching the panel yet.
+  serverContext = { ...serverContext, todos: [{ id: 'agent', text: 'From an agent', completed: false, createdAt: 2 }, ...serverContext.todos] };
+
+  const checkbox = host.querySelector<HTMLElement>('[role="checkbox"]');
+  if (!checkbox) throw new Error('Todo checkbox missing');
+  await act(async () => checkbox.click());
+  await settle();
+
+  expect(todoWrites).toEqual(['mine {"completed":true}']);
+  expect(host.textContent).toContain('From an agent');
+  expect(host.textContent).toContain('Mine');
 });
 
 test('refreshing an edited note preserves its unsaved draft and ignores another owner', async () => {
