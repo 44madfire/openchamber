@@ -93,7 +93,10 @@ export const createConfiguredWebAPIs = () => {
   desktopRelayRestoreReady = (keepInjectedRuntime
     ? Promise.resolve()
     : Promise.race([
-      restoreDesktopRelayRuntime(relayHostId || undefined).catch(() => {}),
+      // An explicit relay target may already carry its runtime key from boot
+      // (`relayHostId` sets it), which would make the restore skip an
+      // unconnected window; force it so the tunnel is actually opened.
+      restoreDesktopRelayRuntime(relayHostId || undefined, relayHostId ? { reconnectActive: true } : undefined).catch(() => {}),
       // Never hold the app hostage: a stuck probe/tunnel gives up to the UI.
       new Promise<void>((resolve) => { window.setTimeout(resolve, 10_000); }),
     ])

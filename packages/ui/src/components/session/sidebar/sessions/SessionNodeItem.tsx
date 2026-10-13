@@ -19,7 +19,7 @@ import { dropdownMenuItemClass, dropdownMenuPopupClass, dropdownMenuSeparatorCla
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { getPrStatusLabel } from '../prStatusLabel';
 import { cn, formatDirectoryName } from '@/lib/utils';
-import { canUseElectronDesktopIPC, invokeDesktop, isVSCodeRuntime } from '@/lib/desktop';
+import { canUseElectronDesktopIPC, getMiniChatRuntimeArgs, invokeDesktop, isVSCodeRuntime } from '@/lib/desktop';
 import { toast } from '@/components/ui';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -73,8 +73,6 @@ import { getCurrentSessionAssist } from '@/lib/sessionAssistMetadata';
 import { isDoneSuggested, isSessionInWork } from '@/lib/sessionWorkMetadata';
 import { setSessionWorkState } from '@/sync/session-actions';
 import { sessionGoalStatusColor, sessionGoalStatusLabelKey } from '@/lib/sessionGoalPresentation';
-import { getRuntimeBearerTokenSync } from '@/lib/runtime-auth';
-import { getRuntimeApiBaseUrl } from '@/lib/runtime-switch';
 import { getChatsRootFromDirectory, isChatDirectoryPath } from '@/lib/chatDirectories';
 import { getMultiRunIdentity, sameMultiRunIdentity } from '@/lib/multirun/identity';
 import { ArrowsMerge } from '@/components/icons/ArrowsMerge';
@@ -802,8 +800,7 @@ function SessionNodeItemComponent(props: SessionNodeItemProps): React.ReactNode 
     void invokeDesktop('desktop_open_session_mini_chat_window', {
       sessionId: session.id,
       directory: sessionDirectory,
-      apiBaseUrl: getRuntimeApiBaseUrl(),
-      clientToken: getRuntimeBearerTokenSync(),
+      ...getMiniChatRuntimeArgs(),
     }).catch((error) => {
       console.warn('[session-sidebar] failed to open mini chat window', error);
     });

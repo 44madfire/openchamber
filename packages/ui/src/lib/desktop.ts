@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import type { RuntimeAPIs } from '@/lib/api/types';
 import { getInjectedBootOutcome } from '@/lib/desktopBoot';
+import { getRuntimeBearerTokenSync } from '@/lib/runtime-auth';
 import { getRuntimeApiBaseUrl, getRuntimeKey } from '@/lib/runtime-switch';
 import { getRegisteredRuntimeAPIs } from '@/contexts/runtimeAPIRegistry';
 import { isVSCodeBootstrapPresent } from '@/lib/vscodeBootstrap';
@@ -151,6 +152,18 @@ export const invokeDesktop = async <T = unknown>(command: string, args?: Record<
   if (typeof bridge?.invoke !== 'function') return null;
   return bridge.invoke(command, args ?? {}) as Promise<T>;
 };
+
+/**
+ * The runtime a Mini Chat window must continue on: the instance its parent
+ * window is showing, not the default host. `runtimeKey` names the parent's
+ * instance (`local` or `host:<id>`); main turns a relay-capable host into the
+ * relay transport, since such a host has no HTTP base to inject.
+ */
+export const getMiniChatRuntimeArgs = (): { apiBaseUrl: string; clientToken: string | null; runtimeKey: string } => ({
+  apiBaseUrl: getRuntimeApiBaseUrl(),
+  clientToken: getRuntimeBearerTokenSync(),
+  runtimeKey: getRuntimeKey(),
+});
 
 // This reads the current native CLI preflight, never a persisted boot hint. Compare the
 // endpoint again after IPC so a runtime switch cannot reuse another host's state.

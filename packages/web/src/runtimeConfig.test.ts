@@ -137,7 +137,7 @@ describe('createConfiguredWebAPIs', () => {
 
     createConfiguredWebAPIs();
 
-    expect(restoreDesktopRelayRuntime).toHaveBeenCalledWith('relay-host');
+    expect(restoreDesktopRelayRuntime).toHaveBeenCalledWith('relay-host', { reconnectActive: true });
   });
 
   test('the main window still restores the default host', () => {
@@ -148,6 +148,6 @@ describe('createConfiguredWebAPIs', () => {
 
     createConfiguredWebAPIs();
 
-    expect(restoreDesktopRelayRuntime).toHaveBeenCalledWith(undefined);
+    expect(restoreDesktopRelayRuntime).toHaveBeenCalledWith(undefined, undefined);
   });
 });

@@ -28,7 +28,7 @@ import { usePwaInstallPrompt } from '@/hooks/usePwaInstallPrompt';
 import { useWindowTitle } from '@/hooks/useWindowTitle';
 import { useRootScrollLock } from '@/hooks/useRootScrollLock';
 import { useConfigStore } from '@/stores/useConfigStore';
-import { isDesktopLocalOriginActive, isDesktopShell, restartDesktopApp, invokeDesktop, openHostSession, takePendingDesktopSessionLinks } from '@/lib/desktop';
+import { isDesktopLocalOriginActive, isDesktopShell, restartDesktopApp, invokeDesktop, getMiniChatRuntimeArgs, openHostSession, takePendingDesktopSessionLinks } from '@/lib/desktop';
 import { runPendingDesktopHostActions } from '@/lib/desktopHostActions';
 import {
   getInjectedBootOutcome,
@@ -626,6 +626,7 @@ function App({ apis }: AppProps) {
       void invokeDesktop('desktop_open_draft_mini_chat_window', {
         directory: '',
         projectId: null,
+        ...getMiniChatRuntimeArgs(),
       });
     };
     window.addEventListener('openchamber:open-mini-chat', onOpenMiniChat);
