@@ -8,6 +8,7 @@ import type {
 
 import type { AcpBackendManager } from './backend-manager.js';
 import type { AcpBackendRegistry } from './registry.js';
+import type { AcpSessionIndex } from './session-index.js';
 
 export declare const DEFAULT_ONEOFF_TIMEOUT_MS: number;
 export declare const DEFAULT_ONEOFF_MAX_CHARS: number;
@@ -75,6 +76,7 @@ export interface AcpOneOffHooks {
 
 export interface AcpOneOffService {
   generate(options: AcpOneOffGenerateOptions): Promise<AcpOneOffResult>;
+  resolveBackend(options?: { backendId?: string | null; sessionKey?: string | null }): Promise<string>;
   hooksForOneOff(backendId: string, options?: AcpOneOffHooksOptions): AcpOneOffHooks;
   trimOneOffOutput(raw: string, maxChars?: number): string;
 }
@@ -84,6 +86,7 @@ export declare function trimOneOffOutput(raw: string, maxChars?: number): string
 export declare function createOneOff(options?: {
   manager: AcpBackendManager;
   registry: AcpBackendRegistry;
+  index?: AcpSessionIndex | null;
   tmpRoot?: string | null;
   timeoutMs?: number;
   cleanupTimeoutMs?: number;

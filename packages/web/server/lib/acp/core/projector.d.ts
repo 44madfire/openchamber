@@ -79,6 +79,8 @@ export interface AcpProjector {
     cursor: { previous?: string; next?: string };
   };
   transcriptIds(): string[];
+  turnNumberOf(messageId: string): number | null;
+  setRevertBoundary(turn: number, messageId: string): AcpSyncEvent[];
 }
 
 export declare function createSessionProjector(options: {

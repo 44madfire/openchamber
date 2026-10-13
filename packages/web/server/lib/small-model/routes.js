@@ -1,15 +1,18 @@
 export function registerSmallModelRoutes(app, { getSmallModelService }) {
   app.get('/api/small-model', async (req, res) => {
     try {
-      const { describeSmallModel, listAuthenticatedProviders } = await getSmallModelService();
+      const { describeSmallModel, listAuthenticatedProviders, getAcpOneOffFallback } = await getSmallModelService();
       const resolved = await describeSmallModel({
         directory: typeof req.query.directory === 'string' ? req.query.directory : undefined,
         preferredProviderID: typeof req.query.providerID === 'string' ? req.query.providerID : undefined,
         preferredModelID: typeof req.query.modelID === 'string' ? req.query.modelID : undefined,
       });
+      // A wired ACP fallback answers generations OpenCode cannot name a model
+      // for, so the endpoint reports available without probing backends.
+      const fallback = resolved ? null : getAcpOneOffFallback?.();
       res.json({
-        available: Boolean(resolved),
-        model: resolved,
+        available: Boolean(resolved ?? fallback),
+        model: resolved ?? (fallback ? { source: 'acp-oneoff' } : resolved),
         authenticatedProviders: await listAuthenticatedProviders(),
       });
     } catch (error) {
@@ -21,7 +24,7 @@ export function registerSmallModelRoutes(app, { getSmallModelService }) {
   app.post('/api/small-model/generate', async (req, res) => {
     try {
       const { generateSmallModelText } = await getSmallModelService();
-      const { prompt, system, maxOutputTokens, model, directory, preferredProviderID, preferredModelID } = req.body || {};
+      const { prompt, system, maxOutputTokens, model, directory, preferredProviderID, preferredModelID, sessionKey } = req.body || {};
       const result = await generateSmallModelText({
         prompt,
         system,
@@ -30,6 +33,7 @@ export function registerSmallModelRoutes(app, { getSmallModelService }) {
         directory,
         preferredProviderID,
         preferredModelID,
+        ...(typeof sessionKey === 'string' && sessionKey ? { sessionKey } : {}),
       });
       res.json(result);
     } catch (error) {

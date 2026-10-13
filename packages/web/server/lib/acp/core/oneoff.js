@@ -274,6 +274,7 @@ export const trimOneOffOutput = (raw, maxChars = DEFAULT_ONEOFF_MAX_CHARS) => {
 export const createOneOff = ({
   manager,
   registry,
+  index = null,
   tmpRoot = null,
   timeoutMs = DEFAULT_ONEOFF_TIMEOUT_MS,
   cleanupTimeoutMs = ONEOFF_CLEANUP_TIMEOUT_MS,
@@ -711,5 +712,48 @@ export const createOneOff = ({
     }
   };
 
-  return { generate, hooksForOneOff, trimOneOffOutput };
+  /**
+   * Default backend selection for the one-off route and the small-model
+   * fallback (Phase 1.6): an explicit `backendId` wins (unknown/disabled
+   * rejected); else the session's own backend when `sessionKey` names an
+   * indexed session; else the first ready enabled backend, in registry
+   * order. Readiness is probed via `ensureReady` — a start failure moves
+   * on to the next entry instead of failing the call.
+   */
+  const resolveBackend = async ({ backendId = null, sessionKey = null } = {}) => {
+    if (backendId !== null && backendId !== undefined) {
+      if (typeof backendId !== 'string' || !backendId) {
+        throw new AcpOneOffError('one-off backendId must be a non-empty string', { code: 'ACP_ONEOFF_INVALID' });
+      }
+      const entry = await registry.get(backendId);
+      if (!entry) {
+        throw new AcpOneOffError(`Unknown ACP backend: ${backendId}`, { code: 'ACP_BACKEND_UNKNOWN', backendId });
+      }
+      if (entry.enabled === false) {
+        throw new AcpOneOffError(`ACP backend is disabled: ${backendId}`, { code: 'ACP_BACKEND_DISABLED', backendId });
+      }
+      return backendId;
+    }
+    if (sessionKey !== null && sessionKey !== undefined) {
+      if (typeof sessionKey !== 'string' || !sessionKey || typeof index?.get !== 'function') {
+        throw new AcpOneOffError('one-off sessionKey must be a non-empty string', { code: 'ACP_ONEOFF_INVALID' });
+      }
+      const session = await index.get(sessionKey).catch(() => null);
+      if (session?.backendId) return resolveBackend({ backendId: session.backendId });
+      throw new AcpOneOffError(`Unknown ACP session: ${sessionKey}`, { code: 'ACP_SESSION_UNKNOWN' });
+    }
+    const entries = await registry.list().catch(() => []);
+    for (const entry of entries ?? []) {
+      if (!entry || entry.enabled === false) continue;
+      try {
+        await manager.ensureReady(entry.id);
+        return entry.id;
+      } catch {
+        // Not startable right now; the next entry may be.
+      }
+    }
+    throw new AcpOneOffError('No ready ACP backend is available', { code: 'ACP_BACKEND_UNAVAILABLE' });
+  };
+
+  return { generate, resolveBackend, hooksForOneOff, trimOneOffOutput };
 };

@@ -3,6 +3,9 @@ import { createAcpBackendManager } from '../acp/core/backend-manager.js';
 import { createAcpBackendRegistry } from '../acp/core/registry.js';
 import { createAcpSessionIndex } from '../acp/core/session-index.js';
 import { createAcpSessionService } from '../acp/core/sessions.js';
+import { createCheckpointStore } from '../acp/core/checkpoints.js';
+import { createOneOff } from '../acp/core/oneoff.js';
+import { setAcpOneOffFallback } from '../small-model/index.js';
 import { registerFsRoutes } from '../fs/routes.js';
 import { registerEnvironmentRoutes } from '../environment/routes.js';
 import { registerQuotaRoutes } from '../quota/routes.js';
@@ -291,14 +294,39 @@ export const createFeatureRoutesRuntime = (dependencies) => {
     // Before the generic OpenCode proxy: the ACP API is OpenChamber-owned and
     // must never fall through to the upstream server.
     const acpBackendRegistry = createAcpBackendRegistry({ dataDir: openchamberDataDir });
+    const acpSessionIndex = createAcpSessionIndex({ dataDir: openchamberDataDir });
     // The manager needs the session service's agent→client hooks before its
     // first connect, and the service needs the manager: the holder breaks the
     // cycle (the service is assigned before any backend can start). Hooks are
     // bound per backend so traffic can never be attributed across backends.
+    // One-off hooks compose first (per the oneoff.js header): the throwaway
+    // collector claims only its own sessions, everything else reaches the
+    // session router untouched.
     const acpServiceHolder = { current: null };
+    const acpOneOffHolder = { current: null };
+    const acpCheckpointStore = createCheckpointStore({ dataDir: openchamberDataDir });
     const acpBackendManager = createAcpBackendManager({
       registry: acpBackendRegistry,
-      connectionHooks: (backendId, generation) => acpServiceHolder.current?.hooksForBackend(backendId, generation) ?? {},
+      connectionHooks: (backendId, generation) => {
+        const sessions = acpServiceHolder.current?.hooksForBackend(backendId, generation) ?? {};
+        const oneOff = acpOneOffHolder.current?.hooksForOneOff(backendId, {
+          isKnownSession: (sessionId) => acpServiceHolder.current?.hasNativeSession?.(backendId, sessionId) === true,
+        });
+        if (!oneOff) return sessions;
+        return {
+          ...sessions,
+          onSessionUpdate: async (params) => {
+            if (await oneOff.onSessionUpdate(params)) return;
+            await sessions.onSessionUpdate?.(params);
+          },
+          onRequestPermission: async (params) => (
+            (await oneOff.onRequestPermission?.(params)) ?? sessions.onRequestPermission(params)
+          ),
+          onElicitation: async (params) => (
+            (await oneOff.onElicitation?.(params)) ?? sessions.onElicitation(params)
+          ),
+        };
+      },
       // Every connect logs its negotiated version + agentInfo (§0).
       onConnect: ({ backendId, protocolVersion, agentInfo }) => {
         console.log(
@@ -309,16 +337,31 @@ export const createFeatureRoutesRuntime = (dependencies) => {
     });
     const acpSessionService = createAcpSessionService({
       manager: acpBackendManager,
-      index: createAcpSessionIndex({ dataDir: openchamberDataDir }),
+      index: acpSessionIndex,
       registry: acpBackendRegistry,
+      checkpoints: acpCheckpointStore,
     });
     acpServiceHolder.current = acpSessionService;
+    const acpOneOff = createOneOff({
+      manager: acpBackendManager,
+      registry: acpBackendRegistry,
+      index: acpSessionIndex,
+    });
+    acpOneOffHolder.current = acpOneOff;
+    // Small-model ACP path (Phase 1.6): ONLY when OpenCode is unavailable
+    // (the fallback triggers on its explicit 404s); OpenCode behavior is
+    // untouched otherwise.
+    setAcpOneOffFallback({
+      generate: (options) => acpOneOff.generate(options),
+      resolveBackend: (options) => acpOneOff.resolveBackend(options ?? {}),
+    });
     setAcpBackendManager(acpBackendManager);
     setAcpSessionService(acpSessionService);
     registerAcpRoutes(app, {
       registry: acpBackendRegistry,
       manager: acpBackendManager,
       sessions: acpSessionService,
+      oneOff: acpOneOff,
       // ACP sync frames ride the global message hub, so both SSE and WS
       // clients get them and replay works like any other stream event.
       publishSyncFrame: (frame) => globalEventHub?.injectEvent({ payload: frame, directory: frame.properties.directory }),

@@ -6,6 +6,7 @@
  * - `PUT /api/acp/backends` → replace the registry (validated).
  * - `POST /api/acp/backends/:id/restart` → stop and start fresh.
  * - `POST /api/acp/backends/:id/authenticate` → `{ methodId }`.
+ * - `POST /api/acp/backends/:id/auth/terminal` → `{ command, args, env, methodId }` (never calls `authenticate`).
  * - `GET /api/acp/backends/:id/config-cache` → `{ configOptions }` (D9 picker).
  *
  * Sessions (the contract in `./routes.d.ts`):
@@ -26,6 +27,12 @@
  * - `POST /api/acp/sessions/:key/forms/:formId/cancel` → 200 empty.
  * - `GET /api/acp/permissions?directory=` → `{ permissions }`.
  * - `GET /api/acp/forms?directory=` → `{ forms }`.
+ * - `GET /api/acp/sessions/:key/checkpoints` → bare `[{ turn, complete }]`.
+ * - `GET /api/acp/sessions/:key/diff?turn=N` → bare `[FileDiffInfo]`.
+ * - `POST /api/acp/sessions/:key/revert` → `{ restored, removed, skipped, session }`.
+ *
+ * One-off:
+ * - `POST /api/acp/oneoff` → `{ ...generateResult, backendId }`.
  *
  * Live projector events fan out as `openchamber:acp-sync` frames through
  * `publishSyncFrame` (the host binds the global message hub, so SSE and WS
@@ -47,23 +54,32 @@ const statusForError = (error) => {
     case 'ACP_MESSAGE_UNKNOWN':
     case 'ACP_PERMISSION_UNKNOWN':
     case 'ACP_FORM_UNKNOWN':
+    case 'ACP_CHECKPOINT_UNKNOWN':
       return 404;
     case 'ACP_BACKEND_DISABLED':
     case 'ACP_AUTH_TERMINAL':
     case 'ACP_SESSION_BUSY':
+    case 'ACP_CHECKPOINT_BUSY':
       return 409;
     case 'ACP_REGISTRY_INVALID':
     case 'ACP_REGISTRY_CORRUPT':
     case 'ACP_CONFIG_UNKNOWN':
+    case 'ACP_CHECKPOINT_INCOMPLETE':
       return 422;
     case 'ACP_INVALID_DIRECTORY':
     case 'ACP_INVALID_PROMPT':
     case 'ACP_INVALID_TITLE':
     case 'ACP_INVALID_CONFIG':
     case 'ACP_INVALID_REQUEST':
+    case 'ACP_AUTH_NOT_TERMINAL':
+    case 'ACP_ONEOFF_INVALID':
       return 400;
     case 'ACP_SESSIONS_UNAVAILABLE':
+    case 'ACP_ONEOFF_UNAVAILABLE':
+    case 'ACP_BACKEND_UNAVAILABLE':
       return 503;
+    case 'ACP_ONEOFF_TIMEOUT':
+      return 504;
     default:
       return 500;
   }
@@ -82,7 +98,7 @@ const sendError = (res, error) => {
 const directoryOf = (req) =>
   req.query?.directory ?? req.body?.directory ?? req.headers?.['x-opencode-directory'] ?? null;
 
-export const registerAcpRoutes = (app, { registry, manager, sessions = null, publishSyncFrame = null }) => {
+export const registerAcpRoutes = (app, { registry, manager, sessions = null, oneOff = null, publishSyncFrame = null }) => {
   if (!registry || !manager) {
     throw new Error('registerAcpRoutes requires a registry and manager');
   }
@@ -100,6 +116,12 @@ export const registerAcpRoutes = (app, { registry, manager, sessions = null, pub
   const requireSessions = (res) => {
     if (sessions) return true;
     res.status(503).json({ error: 'ACP sessions are not available', code: 'ACP_SESSIONS_UNAVAILABLE' });
+    return false;
+  };
+
+  const requireOneOff = (res) => {
+    if (oneOff) return true;
+    res.status(503).json({ error: 'ACP one-off generation is not available', code: 'ACP_ONEOFF_UNAVAILABLE' });
     return false;
   };
 
@@ -153,6 +175,19 @@ export const registerAcpRoutes = (app, { registry, manager, sessions = null, pub
         return;
       }
       res.json({ backend: await manager.authenticate(req.params.id, methodId) });
+    } catch (error) {
+      sendError(res, error);
+    }
+  });
+
+  app.post('/api/acp/backends/:id/auth/terminal', jsonBody, async (req, res) => {
+    try {
+      const methodId = req.body?.methodId;
+      if (methodId !== undefined && (typeof methodId !== 'string' || !methodId)) {
+        res.status(400).json({ error: 'methodId must be a non-empty string', code: 'ACP_INVALID_REQUEST' });
+        return;
+      }
+      res.json(await manager.authTerminal(req.params.id, methodId));
     } catch (error) {
       sendError(res, error);
     }
@@ -376,6 +411,80 @@ export const registerAcpRoutes = (app, { registry, manager, sessions = null, pub
     try {
       if (!requireSessions(res)) return;
       res.json({ configOptions: await sessions.configCache({ backendId: req.params.id }) });
+    } catch (error) {
+      sendError(res, error);
+    }
+  });
+
+  app.get('/api/acp/sessions/:key/checkpoints', async (req, res) => {
+    try {
+      if (!requireSessions(res)) return;
+      res.json(await sessions.checkpoints({ key: req.params.key }));
+    } catch (error) {
+      sendError(res, error);
+    }
+  });
+
+  app.get('/api/acp/sessions/:key/diff', async (req, res) => {
+    try {
+      if (!requireSessions(res)) return;
+      const turn = Number(req.query?.turn);
+      if (!Number.isInteger(turn) || turn <= 0) {
+        res.status(400).json({ error: 'turn must be a positive integer', code: 'ACP_INVALID_REQUEST' });
+        return;
+      }
+      res.json(await sessions.diff({ key: req.params.key, turn }));
+    } catch (error) {
+      sendError(res, error);
+    }
+  });
+
+  app.post('/api/acp/sessions/:key/revert', jsonBody, async (req, res) => {
+    try {
+      if (!requireSessions(res)) return;
+      const { turn } = req.body ?? {};
+      if (!Number.isInteger(turn) || turn <= 0) {
+        res.status(400).json({ error: 'turn must be a positive integer', code: 'ACP_INVALID_REQUEST' });
+        return;
+      }
+      res.json(await sessions.revert({ key: req.params.key, turn }));
+    } catch (error) {
+      sendError(res, error);
+    }
+  });
+
+  app.post('/api/acp/oneoff', promptBody, async (req, res) => {
+    try {
+      if (!requireOneOff(res)) return;
+      const { backendId, sessionKey, instruction, input, maxChars } = req.body ?? {};
+      if (typeof instruction !== 'string' || !instruction) {
+        res.status(400).json({ error: 'instruction must be a non-empty string', code: 'ACP_INVALID_REQUEST' });
+        return;
+      }
+      if (typeof input !== 'string') {
+        res.status(400).json({ error: 'input must be a string', code: 'ACP_INVALID_REQUEST' });
+        return;
+      }
+      if (maxChars !== undefined && (typeof maxChars !== 'number' || !Number.isFinite(maxChars) || maxChars < 0)) {
+        res.status(400).json({ error: 'maxChars must be a non-negative finite number', code: 'ACP_INVALID_REQUEST' });
+        return;
+      }
+      if (backendId !== undefined && (typeof backendId !== 'string' || !backendId)) {
+        res.status(400).json({ error: 'backendId must be a non-empty string', code: 'ACP_INVALID_REQUEST' });
+        return;
+      }
+      if (sessionKey !== undefined && (typeof sessionKey !== 'string' || !sessionKey)) {
+        res.status(400).json({ error: 'sessionKey must be a non-empty string', code: 'ACP_INVALID_REQUEST' });
+        return;
+      }
+      const resolvedBackendId = await oneOff.resolveBackend({ backendId, sessionKey });
+      const result = await oneOff.generate({
+        backendId: resolvedBackendId,
+        instruction,
+        input,
+        ...(maxChars === undefined ? {} : { maxChars }),
+      });
+      res.json({ ...result, backendId: resolvedBackendId });
     } catch (error) {
       sendError(res, error);
     }

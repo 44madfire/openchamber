@@ -1,6 +1,6 @@
 import { isString } from '../shared/guards.js';
 import { getRepositoryRoot } from '../git/service.js';
-import { describeSmallModel, generateSmallModelText } from '../small-model/index.js';
+import { describeSmallModel, generateSmallModelText, getAcpOneOffFallback } from '../small-model/index.js';
 import { buildDigest } from './digest.js';
 import { indexHunks } from './hunks.js';
 import { normalizeLanguage } from './languages.js';
@@ -210,6 +210,35 @@ const resolveModel = (directory, explicitModel, providerID, modelID) => describe
   preferredModelID: modelID || undefined,
 });
 
+// The ACP one-off provider has no model entry to resolve, so describe the
+// request the fallback will send instead: the walkthrough reserve floor (no
+// model limit to derive more from) and no measurable budget beyond it.
+const ACP_FALLBACK_MODEL = Object.freeze({
+  providerID: 'acp-oneoff',
+  modelID: 'oneoff',
+  source: 'acp-oneoff',
+  hasLogin: true,
+  localEndpoint: false,
+  inputCharBudget: Number.MAX_SAFE_INTEGER,
+  contextTokens: null,
+  contextKnown: false,
+  outputTokens: MIN_OUTPUT_TOKENS,
+  structuredOutput: null,
+  outputTokenLimit: null,
+});
+
+// The generate-level fallback only fires inside `generateSmallModelText`, past
+// a resolution this feature never reaches when OpenCode is down. So a null
+// OpenCode answer resolves to the synthetic ACP entry while the fallback is
+// wired; an explicit model choice still means OpenCode-or-nothing.
+const resolveModelWithFallback = async (directory, explicitModel, providerID, modelID) => {
+  const model = await resolveModel(directory, explicitModel, providerID, modelID);
+  if (model || explicitModel || readWalkthroughModelOverride()) return model;
+  return getAcpOneOffFallback() ? { ...ACP_FALLBACK_MODEL } : null;
+};
+
+const isAcpFallbackModel = (model) => model?.source === 'acp-oneoff';
+
 export const __testing = { generationTimeoutMs, walkthroughOutputTokens };
 
 /**
@@ -285,7 +314,7 @@ export async function getWalkthrough({ directory, source: rawSource, model: expl
   // the whole git pipeline twice.
   const [built, model] = await Promise.all([
     loadCurrentDiff(directory, source, deps, readContext),
-    resolveModel(directory, explicitModel, providerID, modelID).catch(() => null),
+    resolveModelWithFallback(directory, explicitModel, providerID, modelID).catch(() => null),
   ]);
   const { files } = built;
   const hunkIndex = indexHunks(files);
@@ -436,7 +465,7 @@ export async function generateWalkthrough({ directory, source: rawSource, force 
 
 async function runGeneration({ directory, source, repoRoot, key, force, explicitModel, providerID, modelID, language, readContext, signal }, deps) {
 
-  const model = await resolveModel(directory, explicitModel, providerID, modelID);
+  const model = await resolveModelWithFallback(directory, explicitModel, providerID, modelID);
   if (!model) {
     throw fail('No model is available — sign in to a provider first', 404, { code: 'no-model' });
   }
@@ -514,13 +543,18 @@ async function runGeneration({ directory, source, repoRoot, key, force, explicit
     );
   }
 
+  const acpFallback = isAcpFallbackModel(model);
   const run = (options) => generateSmallModelText({
     prompt: options.prompt,
     system: options.system,
     directory,
     sessionID: `openchamber-walkthrough-${cacheKey}`,
-    model: `${model.providerID}/${model.modelID}`,
-    responseSchema: options.responseSchema,
+    // The synthetic ACP entry is not an OpenCode model: omit `model` so the
+    // generate-level fallback fires instead of resolving a literal provider.
+    ...(!acpFallback ? { model: `${model.providerID}/${model.modelID}` } : {}),
+    // The one-off prompt already asks for bare JSON and its trimmer unwraps
+    // fences, so the schema would only spend a wasted with-schema call.
+    responseSchema: acpFallback ? undefined : options.responseSchema,
     onOverflow: 'error',
     timeoutMs: generationTimeoutMs(hunkCount),
     // The number the input budget was already reduced by, not a fresh guess.
@@ -563,9 +597,12 @@ async function runGeneration({ directory, source, repoRoot, key, force, explicit
   let raw;
   let usedSchema = false;
 
-  if (schemaRefusedBy.has(modelKey(model))) {
-    // Already known to refuse: skip straight to the fallback rather than pay
-    // for a call whose failure is a foregone conclusion.
+  if (acpFallback || schemaRefusedBy.has(modelKey(model))) {
+    // The ACP path carries the shape in the prompt from the start — its
+    // provider ignores `responseSchema`, so a with-schema attempt would only
+    // waste a call. For an OpenCode model this branch still means only what
+    // it always did: known to refuse, skip straight to the prompt fallback
+    // rather than pay for a call whose failure is a foregone conclusion.
     setStage(repoRoot, key, 'retrying', readContext);
     try {
       raw = await withoutSchema();

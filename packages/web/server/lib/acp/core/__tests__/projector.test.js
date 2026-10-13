@@ -611,3 +611,144 @@ describe('acp projector compaction identity', () => {
     expect(compactionOf(projector)[0].summary).toBe('new');
   });
 });
+
+describe('acp projector terminal output (§3.3)', () => {
+  const PIACP_UPDATES = (id) => [
+    {
+      sessionUpdate: 'tool_call',
+      toolCallId: id,
+      title: 'echo hi',
+      kind: 'execute',
+      status: 'pending',
+      content: [{ type: 'terminal', terminalId: id }],
+      _meta: { terminal_info: { terminal_id: id, cwd: 'C:\\work' } },
+    },
+    { sessionUpdate: 'tool_call_update', toolCallId: id, title: 'echo hi', kind: 'execute', status: 'in_progress' },
+    {
+      sessionUpdate: 'tool_call_update',
+      toolCallId: id,
+      status: 'in_progress',
+      _meta: { terminal_output: { terminal_id: id, data: 'PIACP-' } },
+    },
+    {
+      sessionUpdate: 'tool_call_update',
+      toolCallId: id,
+      status: 'in_progress',
+      _meta: { terminal_output: { terminal_id: id, data: 'OUTPUT\n' } },
+    },
+    {
+      sessionUpdate: 'tool_call_update',
+      toolCallId: id,
+      status: 'completed',
+      _meta: { terminal_exit: { terminal_id: id, exit_code: 0, signal: null } },
+    },
+  ];
+
+  it('accumulates _meta terminal_output deltas into the completed part', () => {
+    const projector = projectorFor('pi-acp');
+    projector.acceptPrompt('msg_1', [{ type: 'text', text: 'run it' }]);
+    for (const update of PIACP_UPDATES('call_1')) {
+      projector.applyUpdate({ sessionId: 'n', update });
+    }
+    const parts = projector.page({ limit: 10 }).items.flatMap((item) => item.parts);
+    const shell = parts.find((part) => part.type === 'tool' && part.callID === 'call_1');
+    expect(shell.tool).toBe('shell');
+    expect(shell.state).toMatchObject({ status: 'completed', output: 'PIACP-OUTPUT\n' });
+    expect(shell.state.metadata).toMatchObject({ output: 'PIACP-OUTPUT\n', exitCode: 0 });
+  });
+
+  it('accepts the string form of terminal_output', () => {
+    const projector = projectorFor('pi-acp');
+    projector.acceptPrompt('msg_1', [{ type: 'text', text: 'run it' }]);
+    projector.applyUpdate({ sessionId: 'n', update: { sessionUpdate: 'tool_call', toolCallId: 'c2', title: 't', kind: 'execute', status: 'pending' } });
+    projector.applyUpdate({ sessionId: 'n', update: { sessionUpdate: 'tool_call_update', toolCallId: 'c2', status: 'in_progress', _meta: { terminal_output: 'out' } } });
+    projector.applyUpdate({ sessionId: 'n', update: { sessionUpdate: 'tool_call_update', toolCallId: 'c2', status: 'completed' } });
+    const parts = projector.page({ limit: 10 }).items.flatMap((item) => item.parts);
+    expect(parts.find((part) => part.callID === 'c2').state).toMatchObject({ status: 'completed', output: 'out' });
+  });
+
+  it('keeps typed content as a replacing snapshot, not an append', () => {
+    const projector = projectorFor('opencode');
+    projector.acceptPrompt('msg_1', [{ type: 'text', text: 'run it' }]);
+    const id = 'toolu_1';
+    projector.applyUpdate({ sessionId: 'n', update: { sessionUpdate: 'tool_call', toolCallId: id, title: 't', kind: 'execute', status: 'pending' } });
+    projector.applyUpdate({ sessionId: 'n', update: { sessionUpdate: 'tool_call_update', toolCallId: id, status: 'in_progress', content: [{ type: 'content', content: { type: 'text', text: 'part' } }] } });
+    projector.applyUpdate({ sessionId: 'n', update: { sessionUpdate: 'tool_call_update', toolCallId: id, status: 'completed', content: [{ type: 'content', content: { type: 'text', text: 'whole' } }] } });
+    const parts = projector.page({ limit: 10 }).items.flatMap((item) => item.parts);
+    // Snapshot replaces; the progress text is not duplicated into the final.
+    expect(parts.find((part) => part.callID === id).state).toMatchObject({ status: 'completed', output: 'whole' });
+  });
+});
+
+describe('acp projector turn ordinals (D12) and generic tool identity', () => {
+  it('numbers live turns 1-based in accept order', () => {
+    const projector = projectorFor('omp');
+    projector.acceptPrompt('msg_1', [{ type: 'text', text: 'one' }]);
+    projector.applyUpdate({ sessionId: 'n', update: { sessionUpdate: 'agent_message_chunk', messageId: 'a1', content: { type: 'text', text: 'r' } } });
+    projector.applyPromptResult({ stopReason: 'end_turn' });
+    projector.acceptPrompt('msg_2', [{ type: 'text', text: 'two' }]);
+    projector.applyPromptResult({ stopReason: 'end_turn' });
+    expect(projector.turnNumberOf('msg_1')).toBe(1);
+    expect(projector.turnNumberOf('msg_2')).toBe(2);
+    expect(projector.turnNumberOf('msg_nope')).toBeNull();
+    // An assistant reply is not a turn.
+    const assistantId = projector.transcriptIds().find((id) => id !== 'msg_1' && id !== 'msg_2');
+    expect(assistantId).toBeTruthy();
+    expect(projector.turnNumberOf(assistantId)).toBeNull();
+  });
+
+  it('restores turn ordinals across rollback', () => {
+    const projector = projectorFor('omp');
+    projector.acceptPrompt('msg_1', [{ type: 'text', text: 'one' }]);
+    projector.applyPromptResult({ stopReason: 'end_turn' });
+    projector.beginReplay();
+    expect(projector.turnNumberOf('msg_1')).toBeNull();
+    projector.rollbackReplay();
+    expect(projector.turnNumberOf('msg_1')).toBe(1);
+  });
+
+  it('carries raw kind/title on generic tools across settle', () => {
+    const projector = projectorFor('omp');
+    projector.acceptPrompt('msg_1', [{ type: 'text', text: 'think' }]);
+    projector.applyUpdate({ sessionId: 'n', update: { sessionUpdate: 'tool_call', toolCallId: 'c1', title: 'Considering alternatives', kind: 'think', status: 'pending' } });
+    projector.applyUpdate({ sessionId: 'n', update: { sessionUpdate: 'tool_call_update', toolCallId: 'c1', title: 'Considering alternatives', kind: 'think', status: 'in_progress' } });
+    projector.applyUpdate({ sessionId: 'n', update: { sessionUpdate: 'tool_call_update', toolCallId: 'c1', status: 'completed', content: [{ type: 'content', content: { type: 'text', text: 'done' } }] } });
+    const parts = projector.page({ limit: 10 }).items.flatMap((item) => item.parts);
+    const generic = parts.find((part) => part.callID === 'c1');
+    expect(generic.tool).toBe('acp');
+    expect(generic.state.metadata).toMatchObject({ acpKind: 'think', acpTitle: 'Considering alternatives', output: 'done' });
+  });
+
+  it('omits generic identity on mapped tools', () => {
+    const projector = projectorFor('opencode');
+    projector.acceptPrompt('msg_1', [{ type: 'text', text: 'read' }]);
+    projector.applyUpdate({ sessionId: 'n', update: { sessionUpdate: 'tool_call', toolCallId: 'r1', title: 'Read file', kind: 'read', status: 'pending' } });
+    projector.applyUpdate({ sessionId: 'n', update: { sessionUpdate: 'tool_call_update', toolCallId: 'r1', title: 'Read file', kind: 'read', status: 'completed' } });
+    const parts = projector.page({ limit: 10 }).items.flatMap((item) => item.parts);
+    const read = parts.find((part) => part.callID === 'r1');
+    expect(read.tool).toBe('read');
+    expect(read.state.metadata ?? {}).not.toHaveProperty('acpKind');
+    expect(read.state.metadata ?? {}).not.toHaveProperty('acpTitle');
+  });
+});
+
+describe('acp projector revert commit', () => {
+  it('commit clears the marker and the ordinal; replay cannot resurrect', () => {
+    const projector = projectorFor('omp');
+    projector.acceptPrompt('msg_1', [{ type: 'text', text: 'one' }]);
+    projector.applyPromptResult({ stopReason: 'end_turn' });
+    projector.setRevertBoundary(1, 'msg_1');
+    expect(projector.session().revert).toEqual({ messageID: 'msg_1' });
+    expect(projector.session().metadata.acp.revertedFromTurn).toBe(1);
+    const events = projector.acceptPrompt('msg_2', [{ type: 'text', text: 'two' }]);
+    expect(events.some((e) => e.type === 'session.patched' && e.properties.patch.revert === null)).toBe(true);
+    expect(projector.session().revert).toBeUndefined();
+    expect(projector.session().metadata.acp.revertedFromTurn).toBeUndefined();
+    // Rebuild after the commit: no boundary comes back.
+    projector.beginReplay();
+    projector.applyUpdate({ sessionId: 'n', update: { sessionUpdate: 'user_message_chunk', messageId: 'u-1', content: { type: 'text', text: 'one' } } }, { replay: true });
+    projector.applyUpdate({ sessionId: 'n', update: { sessionUpdate: 'agent_message_chunk', messageId: 'm-1', content: { type: 'text', text: 'r' } } }, { replay: true });
+    projector.endReplay();
+    expect(projector.session().revert).toBeUndefined();
+  });
+});

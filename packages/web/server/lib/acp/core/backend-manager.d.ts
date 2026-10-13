@@ -37,12 +37,20 @@ export interface AcpConnectInfo {
   agentInfo: Implementation | null;
 }
 
+/** A `terminal` auth method resolved into what the terminal panel launches. */
+export interface AcpAuthTerminalInvocation {
+  command: string;
+  args: string[];
+  env: Record<string, string>;
+  methodId: string;
+}
 export interface AcpBackendManager {
   events: EventEmitter;
   ensureReady(backendId: string): Promise<AcpConnectedAgent>;
   acquire(backendId: string): Promise<AcpBackendLease>;
   restart(backendId: string): Promise<AcpBackendStatus>;
   authenticate(backendId: string, methodId: string): Promise<AcpBackendStatus>;
+  authTerminal(backendId: string, methodId?: string | null): Promise<AcpAuthTerminalInvocation>;
   status(backendId: string): Promise<AcpBackendStatus>;
   listStatuses(): Promise<Array<{ entry: AcpBackendEntry } & AcpBackendStatus>>;
   shutdown(): Promise<void>;
