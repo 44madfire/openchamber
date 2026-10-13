@@ -1711,7 +1711,7 @@ const ToolPartContent: React.FC<ToolPartProps & { header?: ToolRowHeader; subage
     const writeLineCount = React.useMemo(() => {
         return isWriteTool(normalizedPartTool) ? parseWriteLineCount(input) : null;
     }, [input, normalizedPartTool]);
-    const isMultiFileApplyPatch = isPatchTool(normalizedPartTool) && Array.isArray(metadata?.files) && (metadata?.files as []).length > 1;
+    const isMultiFileApplyPatch = isPatchTool(normalizedPartTool) && Array.isArray(metadata?.files) && metadata.files.length > 1;
     const normalizedPart = normalizedPartTool !== part.tool ? ({ ...part, tool: normalizedPartTool } as ToolPartType) : part;
     const descriptionPath = getToolDescriptionPath(normalizedPart, state, currentDirectory);
     const builtInDescription = getToolDescription(normalizedPart, state, currentDirectory, t);

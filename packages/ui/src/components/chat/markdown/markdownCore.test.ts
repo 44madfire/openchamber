@@ -22,10 +22,10 @@ const sanitizeHooks: {
 // Mirrors DOMPurify's default URI policy: approved schemes plus relative URLs.
 const DOMPURIFY_ALLOWED_URI_RE =
   // Keep this byte-aligned with DOMPurify's default IS_ALLOWED_URI expression.
-  // eslint-disable-next-line no-useless-escape
+  // oxlint-disable-next-line no-useless-escape
   /^(?:(?:(?:f|ht)tps?|mailto|tel|callto|sms|cid|xmpp|matrix):|[^a-z]|[a-z+.\-]+(?:[^a-z+.\-:]|$))/i;
 const URI_ATTRIBUTE_WHITESPACE_RE =
-  // eslint-disable-next-line no-control-regex
+  // oxlint-disable-next-line no-control-regex
   /[\u0000-\u0020\u00A0\u1680\u180E\u2000-\u2029\u205F\u3000]/g;
 
 Object.assign(globalThis, {

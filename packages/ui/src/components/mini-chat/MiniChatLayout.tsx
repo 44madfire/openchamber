@@ -213,9 +213,9 @@ const MiniChatHeader: React.FC<{ mode: MiniChatMode }> = ({ mode }) => {
         // Native traffic lights are fixed-size OS chrome on the left in every
         // language, not scaled UI. The other edges: content padding at the
         // start, flush at the end when the in-window controls own that corner.
-        // eslint-disable-next-line no-restricted-syntax -- window chrome is physical
+        // oxlint-disable-next-line openchamber/no-physical-sides -- window chrome is physical
         hasMacTrafficLights ? 'pl-[88px]' : direction === 'rtl' && controlsAtEnd ? 'pl-0' : 'pl-3',
-        // eslint-disable-next-line no-restricted-syntax -- window chrome is physical
+        // oxlint-disable-next-line openchamber/no-physical-sides -- window chrome is physical
         direction === 'ltr' && controlsAtEnd ? 'pr-0' : 'pr-3',
         usesFramelessChrome ? 'h-12' : macosHeaderSizeClass || 'min-h-14',
       )}

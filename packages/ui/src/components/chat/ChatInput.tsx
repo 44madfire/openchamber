@@ -476,7 +476,7 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({
     const [largeTextPasteGesture] = React.useState(() => new LargeTextPasteGesture());
 
     // TODO: port sendMessage to session-actions (complex — creates sessions, handles attachments, etc.)
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    // oxlint-disable-next-line typescript/no-explicit-any
     const sendMessage = React.useRef((...args: any[]) =>
         Promise.resolve((useSessionUIStore.getState().sendMessage as (...a: unknown[]) => unknown)(...args)),
     ).current;

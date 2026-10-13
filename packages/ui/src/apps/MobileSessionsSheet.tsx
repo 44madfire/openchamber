@@ -884,7 +884,7 @@ export const MobileSessionsSheet: React.FC<MobileSessionsSheetProps> = ({ open, 
     }
     void refreshGlobalSessions(liveSessions);
     // intentionally only on open transition — session events keep the list current after that
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // oxlint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
   React.useEffect(() => {

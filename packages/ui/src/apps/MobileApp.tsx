@@ -1041,7 +1041,7 @@ function MobileAppContent({ apis }: MobileAppProps) {
       cancelled = true;
     };
     // Run once on mount — auto-connect is a cold-launch concern only.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // oxlint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Cold launch with a PERSISTED runtime endpoint (the auto-connect effect
@@ -1100,7 +1100,7 @@ function MobileAppContent({ apis }: MobileAppProps) {
     };
     // Run once on mount — a cold-launch classification only; live drops are
     // handled by the resume/online re-probe paths.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // oxlint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   React.useEffect(() => {

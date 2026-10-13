@@ -78,6 +78,7 @@ import { PendingGitOperationError } from '@/lib/source-control/git-operation-rec
 import { useGitPublishChooser } from '@/components/views/git/useGitPublishChooser';
 import { PublishDialog } from '@/components/views/git/PublishDialog';
 import { settleGitFileReverts } from './mobileChangesOperations';
+import { commitAndSwitchBranch } from './mobileDirtySwitch';
 import { normalizePath } from '@/lib/pathNormalization';
 
 type SyncAction = 'fetch' | 'pull' | 'sync' | 'publish' | null;
@@ -1237,31 +1238,18 @@ export const MobileChangesPane: React.FC<MobileChangesPaneProps> = ({ rootDirect
         onOpenChange={(open) => { if (!open) setPendingDirtySwitchBranch(null); }}
         targetBranch={pendingDirtySwitchBranch ?? ''}
         changedFileCount={status?.files?.length ?? 0}
-        onCommitAndSwitch={async (message, pushAfter) => {
-          const branch = pendingDirtySwitchBranch;
-          if (!branch || !currentDirectory) return;
-          const sourceBranch = status?.current ?? null;
-          await git.createGitCommit(currentDirectory, message, { addAll: true });
-          if (pushAfter) {
-            try {
-              const executePush = await publishChooser.prepare('push');
-              await executePush();
-            } catch {
-              toast.error(t('gitView.dirtySwitch.pushFailed'));
-              await refreshStatusAndBranches();
-              setPendingDirtySwitchBranch(null);
-              return;
-            }
-          }
-          toast.success(sourceBranch
-            ? pushAfter
-              ? t('gitView.publish.succeeded')
-              : t('gitView.dirtySwitch.committedNotPushed', { branch: sourceBranch })
-            : t('gitView.toast.commitCreated'));
-          await refreshStatusAndBranches();
-          setPendingDirtySwitchBranch(null);
-          await performCheckout(branch);
-        }}
+        onCommitAndSwitch={(message, pushAfter) => commitAndSwitchBranch(message, pushAfter, {
+          targetBranch: pendingDirtySwitchBranch,
+          directory: currentDirectory,
+          sourceBranch: status?.current ?? null,
+          git,
+          publishChooser,
+          toast,
+          t,
+          refreshStatusAndBranches,
+          closeDialog: () => setPendingDirtySwitchBranch(null),
+          performCheckout,
+        })}
         onGenerateMessage={async () => {
           if (!currentDirectory) return '';
           const paths = (status?.files ?? []).map((file) => file.path).sort();

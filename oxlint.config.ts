@@ -1,7 +1,7 @@
 import { defineConfig } from "oxlint";
 
-// Oxlint here runs only the vendored anti-slop plugin; ESLint remains the
-// general-purpose linter for this repository.
+// This config runs only the vendored anti-slop plugin. The general-purpose lint
+// is `oxlint.lint.config.ts`, run by `bun run lint`.
 export default defineConfig({
   categories: {
     correctness: "off",
@@ -24,7 +24,7 @@ export default defineConfig({
     "packages/sdk/examples/**/*.js",
     "patches/**",
     "bun-patches/**",
-    "tools/oxlint/anti-slop/**",
+    "tools/oxlint/**",
   ],
   jsPlugins: [
     { name: "anti-slop", specifier: "./tools/oxlint/anti-slop/index.ts" },
