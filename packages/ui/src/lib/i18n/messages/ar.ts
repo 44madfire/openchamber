@@ -3808,6 +3808,8 @@ export const dict = {
   'filesView.editor.moreActions': 'إجراءات أخرى',
   'filesView.editor.toast.contentsCopied': 'تم نسخ محتوى الملف',
   'diffView.whitespace.hidden': 'تغييرات المسافات مخفية',
+  'diffView.layout.switchToUnified': 'التبديل إلى العرض الموحّد',
+  'diffView.layout.switchToSideBySide': 'التبديل إلى العرض جنبًا إلى جنب',
   'diffView.whitespace.shown': 'تغييرات المسافات ظاهرة',
   'session.newWorktree.trust.skip': 'تخطٍّ',
   'chat.revertPopover.toast.restoreFailed': 'تعذّرت استعادة الرسائل المتراجع عنها',

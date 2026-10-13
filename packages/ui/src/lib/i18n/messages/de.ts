@@ -1609,6 +1609,8 @@ export const dict = {
   'diffView.actions.enableLineWrap': 'Zeilenumbruch aktivieren',
   'diffView.actions.hideWhitespace': 'Leerzeichenänderungen ausblenden',
   'diffView.whitespace.hidden': 'Leerzeichenänderungen ausgeblendet',
+  'diffView.layout.switchToUnified': 'Zur einheitlichen Ansicht wechseln',
+  'diffView.layout.switchToSideBySide': 'Zur Ansicht nebeneinander wechseln',
   'diffView.whitespace.shown': 'Leerzeichenänderungen sichtbar',
   'diffView.actions.openFileInEditorAtChange': 'Diese Datei im Editor bei der Änderung öffnen',
   'diffView.actions.openFileAtFirstChangedLine': 'Diese Datei an erster geänderter Zeile öffnen',

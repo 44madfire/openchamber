@@ -1846,6 +1846,8 @@ export const dict = {
   'diffView.actions.enableLineWrap': 'Regelafbreking aanzetten',
   'diffView.actions.hideWhitespace': 'Witruimtewijzigingen verbergen',
   'diffView.whitespace.hidden': 'Witruimtewijzigingen verborgen',
+  'diffView.layout.switchToUnified': 'Overschakelen naar samengevoegde weergave',
+  'diffView.layout.switchToSideBySide': 'Overschakelen naar weergave naast elkaar',
   'diffView.whitespace.shown': 'Witruimtewijzigingen zichtbaar',
   'diffView.actions.openFileInEditorAtChange': 'Dit bestand in de editor openen op de wijziging',
   'diffView.actions.openFileAtFirstChangedLine': 'Dit bestand openen bij de eerste gewijzigde regel',

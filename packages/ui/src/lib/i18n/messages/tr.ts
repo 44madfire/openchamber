@@ -1719,6 +1719,8 @@ export const dict = {
   'diffView.actions.enableLineWrap': 'Satır kaydırmayı etkinleştir',
   'diffView.actions.hideWhitespace': 'Boşluk değişikliklerini gizle',
   'diffView.whitespace.hidden': 'Boşluk değişiklikleri gizli',
+  'diffView.layout.switchToUnified': 'Birleşik görünüme geç',
+  'diffView.layout.switchToSideBySide': 'Yan yana görünüme geç',
   'diffView.whitespace.shown': 'Boşluk değişiklikleri gösteriliyor',
   'diffView.actions.openFileInEditorAtChange': 'Bu dosyayı değişiklik konumunda editörde aç',
   'diffView.actions.openFileAtFirstChangedLine': 'Bu dosyayı ilk değişen satırda aç',

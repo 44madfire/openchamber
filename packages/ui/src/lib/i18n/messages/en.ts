@@ -1854,6 +1854,8 @@ export const dict = {
   'diffView.actions.enableLineWrap': 'Enable line wrap',
   'diffView.actions.hideWhitespace': 'Hide whitespace changes',
   'diffView.whitespace.hidden': 'Whitespace changes hidden',
+  'diffView.layout.switchToUnified': 'Switch to unified view',
+  'diffView.layout.switchToSideBySide': 'Switch to side-by-side view',
   'diffView.whitespace.shown': 'Whitespace changes shown',
   'diffView.actions.openFileInEditorAtChange': 'Open this file in editor at change',
   'diffView.actions.openFileAtFirstChangedLine': 'Open this file at first changed line',

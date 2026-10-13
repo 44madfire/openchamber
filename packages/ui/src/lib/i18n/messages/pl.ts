@@ -2056,6 +2056,8 @@ export const dict: Record<I18nKey, string> = {
   'diffView.actions.enableLineWrap': 'Włącz zawijanie linii',
   'diffView.actions.hideWhitespace': 'Ukryj zmiany białych znaków',
   'diffView.whitespace.hidden': 'Zmiany białych znaków ukryte',
+  'diffView.layout.switchToUnified': 'Przełącz na widok ujednolicony',
+  'diffView.layout.switchToSideBySide': 'Przełącz na widok obok siebie',
   'diffView.whitespace.shown': 'Zmiany białych znaków widoczne',
   'diffView.actions.expandAll': 'Rozwiń wszystko',
   'diffView.actions.collapseAll': 'Zwiń wszystko',

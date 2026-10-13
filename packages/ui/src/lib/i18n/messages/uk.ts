@@ -1808,6 +1808,8 @@ export const dict: Record<I18nKey, string> = {
   "diffView.actions.enableLineWrap": "Увімкнути перенос рядків",
   "diffView.actions.hideWhitespace": "Приховати зміни пробілів",
   "diffView.whitespace.hidden": "Зміни пробілів приховано",
+  "diffView.layout.switchToUnified": "Перейти до єдиного вигляду",
+  "diffView.layout.switchToSideBySide": "Перейти до вигляду поруч",
   "diffView.whitespace.shown": "Зміни пробілів показано",
   "diffView.actions.openFileInEditorAtChange": "Відкрити цей файл у редакторі на зміні",
   "diffView.actions.openFileAtFirstChangedLine": "Відкрити цей файл у першому зміненому рядку",

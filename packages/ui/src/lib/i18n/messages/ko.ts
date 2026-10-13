@@ -1854,6 +1854,8 @@ export const dict: Record<I18nKey, string> = {
   'diffView.actions.enableLineWrap': '줄 바꿈 켜기',
   'diffView.actions.hideWhitespace': '공백 변경 숨기기',
   'diffView.whitespace.hidden': '공백 변경 숨김',
+  'diffView.layout.switchToUnified': '통합 보기로 전환',
+  'diffView.layout.switchToSideBySide': '나란히 보기로 전환',
   'diffView.whitespace.shown': '공백 변경 표시 중',
   'diffView.actions.openFileInEditorAtChange': '변경 위치에서 이 파일을 에디터로 열기',
   'diffView.actions.openFileAtFirstChangedLine': '첫 변경 줄에서 이 파일 열기',

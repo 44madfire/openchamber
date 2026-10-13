@@ -1600,6 +1600,8 @@ export const dict = {
   'diffView.actions.enableLineWrap': 'Activer le retour à la ligne',
   'diffView.actions.hideWhitespace': 'Masquer les changements d’espacement',
   'diffView.whitespace.hidden': 'Changements d’espacement masqués',
+  'diffView.layout.switchToUnified': 'Passer à la vue unifiée',
+  'diffView.layout.switchToSideBySide': 'Passer à la vue côte à côte',
   'diffView.whitespace.shown': 'Changements d’espacement affichés',
   'diffView.actions.openFileInEditorAtChange': 'Ouvrez ce fichier dans l\'éditeur lors du changement',
   'diffView.actions.openFileAtFirstChangedLine': 'Ouvrez ce fichier à la première ligne modifiée',

@@ -1808,6 +1808,8 @@ export const dict: Record<I18nKey, string> = {
   "diffView.actions.enableLineWrap": "Activar ajuste de línea",
   "diffView.actions.hideWhitespace": "Ocultar cambios de espacios en blanco",
   "diffView.whitespace.hidden": "Cambios de espacios en blanco ocultos",
+  "diffView.layout.switchToUnified": "Cambiar a vista unificada",
+  "diffView.layout.switchToSideBySide": "Cambiar a vista lado a lado",
   "diffView.whitespace.shown": "Cambios de espacios en blanco visibles",
   "diffView.actions.openFileInEditorAtChange": "Abrir este archivo en el editor en el cambio",
   "diffView.actions.openFileAtFirstChangedLine": "Abrir este archivo en la primera línea modificada",

@@ -1835,6 +1835,8 @@ export const dict: Record<I18nKey, string> = {
   'diffView.actions.enableLineWrap': '開啟自動換行',
   'diffView.actions.hideWhitespace': '隱藏空白變更',
   'diffView.whitespace.hidden': '已隱藏空白變更',
+  'diffView.layout.switchToUnified': '切換到統一檢視',
+  'diffView.layout.switchToSideBySide': '切換到並排檢視',
   'diffView.whitespace.shown': '正在顯示空白變更',
   'diffView.actions.openFileInEditorAtChange': '在編輯器中開啟此檔案並定位變更',
   'diffView.actions.openFileAtFirstChangedLine': '在首個變更行開啟此檔案',

@@ -1850,6 +1850,8 @@ export const dict: Record<I18nKey, string> = {
   'diffView.actions.enableLineWrap': '行の折り返しを有効にする',
   'diffView.actions.hideWhitespace': '空白の変更を非表示',
   'diffView.whitespace.hidden': '空白の変更を非表示中',
+  'diffView.layout.switchToUnified': '統合表示に切り替え',
+  'diffView.layout.switchToSideBySide': '左右に並べた表示に切り替え',
   'diffView.whitespace.shown': '空白の変更を表示中',
   'diffView.actions.openFileInEditorAtChange': '変更箇所でファイルをエディターで開く',
   'diffView.actions.openFileAtFirstChangedLine': '最初の変更行でファイルを開く',
