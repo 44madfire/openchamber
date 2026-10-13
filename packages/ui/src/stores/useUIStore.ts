@@ -1013,6 +1013,10 @@ interface UIStore {
    * as they open and close. Off, they snap (`useLayoutAnimationMs`).
    */
   layoutAnimations: boolean;
+  /** Plain clicks on links in chat open in the built-in browser panel (desktop only). */
+  openLinksInBrowserPanel: boolean;
+  /** Plain clicks on issue, PR and Linear links in chat open them on the issues and PRs board. */
+  openTrackerLinksOnBoard: boolean;
   autoDeleteAfterDays: number;
   sessionRetentionAction: SessionRetentionAction;
   sessionRetentionOnlyArchived: boolean;
@@ -1277,6 +1281,8 @@ interface UIStore {
   setAutoSaveEnabled: (value: boolean) => void;
   setConfirmFileTreeMove: (value: boolean) => void;
   setLayoutAnimations: (value: boolean) => void;
+  setOpenLinksInBrowserPanel: (value: boolean) => void;
+  setOpenTrackerLinksOnBoard: (value: boolean) => void;
   setFileTreeSide: (side: 'left' | 'right') => void;
   setAutoDeleteAfterDays: (days: number) => void;
   setSessionRetentionAction: (value: SessionRetentionAction) => void;
@@ -1493,6 +1499,8 @@ export const useUIStore = create<UIStore>()(
         autoSaveEnabled: true,
         confirmFileTreeMove: true,
         layoutAnimations: true,
+        openLinksInBrowserPanel: false,
+        openTrackerLinksOnBoard: true,
         autoDeleteAfterDays: 30,
         sessionRetentionAction: 'archive',
         sessionRetentionOnlyArchived: false,
@@ -2556,6 +2564,14 @@ export const useUIStore = create<UIStore>()(
           set({ layoutAnimations: value });
         },
 
+        setOpenLinksInBrowserPanel: (value) => {
+          set({ openLinksInBrowserPanel: value });
+        },
+
+        setOpenTrackerLinksOnBoard: (value) => {
+          set({ openTrackerLinksOnBoard: value });
+        },
+
         setFileTreeSide: (side) => {
           set({ fileTreeSide: side === 'left' ? 'left' : 'right' });
         },
@@ -3553,6 +3569,8 @@ export const useUIStore = create<UIStore>()(
           autoSaveEnabled: state.autoSaveEnabled,
           confirmFileTreeMove: state.confirmFileTreeMove,
           layoutAnimations: state.layoutAnimations,
+          openLinksInBrowserPanel: state.openLinksInBrowserPanel,
+          openTrackerLinksOnBoard: state.openTrackerLinksOnBoard,
           autoDeleteAfterDays: state.autoDeleteAfterDays,
           sessionRetentionAction: state.sessionRetentionAction,
           sessionRetentionOnlyArchived: state.sessionRetentionOnlyArchived,

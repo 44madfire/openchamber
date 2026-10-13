@@ -443,6 +443,8 @@ export const SETTINGS_REGISTRY = {
   confirmFileTreeMove: field({ scope: 'profile', parse: parseBoolean, ui: uiStore('confirmFileTreeMove', (v) => useUIStore.getState().setConfirmFileTreeMove(v)) }),
   fileTreeSide: field({ scope: 'profile', surfaces: ['web', 'desktop'], parse: parseOneOf(['left', 'right']), ui: uiStore('fileTreeSide', (v) => useUIStore.getState().setFileTreeSide(v)) }),
   layoutAnimations: field({ scope: 'profile', surfaces: ['web', 'desktop'], parse: parseBoolean, ui: uiStore('layoutAnimations', (v) => useUIStore.getState().setLayoutAnimations(v)) }),
+  openLinksInBrowserPanel: field({ scope: 'profile', surfaces: ['desktop'], parse: parseBoolean, ui: uiStore('openLinksInBrowserPanel', (v) => useUIStore.getState().setOpenLinksInBrowserPanel(v)) }),
+  openTrackerLinksOnBoard: field({ scope: 'profile', surfaces: ['web', 'desktop', 'mobile'], parse: parseBoolean, ui: uiStore('openTrackerLinksOnBoard', (v) => useUIStore.getState().setOpenTrackerLinksOnBoard(v)) }),
   autoCreateWorktree: field({ scope: 'profile', parse: parseBoolean }),
   sessionTabsEnabled: field({ scope: 'profile', surfaces: ['web', 'desktop', 'vscode'], parse: parseBoolean, ui: uiStore('sessionTabsEnabled', (v) => useUIStore.getState().setSessionTabsEnabled(v)) }),
   allowPromptingSubagentSessions: field({ scope: 'profile', parse: parseBoolean, ui: uiStore('allowPromptingSubagentSessions', (v) => useUIStore.getState().setAllowPromptingSubagentSessions(v)) }),

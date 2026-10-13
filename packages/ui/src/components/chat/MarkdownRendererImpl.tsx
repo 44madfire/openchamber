@@ -4,12 +4,13 @@ import { renderMermaidASCII, renderMermaidSVG } from 'beautiful-mermaid';
 import type { Part } from '@/lib/opencode/model';
 import { cn } from '@/lib/utils';
 import { useI18n } from '@/lib/i18n';
-import { isAppLinkUrl, openExternalUrl } from '@/lib/url';
+import { isAppLinkUrl } from '@/lib/url';
 import { useOptionalThemeSystem } from '@/contexts/useThemeSystem';
 import { getDefaultTheme } from '@/lib/theme/themes';
 import type { Theme } from '@/types/theme';
 import { openAppLinkWithConfirmation } from './appLinkConfirmation';
 import { attachAppLinkInteractions } from './appLinkInteractions';
+import { useOpenChatLink } from './useOpenChatLink';
 import { attachFileRefClickGuard, FILE_REFERENCE_LINK_SELECTOR } from './fileRefClickGuard';
 import type { ToolPopupContent } from './message/types';
 import { FadeInOnReveal } from './message/FadeInOnReveal';
@@ -17,7 +18,7 @@ import { useUIStore } from '@/stores/useUIStore';
 import { useEffectiveDirectory } from '@/hooks/useEffectiveDirectory';
 import { useRuntimeAPIs } from '@/hooks/useRuntimeAPIs';
 import type { EditorAPI } from '@/lib/api/types';
-import { isDesktopLocalOriginActive, isVSCodeRuntime, openDesktopPath } from '@/lib/desktop';
+import { isDesktopLocalOriginActive, isDesktopShell, isVSCodeRuntime, openDesktopPath } from '@/lib/desktop';
 import { openSessionLink } from '@/lib/router/openSessionFromRoute';
 import { getRuntimeApiBaseUrl } from '@/lib/runtime-switch';
 import { isMobileSurfaceRuntime } from '@/lib/runtimeSurface';
@@ -90,10 +91,13 @@ const resolveOwnOrigins = (): string[] => {
 const useLinkInteractions = ({
   containerRef,
   enabled,
+  directory,
 }: {
   containerRef: React.RefObject<HTMLDivElement | null>;
   enabled?: boolean;
+  directory: string;
 }) => {
+  const openChatLink = useOpenChatLink(directory);
   React.useEffect(() => {
     const container = containerRef.current;
     if (!container) {
@@ -105,13 +109,13 @@ const useLinkInteractions = ({
     return attachAppLinkInteractions(container, {
       allowExternalHttp: enabled !== false,
       openAppLink: (href) => void openAppLinkWithConfirmation(href),
-      openExternalHttp: (href) => void openExternalUrl(href),
+      openExternalHttp: openChatLink,
       openSessionLink: opensSessionLinks
         ? (target) => void openSessionLink(target.sessionId, target.messageId)
         : undefined,
       ownOrigins: resolveOwnOrigins(),
     });
-  }, [containerRef, enabled]);
+  }, [containerRef, enabled, openChatLink]);
 };
 
 const DEFAULT_MERMAID_CONTROLS: MermaidControlOptions = {
@@ -1361,10 +1365,13 @@ const MarkdownRendererImpl: React.FC<MarkdownRendererProps> = ({
     preferRuntimeEditor: runtime.isVSCode,
     enabled: enableFileReferences && !isStreaming,
   });
-  useLinkInteractions({ containerRef });
+  useLinkInteractions({ containerRef, directory: effectiveDirectory });
 
   const syntaxVars = React.useMemo(() => getMarkdownSyntaxVars(currentTheme), [currentTheme]);
-  const ctx = useDecorateContext(currentTheme, effectiveDirectory ? handlePreviewLoopback : undefined, DEFAULT_MERMAID_CONTROLS);
+  // With links opening in the browser panel anyway, the preview button next to
+  // a local address would only repeat the link.
+  const openLinksInBrowserPanel = useUIStore((state) => state.openLinksInBrowserPanel) && isDesktopShell();
+  const ctx = useDecorateContext(currentTheme, effectiveDirectory && !openLinksInBrowserPanel ? handlePreviewLoopback : undefined, DEFAULT_MERMAID_CONTROLS);
   const { locale } = useI18n();
   // Assistant images live in the gallery under the message; tool output and
   // reasoning draw local images and link remote ones (see MarkdownImageMode).
@@ -1487,7 +1494,7 @@ const SimpleMarkdownRendererImpl: React.FC<{
     preferRuntimeEditor: runtime.isVSCode,
     enabled: enableFileReferences,
   });
-  useLinkInteractions({ containerRef, enabled: !disableLinkSafety });
+  useLinkInteractions({ containerRef, enabled: !disableLinkSafety, directory: effectiveDirectory });
 
   const syntaxVars = React.useMemo(() => getMarkdownSyntaxVars(currentTheme), [currentTheme]);
   const ctx = useDecorateContext(currentTheme, undefined, mermaidControls);

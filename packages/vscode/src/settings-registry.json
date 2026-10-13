@@ -421,6 +421,20 @@
         "desktop"
       ]
     },
+    "openLinksInBrowserPanel": {
+      "scope": "profile",
+      "surfaces": [
+        "desktop"
+      ]
+    },
+    "openTrackerLinksOnBoard": {
+      "scope": "profile",
+      "surfaces": [
+        "web",
+        "desktop",
+        "mobile"
+      ]
+    },
     "autoCreateWorktree": {
       "scope": "profile"
     },

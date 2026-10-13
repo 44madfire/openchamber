@@ -91,7 +91,8 @@ preview's footer holds actions instead of what the agent gets.
   in the preview opens the team's states (`SourceBoardLinearStatus`).
 - An issue, PR or Linear issue a session links to opens on the board, selected:
   from the work-status panel and from the sidebar's badges and their tooltips
-  (`sourceBoard/openOnBoard.ts`). The board moves to the session's project and
+  (`sourceBoard/openOnBoard.ts`), and from links in chat while
+  `openTrackerLinksOnBoard` is on (`chat/useOpenChatLink.ts`). The board moves to the session's project and
   tab and previews the item, read on its own (`focusRepositoryItem` with its
   link, `focusLinearIssue` with its identifier, then the browser's
   `pinnedItem`) while the search stays empty and the list as it was. A link

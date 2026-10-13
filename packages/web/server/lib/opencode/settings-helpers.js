@@ -458,6 +458,12 @@ export const createSettingsHelpers = (dependencies) => {
     if (candidate.layoutAnimations === true || candidate.layoutAnimations === false) {
       result.layoutAnimations = candidate.layoutAnimations;
     }
+    if (candidate.openLinksInBrowserPanel === true || candidate.openLinksInBrowserPanel === false) {
+      result.openLinksInBrowserPanel = candidate.openLinksInBrowserPanel;
+    }
+    if (candidate.openTrackerLinksOnBoard === true || candidate.openTrackerLinksOnBoard === false) {
+      result.openTrackerLinksOnBoard = candidate.openTrackerLinksOnBoard;
+    }
     if (candidate.fileTreeSide === 'left' || candidate.fileTreeSide === 'right') {
       result.fileTreeSide = candidate.fileTreeSide;
     }

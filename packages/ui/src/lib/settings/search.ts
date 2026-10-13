@@ -198,6 +198,22 @@ const SETTINGS_SEARCH_ITEMS: readonly SettingsSearchItem[] = [
     isAvailable: (ctx) => !ctx.isMobile && !ctx.isVSCode,
   },
   {
+    id: 'appearance.open-links-in-browser-panel',
+    page: 'general',
+    titleKey: 'settings.openchamber.visual.field.openLinksInBrowserPanel',
+    descriptionKey: 'settings.openchamber.visual.field.openLinksInBrowserPanelInfo',
+    keywords: ['links', 'url', 'browser', 'open', 'preview', 'external'],
+    isAvailable: (ctx) => ctx.isDesktop && !ctx.isMobile && !ctx.isVSCode,
+  },
+  {
+    id: 'appearance.open-tracker-links-on-board',
+    page: 'general',
+    titleKey: 'settings.openchamber.visual.field.openTrackerLinksOnBoard',
+    descriptionKey: 'settings.openchamber.visual.field.openTrackerLinksOnBoardInfo',
+    keywords: ['links', 'github', 'gitlab', 'linear', 'issue', 'pull request', 'merge request', 'board'],
+    isAvailable: (ctx) => !ctx.isVSCode,
+  },
+  {
     id: 'appearance.file-editor-keymap',
     page: 'general',
     titleKey: 'settings.openchamber.visual.field.fileEditorKeymap',
