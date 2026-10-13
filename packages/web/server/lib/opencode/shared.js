@@ -523,6 +523,50 @@ function buildConfigFileContent(desired, existingRaw, existingParse) {
   return JSON.stringify(desired, null, 2);
 }
 
+const isTransientWindowsReplaceError = (error) =>
+  process.platform === 'win32' && ['EPERM', 'EACCES', 'EBUSY'].includes(error?.code);
+
+/**
+ * Replace a file's contents without ever exposing a partial file. OpenCode
+ * watches its config files and reloads on every change, so an in-place write
+ * can be read half-finished, and a crash mid-write would leave it truncated.
+ * The bytes go to a temp file beside the target (same directory, so the rename
+ * stays on one filesystem) and are renamed over it. A symlinked target is
+ * resolved first, so the link keeps pointing at the file that gets replaced.
+ */
+function writeFileAtomic(filePath, content) {
+  const target = fs.existsSync(filePath) ? fs.realpathSync(filePath) : filePath;
+  const mode = fs.existsSync(target) ? fs.statSync(target).mode & 0o7777 : null;
+  const tmp = `${target}.tmp-${process.pid}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  try {
+    const fd = fs.openSync(tmp, 'wx', mode ?? 0o666);
+    try {
+      fs.writeFileSync(fd, content, 'utf8');
+      fs.fsyncSync(fd);
+    } finally {
+      fs.closeSync(fd);
+    }
+    // openSync's mode is masked by the umask; an existing file keeps its own.
+    if (mode !== null && process.platform !== 'win32') {
+      fs.chmodSync(tmp, mode);
+    }
+    try {
+      fs.renameSync(tmp, target);
+    } catch (error) {
+      if (!isTransientWindowsReplaceError(error)) {
+        throw error;
+      }
+      // Windows rejects the replacement while another process has the target
+      // open; fall back to a direct write rather than failing the save.
+      fs.copyFileSync(tmp, target);
+      fs.rmSync(tmp, { force: true });
+    }
+  } catch (error) {
+    fs.rmSync(tmp, { force: true });
+    throw error;
+  }
+}
+
 function writeConfig(config, filePath = CONFIG_FILE) {
   try {
     let existingRaw = '';
@@ -543,7 +587,7 @@ function writeConfig(config, filePath = CONFIG_FILE) {
     // A JSON round-trip normalizes the config at the write boundary: it drops
     // `undefined` values exactly like the serialized write would.
     const desired = JSON.parse(JSON.stringify(config));
-    fs.writeFileSync(filePath, buildConfigFileContent(desired, existingRaw, existingParse), 'utf8');
+    writeFileAtomic(filePath, buildConfigFileContent(desired, existingRaw, existingParse));
     console.log(`Successfully wrote config file: ${filePath}`);
   } catch (error) {
     if (isInvalidJsoncError(error)) {
