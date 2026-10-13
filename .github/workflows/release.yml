@@ -66,6 +66,11 @@ jobs:
         with:
           tag_name: v${{ steps.get_version.outputs.version }}
           # A release being finished is already public; keep it that way.
+          # Every later upload step sets draft: true. Without it the action
+          # publishes the draft after uploading, and updaters would see the
+          # release before every platform and manifest is on it. Only
+          # finalize-release publishes. On a release that is already public,
+          # draft: true changes nothing.
           draft: ${{ github.event.inputs.finish_published_release != 'true' }}
           generate_release_notes: false
           body_path: artifacts/release-notes.md
@@ -115,6 +120,7 @@ jobs:
         uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2.6.2
         with:
           tag_name: v${{ needs.create-release.outputs.version }}
+          draft: true
           files: packages/web/*.tgz
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -262,6 +268,7 @@ jobs:
         uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2.6.2
         with:
           tag_name: v${{ needs.create-release.outputs.version }}
+          draft: true
           files: |
             packages/electron/dist/*.dmg
             packages/electron/dist/*.zip
@@ -358,6 +365,7 @@ jobs:
         uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2.6.2
         with:
           tag_name: v${{ needs.create-release.outputs.version }}
+          draft: true
           files: |
             packages/electron/dist/*.exe
             packages/electron/dist/*.blockmap
@@ -521,6 +529,7 @@ jobs:
         uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2.6.2
         with:
           tag_name: v${{ needs.create-release.outputs.version }}
+          draft: true
           files: |
             artifacts/x64/OpenChamber-${{ needs.create-release.outputs.version }}-linux-x86_64.AppImage
             artifacts/x64/OpenChamber-${{ needs.create-release.outputs.version }}-linux-amd64.deb
@@ -563,6 +572,7 @@ jobs:
         uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2.6.2
         with:
           tag_name: v${{ needs.create-release.outputs.version }}
+          draft: true
           files: |
             ${{ runner.temp }}/latest-mac.yml
             ${{ runner.temp }}/latest.yml
