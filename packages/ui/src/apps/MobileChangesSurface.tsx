@@ -14,7 +14,7 @@ import { BranchSelector } from '@/components/views/git/BranchSelector';
 import { BranchComparisonSelector } from '@/components/views/git/BranchComparisonSelector';
 import { CommitComparisonSelector } from '@/components/views/git/CommitComparisonSelector';
 import { branchRefLabel } from '@/components/views/git/baseBranch';
-import { isBranchScopeAvailable, isBranchScopeDefinitelyUnavailable, useRangeKeyedCache } from '@/components/views/branchDiffScope';
+import { branchPathRevisions, isBranchScopeAvailable, isBranchScopeDefinitelyUnavailable, useRangeKeyedCache } from '@/components/views/branchDiffScope';
 import { CommitSection } from '@/components/views/git/CommitSection';
 import { ConflictDialog } from '@/components/views/git/ConflictDialog';
 import { DirtyBranchSwitchDialog } from '@/components/views/git/DirtyBranchSwitchDialog';
@@ -368,12 +368,17 @@ export const MobileChangesPane: React.FC<MobileChangesPaneProps> = ({ rootDirect
       return { status: 'error', message: error instanceof Error ? error.message : t('diffView.state.failedToLoadDiff') };
     }
   }, [loadComparisonDiff, t]);
+  const branchDiffRevisions = React.useMemo(
+    () => mode === 'branch' ? branchPathRevisions(comparison.files, comparisonRevision) : undefined,
+    [comparison.files, comparisonRevision, mode],
+  );
   const comparisonDiffs = useRangeKeyedCache<ComparisonDiff>(
     comparison.files ? (mode === 'pr' ? JSON.stringify([comparison.key, comparison.revision]) : comparison.key) : null,
     visible && activeComparisonPath ? activeComparisonPath : '',
     visible ? fetchComparisonDiff : null,
     LOADING_COMPARISON_DIFF,
-    JSON.stringify([comparisonRevision, mode === 'pr' ? comparison.revision : 0, comparisonRetry]),
+    JSON.stringify([mode === 'pr' ? comparison.revision : 0, comparisonRetry]),
+    branchDiffRevisions,
   );
   const activeComparisonDiff = activeComparisonPath ? comparisonDiffs.get(activeComparisonPath) ?? LOADING_COMPARISON_DIFF : null;
   // Comparison diffs are patches with 3 lines of context. Expanding collapsed

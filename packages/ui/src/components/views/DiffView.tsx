@@ -17,7 +17,7 @@ import { useGitStore, useGitStatus, useIsGitRepo, useGitLoadingStatus } from '@/
 import { useGitBaseBranchStore } from '@/stores/useGitBaseBranchStore';
 import { useBranchComparisonBase } from '@/hooks/useBranchComparisonBase';
 import { useDiffToolbarFit } from '@/components/views/useDiffToolbarFit';
-import { coerceDiffScope, isBranchScopeAvailable, isBranchScopeDefinitelyUnavailable, useRangeKeyedCache, useBoundedDirectoryRetry } from './branchDiffScope';
+import { branchPathRevisions, coerceDiffScope, isBranchScopeAvailable, isBranchScopeDefinitelyUnavailable, useRangeKeyedCache, useBoundedDirectoryRetry } from './branchDiffScope';
 import { getRuntimeKey } from '@/lib/runtime-switch';
 import { cn } from '@/lib/utils';
 import { normalizePath } from '@/lib/pathNormalization';
@@ -1556,12 +1556,19 @@ export const DiffView: React.FC<DiffViewProps> = ({
         [activeDiffScope, fetchComparisonDiffEntry, fetchComparisonFullFileEntry]
     );
 
+    // A status read re-reads the Branch file list; each expanded file then
+    // re-reads its patch only when its own revision moved.
+    const branchDiffRevisions = React.useMemo(
+        () => activeDiffScope === 'branch' ? branchPathRevisions(branchFiles, branchRevision) : undefined,
+        [activeDiffScope, branchFiles, branchRevision]
+    );
     const comparisonDiffData = useRangeKeyedCache<ComparisonDiffResult>(
         comparisonRangeKey,
         visible ? comparisonPathsKey : '',
         comparisonRangeKey ? fetchComparisonDiffEntry : null,
         EMPTY_COMPARISON_DIFF,
-        JSON.stringify([activeDiffScope === 'branch' ? branchRevision : '', activeDiffScope === 'pr' ? comparison.revision : 0, comparisonRetryRevision])
+        JSON.stringify([activeDiffScope === 'pr' ? comparison.revision : 0, comparisonRetryRevision]),
+        branchDiffRevisions
     );
 
     const branchFileCount = branchFiles?.length ?? null;
