@@ -864,7 +864,7 @@ within a ten-minute overall deadline.
       foreground server without a service manager `installBlocked:
       'service-manager'`, so clients show manual steps in place of an Update
       button.
-    - Desktop-managed hosts delegate authenticated Web update requests to the Electron main process, which checks, downloads, and applies the update through `electron-updater` before restarting the host.
+    - Desktop-managed hosts delegate authenticated Web update requests to the Electron main process, which checks, downloads, and applies the update through `electron-updater` before restarting the host. A host installed from a Linux `.deb` or `.rpm` asks for the administrator password on its own screen, so its check reports `installBlocked: 'desktop-host'` and the install route answers 409 `DESKTOP_UPDATE_LOCAL_ONLY` before anything stops; clients say to update on that computer.
     - Foreground servers running under a systemd user unit queue installation in
       a separate transient unit and restart the configured service afterwards.
       `OPENCHAMBER_SYSTEMD_UNIT` overrides the default `openchamber.service`.

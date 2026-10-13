@@ -3304,6 +3304,7 @@ export const dict: Record<I18nKey, string> = {
   'mobileUpdate.toast.actions.download': 'Pobierz',
   'mobileUpdate.toast.actions.dismiss': 'Odrzuć',
   'updateDialog.fallback.updateViaTerminal': 'Lub zaktualizuj przez terminal:',
+  'updateDialog.desktopHostInstall': 'OpenChamber {version} jest dostępny. Zaktualizuj go na komputerze, na którym działa.',
   'updateDialog.header.updateAvailable': 'Dostępna aktualizacja',
   'updateDialog.header.updating': 'Aktualizowanie OpenChamber...',
   'updateDialog.status.autoReloadHint': 'Strona automatycznie odświeży się po zakończeniu aktualizacji.',

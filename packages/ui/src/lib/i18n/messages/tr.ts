@@ -3105,6 +3105,7 @@ export const dict = {
   'updateDialog.status.waitingForServer': 'Sunucu bekleniyor...',
   'updateDialog.status.autoReloadHint': 'Güncelleme tamamlandığında sayfa otomatik olarak yeniden yüklenecek.',
   'updateDialog.fallback.updateViaTerminal': 'Ya da terminalden güncelleyin:',
+  'updateDialog.desktopHostInstall': 'OpenChamber {version} kullanılabilir. Çalıştığı bilgisayarda güncelleyin.',
   'updateDialog.actions.copyCommand': 'Komutu kopyala',
   'updateDialog.actions.copied': 'Kopyalandı!',
   'updateDialog.status.downloadingPayload': 'Güncelleme paketi indiriliyor...',

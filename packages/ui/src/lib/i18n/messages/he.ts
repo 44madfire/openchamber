@@ -3249,6 +3249,7 @@ export const dict = {
   'updateDialog.status.waitingForServer': 'ממתין לשרת…',
   'updateDialog.status.autoReloadHint': 'הדף ייטען מחדש אוטומטית כשהעדכון יסתיים.',
   'updateDialog.fallback.updateViaTerminal': 'או לעדכן דרך המסוף:',
+  'updateDialog.desktopHostInstall': 'OpenChamber {version} זמין. יש לעדכן אותו במחשב שבו הוא פועל.',
   'updateDialog.actions.copyCommand': 'העתק פקודה',
   'updateDialog.actions.copied': 'הועתק!',
   'updateDialog.status.downloadingPayload': 'מוריד את חבילת העדכון…',

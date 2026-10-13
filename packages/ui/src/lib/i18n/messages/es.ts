@@ -3244,6 +3244,7 @@ export const dict: Record<I18nKey, string> = {
   "updateDialog.status.waitingForServer": "Esperando al servidor...",
   "updateDialog.status.autoReloadHint": "La página se recargará automáticamente cuando la actualización finalice.",
   "updateDialog.fallback.updateViaTerminal": "O actualiza desde la terminal:",
+  "updateDialog.desktopHostInstall": "OpenChamber {version} está disponible. Actualízalo en el ordenador donde se ejecuta.",
   "updateDialog.actions.copyCommand": "Copiar comando",
   "updateDialog.actions.copied": "Copiado!",
   "updateDialog.status.downloadingPayload": "Descargando el payload de actualización...",

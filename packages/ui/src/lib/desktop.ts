@@ -21,8 +21,10 @@ export type UpdateInfo = {
    * The server cannot install this update itself. `service-manager`: run
    * `updateCommand` by hand. `manual-install`: no package manager installed
    * this copy, so the new version is installed the way this one was.
+   * `desktop-host`: a desktop installed from a Linux package asks for the
+   * administrator password on its own screen, so it updates only there.
    */
-  installBlocked?: 'service-manager' | 'manual-install';
+  installBlocked?: 'service-manager' | 'manual-install' | 'desktop-host';
 };
 
 export type UpdateProgress = {

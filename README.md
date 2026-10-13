@@ -81,7 +81,14 @@ Run a prompt once, daily, weekly, or on a cron schedule. Scheduled tasks can use
 
 Download the latest release from [GitHub Releases](https://github.com/openchamber/openchamber/releases/latest). Desktop bundles the matching OpenCode CLI, so no separate OpenCode installation is required.
 
-Linux releases are available as x86_64 and ARM64 AppImages. Make the downloaded AppImage executable and keep it in a writable location for in-app updates:
+Linux releases come for x86_64 and ARM64 as a `.deb` (Debian, Ubuntu), an `.rpm` (Fedora, openSUSE) and an AppImage. The packages install OpenChamber into the app menu, and in-app updates ask for your password to install the new package:
+
+```bash
+sudo apt install ./OpenChamber-*-linux-amd64.deb    # Debian, Ubuntu
+sudo dnf install ./OpenChamber-*-linux-x86_64.rpm   # Fedora
+```
+
+The AppImage needs no install. Make it executable and keep it in a writable location for in-app updates; on its first start it adds itself to the app menu:
 
 ```bash
 chmod +x OpenChamber-*.AppImage

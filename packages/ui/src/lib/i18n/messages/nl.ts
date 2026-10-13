@@ -3291,6 +3291,7 @@ export const dict = {
   'updateDialog.status.waitingForServer': 'Wachten op server...',
   'updateDialog.status.autoReloadHint': 'De pagina wordt automatisch herladen zodra de update voltooid is.',
   'updateDialog.fallback.updateViaTerminal': 'Of werk bij via de terminal:',
+  'updateDialog.desktopHostInstall': 'OpenChamber {version} is beschikbaar. Werk het bij op de computer waarop het draait.',
   'updateDialog.actions.copyCommand': 'Opdracht kopiëren',
   'updateDialog.actions.copied': 'Gekopieerd!',
   'updateDialog.status.downloadingPayload': 'Update-payload downloaden...',
