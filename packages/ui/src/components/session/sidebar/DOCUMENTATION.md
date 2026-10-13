@@ -292,7 +292,8 @@ all / Expand all.
   its limit, so a project or worktree list never opens with more than 7.
   Collapsing a zone header resets its Show more state.
 - Zone collapse state lives in `useSessionProjectViewState` next to project
-  collapse and lasts for the mount only. The display menu's Collapse all /
+  collapse and is saved in local storage (`oc.sessions.activityCollapse`), so
+  it survives a restart like project and group collapse. The display menu's Collapse all /
   Expand all set every project and the zones (`SIDEBAR_ACTIVITY_KEYS`: Chats,
   Pinned, In work) together, in both views. Session folders keep their own
   collapse state.
@@ -418,7 +419,8 @@ matching and ordering. Search does not fetch sessions or broaden list membership
   An empty worktree group or folder (no sessions, no folders, nothing loading)
   shows no chevron, does not toggle, lists nothing under its header, and is
   always open: a collapse saved while it had sessions is dropped, so its first
-  new session shows at once. The phone treats empty worktrees the same way. Collapsing a project or a worktree group, from its
+  new session shows at once. A group counts as empty only once its sessions
+  have loaded; before that it only looks empty, and the saved collapse stays. The phone treats empty worktrees the same way. Collapsing a project or a worktree group, from its
   header or Collapse all, forgets its Show more state. The project
   header stays the sticky zone band above its tree. Root sessions and the
   root's folders sit at level 0; worktree, space and archive headers sit at

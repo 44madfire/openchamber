@@ -908,7 +908,7 @@ const VisibleSessionProjects: React.FC<SessionProjectCollectionProps> = ({ topol
     for (const row of sidebarRowModel.rows) {
       if (row.kind === 'group-header' && row.empty && projectView.collapsedGroups.has(row.groupKey)) {
         toggleGroup(row.groupKey);
-      } else if (row.kind === 'folder-header' && row.nodes.length === 0 && row.subFolderCount === 0 && collapsedFolderIds.has(row.folder.id)) {
+      } else if (row.kind === 'folder-header' && row.empty && collapsedFolderIds.has(row.folder.id)) {
         toggleFolderCollapse(row.folder.id);
       }
     }

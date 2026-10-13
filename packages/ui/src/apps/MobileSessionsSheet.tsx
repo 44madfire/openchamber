@@ -772,6 +772,7 @@ export const MobileSessionsSheet: React.FC<MobileSessionsSheetProps> = ({ open, 
   const ensureGitStatus = useGitStore((state) => state.ensureStatus);
   const liveSessions = useAllLiveSessions();
   const globalActiveSessions = useGlobalSessionsStore((state) => state.activeSessions);
+  const hasLoadedGlobalSessions = useGlobalSessionsStore((state) => state.hasLoaded);
   // Store reads the closed drawer does not need. They hold the last value seen
   // while presented rather than dropping to empty: the drawer stays mounted
   // through its exit slide, and swapping pins, order or branches to empty at
@@ -1243,16 +1244,17 @@ export const MobileSessionsSheet: React.FC<MobileSessionsSheetProps> = ({ open, 
     bucket.sessions.length === 0 || (worktreeExpandedMap[`${node.project.id}::${bucket.key}`] ?? true);
 
   // A collapse saved while a worktree had sessions is dropped once it is
-  // empty, so the next session there is not hidden.
+  // empty, so the next session there is not hidden. Before the session list
+  // has loaded, every worktree only looks empty.
   React.useEffect(() => {
-    if (!presented) return;
+    if (!presented || !hasLoadedGlobalSessions) return;
     for (const node of projectNodes) {
       for (const bucket of node.buckets) {
         const key = `${node.project.id}::${bucket.key}`;
         if (bucket.sessions.length === 0 && worktreeExpandedMap[key] === false) setWorktreeExpanded(key, true);
       }
     }
-  }, [presented, projectNodes, setWorktreeExpanded, worktreeExpandedMap]);
+  }, [hasLoadedGlobalSessions, presented, projectNodes, setWorktreeExpanded, worktreeExpandedMap]);
 
   const resetBucketVisibleCount = (bucketKey: string) => {
     setVisibleCountByBucket((previous) => {

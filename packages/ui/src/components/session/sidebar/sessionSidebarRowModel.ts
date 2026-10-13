@@ -64,7 +64,7 @@ export type SessionSidebarRow =
   | (RowBase & { kind: 'project-header'; section: ProjectSection; collapsed: boolean; forceExpanded: boolean })
   // `empty`: nothing to list under the header, so it offers no chevron.
   | (RowBase & { kind: 'group-header'; group: SessionGroup; groupKey: string; projectId: string | null; collapsed: boolean; forceExpanded: boolean; empty: boolean; allSessions: readonly Session[] })
-  | (RowBase & { kind: 'folder-header'; depth: number; group: SessionGroup; folder: SessionFolder; displayName: string; scopeKey: string; scopeDirectory: string | null; ownerKey: string | null; nodes: readonly SessionNode[]; activityNodes: readonly SessionNode[]; projectId: string | null; archived: boolean; collapsed: boolean; forceExpanded: boolean; deleteSessions: readonly Session[]; subFolderCount: number; dropEnabled: boolean })
+  | (RowBase & { kind: 'folder-header'; depth: number; group: SessionGroup; folder: SessionFolder; displayName: string; scopeKey: string; scopeDirectory: string | null; ownerKey: string | null; nodes: readonly SessionNode[]; activityNodes: readonly SessionNode[]; projectId: string | null; archived: boolean; collapsed: boolean; forceExpanded: boolean; empty: boolean; deleteSessions: readonly Session[]; subFolderCount: number; dropEnabled: boolean })
   | (RowBase & { kind: 'session'; node: SessionNode; blockingBadgeSessionScopes?: readonly BlockingBadgeSessionScope[]; depth: number; projectId: string | null; groupDirectory: string | null; ownerKey: string | null; selectionScopeKey: string | null; archived: boolean; renderContext: SessionSidebarRenderContext; secondaryMeta: SessionSidebarActivityItem['secondaryMeta'] })
   // A multi-run: one derived parent row over its member sessions. It is not a
   // session, so it never enters selection, and its lanes render as session
@@ -480,10 +480,11 @@ export const buildSessionSidebarRowModel = (args: SessionSidebarRowModelArgs): S
     // Chats render gutterless timeline-style rows in both views.
     const flat = limits !== undefined && limits.renderContext !== 'project';
     const status = args.groupStatusByKey.get(groupKey);
+    const groupLoaded = !status || status.state === 'ready';
     // Nothing to list: no sessions, no folders, and no loading or failure
     // line to show.
     const empty = sourceNodes.length === 0
-      && (!status || status.state === 'ready')
+      && groupLoaded
       && getSessionFolderScopes(group).every(({ scopeKey }) => (args.foldersMap[scopeKey] ?? EMPTY_FOLDERS).length === 0);
     if (!hideHeader) {
       const allSessions = indexed.preorderIds.flatMap((id) => indexed.sessionsById.get(id) ?? []);
@@ -555,7 +556,8 @@ export const buildSessionSidebarRowModel = (args: SessionSidebarRowModelArgs): S
       const displayName = parentPath ? `${parentPath} / ${entry.folder.name}` : entry.folder.name;
       const folderKey = `${groupKey}:folder:${identity}`;
       // An empty folder is always open, so the first session moved in shows.
-      const folderEmpty = entry.nodes.length === 0 && (childFolders.get(identity)?.length ?? 0) === 0;
+      // Until the group's sessions have loaded, a folder only looks empty.
+      const folderEmpty = groupLoaded && entry.nodes.length === 0 && (childFolders.get(identity)?.length ?? 0) === 0;
       const folderCollapsed = !search && !folderEmpty && args.collapsedFolders.has(entry.folder.id);
       const deleteSessions = folderSessionsByIdentity.get(identity) ?? [];
       // A collapsed parent hides child folders too. Reuse their indexed session
@@ -573,7 +575,7 @@ export const buildSessionSidebarRowModel = (args: SessionSidebarRowModelArgs): S
         kind: 'folder-header', key: folderKey, estimateSize: HEADER_ESTIMATE, depth: contentDepth, group,
         folder: entry.folder, displayName, scopeKey: entry.scopeKey, scopeDirectory: entry.scopeDirectory,
         ownerKey, nodes: entry.nodes, activityNodes, projectId, archived: group.isArchivedBucket === true,
-        collapsed: folderCollapsed, forceExpanded: search,
+        collapsed: folderCollapsed, forceExpanded: search, empty: folderEmpty,
         deleteSessions,
         subFolderCount: childFolders.get(identity)?.length ?? 0, dropEnabled,
       });

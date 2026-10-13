@@ -572,6 +572,19 @@ describe('buildSessionSidebarRowModel', () => {
     expect(rows.some((row) => row.kind === 'session')).toBe(false);
   });
 
+  test('a folder keeps its saved collapse while its sessions are still loading', () => {
+    const input = args([project([group([])])]);
+    input.foldersMap = { '/repo': [{ id: 'outer', name: 'Outer', createdAt: 1, sessionIds: ['not-loaded-yet'] }] };
+    input.collapsedFolders = new Set(['outer']);
+    const folderRow = () => buildSessionSidebarRowModel(input).rows.find((row) => row.kind === 'folder-header');
+
+    input.groupStatusByKey = new Map([['project-a:main', { state: 'loading', directory: null, canGrantAccess: false }]]);
+    expect(folderRow()).toMatchObject({ empty: false, collapsed: true });
+
+    input.groupStatusByKey = new Map([['project-a:main', { state: 'ready', directory: '/repo', canGrantAccess: false }]]);
+    expect(folderRow()).toMatchObject({ empty: true, collapsed: false });
+  });
+
   test('timeline mode shows the sidebar empty row without projects', () => {
     const input = args([]);
     input.viewMode = 'timeline';
