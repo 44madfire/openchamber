@@ -28,7 +28,6 @@ import { useGitBranchLabel } from '@/stores/useGitStore';
 import { useGlobalSessionsStore } from '@/stores/useGlobalSessionsStore';
 import { archiveUndoToastOptions, collectSessionSubtreeIds } from '@/components/session/sidebar/sessions/sessionSubtreeActions';
 import { streamPerfCount } from '@/stores/utils/streamDebug';
-import { useFeatureFlagsStore } from '@/stores/useFeatureFlagsStore';
 
 import { useDesktopWindowControlsLayout } from '@/hooks/useDesktopWindowControlsLayout';
 import { WindowsWindowControls } from '@/components/desktop/WindowsWindowControls';
@@ -651,32 +650,6 @@ export const Header: React.FC = () => {
     return null;
   }, [guestPage, isArchiveSurfaceOpen, overviewRunTitle, runOverviewKey, isScheduledSurfaceOpen, isSourceBoardSurfaceOpen, isUsageStatsSurfaceOpen, spacesSurfaceProjectId, surfaceProjectLabel, t, worktreesSurfaceProjectId]);
 
-
-  const planModeEnabled = useFeatureFlagsStore((state) => state.planModeEnabled);
-  const isSessionPlanAvailable = useSessionUIStore((state) => state.isSessionPlanAvailable);
-  const planTabAvailable = planModeEnabled && currentSessionId ? isSessionPlanAvailable(currentSessionId) : false;
-  const lastPlanSessionKeyRef = React.useRef<string>('');
-
-  // Reset plan tab availability when session changes
-  React.useEffect(() => {
-    if (!planModeEnabled) {
-      return;
-    }
-
-    if (!currentSessionId) return;
-
-    const sessionKey = `${currentSessionId || 'none'}:${sessionDirectory || 'none'}:${currentSession?.created || 0}:${currentSession?.slug || 'none'}`;
-    if (lastPlanSessionKeyRef.current !== sessionKey) {
-      lastPlanSessionKeyRef.current = sessionKey;
-    }
-  }, [
-    planModeEnabled,
-    planTabAvailable,
-    currentSession?.slug,
-    currentSession?.created,
-    currentSessionId,
-    sessionDirectory,
-  ]);
 
   const currentSessionOpenDirectory = sessionDirectory || normalize(selectedSessionDirectory || '') || worktreeDirectory;
 

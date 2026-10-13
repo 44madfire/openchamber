@@ -14,7 +14,6 @@ import { lazyWithChunkRecovery } from '@/lib/chunkLoadRecovery';
 const GitView = lazyWithChunkRecovery(() => import('@/components/views/GitView').then((m) => ({ default: m.GitView })));
 // The Linear rail icon stays hidden until a workspace is connected, so most
 // users never render this panel; keep it out of the main bundle.
-const PlanView = lazyWithChunkRecovery(() => import('@/components/views/PlanView').then((m) => ({ default: m.PlanView })));
 import { areTitleMapsEqual, buildSessionTitleMap, EMPTY_SESSION_TITLE_MAP, getSessionIDFromDedupeKey } from './contextPanelSessionTitles';
 import { ProjectContextPanel } from './RightSidebarTabs';
 import { useEffectiveDirectory } from '@/hooks/useEffectiveDirectory';
@@ -111,7 +110,6 @@ const getModeLabel = (
   if (mode === 'file') return t('contextPanel.mode.files');
   if (mode === 'diff') return t('contextPanel.mode.diff');
   if (mode === 'walkthrough') return t('contextPanel.mode.walkthrough');
-  if (mode === 'plan') return t('contextPanel.mode.plan');
   if (mode === 'browser') return t('contextPanel.mode.browser');
   if (mode === 'git') return t('layout.rightSidebar.git');
   if (mode === 'pr') return t('contextPanel.mode.pr');
@@ -227,10 +225,6 @@ const getTabIcon = (
     return <Icon name="terminal-box" className="h-3.5 w-3.5" />;
   }
 
-  if (tab.mode === 'plan') {
-    return <Icon name="file-text" className="h-3.5 w-3.5" />;
-  }
-
   if (tab.mode === 'context') {
     return <Icon name="donut-chart-fill" className="h-3.5 w-3.5" />;
   }
@@ -310,7 +304,7 @@ const HEADER_DRAG_EXCLUDED = 'button, a, input, textarea, select, label, [role="
 // Surfaces rendered by the zone itself and remounted on every switch; the
 // rest stay alive in ContextSurfacePanes.
 const isRemountedSurface = (mode: ContextPanelMode): boolean => (
-  mode === 'context' || mode === 'git' || mode === 'pr' || mode === 'notes' || mode === 'plan'
+  mode === 'context' || mode === 'git' || mode === 'pr' || mode === 'notes'
 );
 
 const CONTEXT_PANEL_DEFAULT_HEIGHT = 320;
@@ -743,15 +737,7 @@ export const ContextPanel: React.FC<{ zone?: ContextZone }> = ({ zone = 'right' 
                 ? <PullRequestView />
             : activeTab?.mode === 'notes'
                 ? <ContextPanelHeaderSlotProvider value={headerSlotEl}><ProjectContextPanel visible={isOpen} /></ContextPanelHeaderSlotProvider>
-        : activeTab?.mode === 'plan'
-            ? <React.Suspense fallback={null}><ContextPanelHeaderSlotProvider value={headerSlotEl}><PlanView
-                visible={isOpen}
-                targetPath={activeTab.targetPath}
-                savedProjectPlan={activeTab.projectPlanId && activeTab.projectPlanRef
-                  ? { projectRef: activeTab.projectPlanRef, planId: activeTab.projectPlanId }
-                  : null}
-              /></ContextPanelHeaderSlotProvider></React.Suspense>
-            : null;
+        : null;
 
   const isFileTabActive = activeTab?.mode === 'file';
 

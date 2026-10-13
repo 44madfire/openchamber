@@ -40,7 +40,6 @@ import { readTabletLayout, useOrientation, useTabletLayout } from '@/lib/device'
 import { useHardwareKeyboard } from '@/lib/hardwareKeyboard';
 import { useI18n } from '@/lib/i18n';
 import { subscribeOpenchamberEvents } from '@/lib/openchamberEvents';
-import { runtimeFetch } from '@/lib/runtime-fetch';
 import { getRuntimeApiBaseUrl, subscribeRuntimeEndpointChanged, switchRuntimeEndpoint, MOBILE_DISCONNECTED_RUNTIME_KEY } from '@/lib/runtime-switch';
 import { useGlobalSessionsStore } from '@/stores/useGlobalSessionsStore';
 import { useAuthoritativeSessionCleanup } from '@/components/session/sidebar/list/useAuthoritativeSessionCleanup';
@@ -48,7 +47,6 @@ import { restoreLastActiveSession } from '@/sync/last-session-restore';
 import { cn } from '@/lib/utils';
 import { useConfigStore } from '@/stores/useConfigStore';
 import { useDirectoryStore } from '@/stores/useDirectoryStore';
-import { useFeatureFlagsStore } from '@/stores/useFeatureFlagsStore';
 import { useSourceControlAuthStore } from '@/stores/useSourceControlAuthStore';
 import { useLinearAuthStore } from '@/stores/useLinearAuthStore';
 import { useGitStore } from '@/stores/useGitStore';
@@ -795,7 +793,6 @@ function MobileAppContent({ apis }: MobileAppProps) {
   const setIsMobile = useUIStore((state) => state.setIsMobile);
   const refreshSourceControlAuth = useSourceControlAuthStore((state) => state.refreshAll);
   const refreshLinearAuthStatus = useLinearAuthStore((state) => state.refreshStatus);
-  const setPlanModeEnabled = useFeatureFlagsStore((state) => state.setPlanModeEnabled);
   const projects = useProjectsStore((state) => state.projects);
   // The mobile shell has no layout-level session list sync, so a lost
   // `session.deleted` is reconciled here from the same complete global
@@ -1250,25 +1247,6 @@ function MobileAppContent({ apis }: MobileAppProps) {
       unsubscribe();
     };
   }, [isConnected, projects]);
-
-  React.useEffect(() => {
-    let cancelled = false;
-
-    const run = async () => {
-      const res = await runtimeFetch('/health', { method: 'GET' }).catch(() => null);
-      if (!res || !res.ok || cancelled) return;
-      const data = (await res.json().catch(() => null)) as null | { planModeExperimentalEnabled?: unknown };
-      if (!data || cancelled) return;
-      const raw = data.planModeExperimentalEnabled;
-      setPlanModeEnabled(raw === true || raw === 1 || raw === '1' || raw === 'true');
-    };
-
-    void run();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [setPlanModeEnabled]);
 
   React.useEffect(() => {
     if (!error) return;

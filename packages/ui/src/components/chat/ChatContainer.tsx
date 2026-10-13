@@ -93,7 +93,6 @@ import {
     useSessions,
 } from '@/sync/sync-context';
 import { useSync } from '@/sync/use-sync';
-import { usePlanDetection } from '@/hooks/usePlanDetection';
 import { useI18n } from '@/lib/i18n';
 import { isVSCodeRuntime } from '@/lib/desktop';
 import { eventMatchesShortcut, getEffectiveShortcutCombo } from '@/lib/shortcuts';
@@ -937,9 +936,6 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
         if (!active || !currentSessionKey || !hasRenderableSessionSnapshot || sessionMessages.length === 0) return;
         return firstVisiblePerformance.schedule(currentSessionKey, sessionMessages.length);
     }, [active, currentSessionKey, firstVisiblePerformance, hasRenderableSessionSnapshot, sessionMessages.length]);
-
-    // Plan detection - watches messages for plan creation and signals store
-    usePlanDetection(currentSessionId ?? '', sessionMessages);
 
     // Session status from sync system
     const sessionStatusForCurrent = useSessionStatus(currentSessionId ?? '', effectiveSessionDirectory) ?? IDLE_SESSION_STATUS;

@@ -175,6 +175,13 @@ Leaving the section or the project closes it, so its editor never sits over a
 list it no longer matches. Hosts that own a fullscreen plan surface (mobile)
 still pass `onOpenPlan` and keep theirs.
 
+A plan an agent shows (`knowledge.show`) opens the same way. The desktop layout
+turns the request into `useUIStore.openProjectKnowledgePlan`, which switches the
+panel to Plans, opens the Project knowledge surface and leaves a
+`projectKnowledgePlanRequest`. The panel of that plan's project takes the
+request and opens the plan in place; a panel showing another project leaves it
+waiting until that project is on screen.
+
 Agents change saved plans too, through the knowledge tool or by editing the
 plan's file directly. An open, visible plan with no unsaved edits takes the
 new text: at once for a save through the API, which announces itself, and
@@ -190,10 +197,9 @@ exact project. An earlier version let the editor re-derive the project from the
 current directory, which silently opened an empty document for plans stored
 under the managed Chats owner (`openchamber:chats`), for plans opened from a
 worktree the directory lookup missed, and for plan tabs restored after a
-reload. Persisted plan tabs carry `projectPlanRef` for the same reason; a saved-plan
-tab persisted with an id but no owner is dropped on rehydrate rather than
-reopened against a guessed project. A plain session plan tab legitimately has
-neither an id nor an owner and is kept.
+reload. The context panel has no plan surface anymore: OpenCode 2.x dropped
+plan mode, and saved plans open here. Persisted `plan` tabs from older builds
+are dropped on rehydrate as an unknown mode.
 
 ## Pins belong to one session
 

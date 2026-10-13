@@ -314,6 +314,16 @@ export const ProjectNotesTodoPanel: React.FC<ProjectNotesTodoPanelProps> = ({
     setOpenEntry((current) => (current && current.section !== activeTab ? null : current));
   }, [activeTab]);
 
+  // A plan an agent asked to show. Declared after the resets above so a request
+  // that switched the tab or mounted the panel is not closed again by them. A
+  // request for another project waits for that project's panel.
+  const planRequest = useUIStore((state) => state.projectKnowledgePlanRequest);
+  React.useEffect(() => {
+    if (!planRequest || planRequest.projectContextId !== projectContextId || activeTab !== 'plans') return;
+    useUIStore.getState().clearProjectKnowledgePlanRequest();
+    openEntryIn('plans', planRequest.planId);
+  }, [activeTab, openEntryIn, planRequest, projectContextId]);
+
   // Reset the filter when the project changes: a query that matched the old
   // project would silently hide everything in the new one.
   React.useEffect(() => {

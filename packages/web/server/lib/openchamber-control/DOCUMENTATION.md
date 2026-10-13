@@ -38,8 +38,9 @@ other.
   `save` creates or replaces one whole. The actions answer `403` while
   `agentKnowledgeToolEnabled` is `false`. `show` checks the plan exists and
   sends `openchamber:plan-open-request` to every connected window, like
-  `file.open`; the desktop and web layouts open the plan tab, the mobile app
-  opens the plan the way a tap in the Project knowledge drawer does. No
+  `file.open`; every layout opens the plan the way a click in the Project
+  knowledge Plans list does: in place in the panel on desktop and web, in the
+  drawer's plan viewer on mobile. No
   window reached is `503`.
 - `routes.js` is the authenticated CLI HTTP adapter. It forwards one action,
   preserves service status and partial-result details, and propagates request
