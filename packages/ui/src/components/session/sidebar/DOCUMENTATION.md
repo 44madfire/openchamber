@@ -97,8 +97,8 @@ manual project order with reordering, one header per project over its root
 sessions from every worktree and space, 7 at a time with Show more / Show
 fewer (collapsing a project resets it), two-line rows with a fixed-height
 second line, and the project's icon on that line in In work. The
-phone's Tree view follows the desktop tree: In work uses those
-two-line rows, Chats one-line rows without a gutter, and project sessions are
+phone's Tree view follows the desktop tree: Pinned and In work use one-line
+rows unless Detailed rows is on, Chats one-line rows without a gutter, and project sessions are
 tree rows (12px per level, subsession chevron on the left with a
 thumb-sized target, live state on the right) under worktree headers drawn as
 folder rows (chevron, 12px icon, medium-weight label), each opening with a
@@ -107,8 +107,9 @@ separates projects, as zones and projects are sections of equal weight. Its tree
 (`MOBILE_TREE_BASE_PADDING_PX`), so root session titles start where the
 project label does next to the project icon's 32px slot (no tile: a bare
 20px glyph, or a 24px image with rounded corners; zone icons likewise); the phone has no session
-folders. Its display panel offers the In work toggle (`showWorkSection`);
-sessions in work stay under their project in both views. VS Code excludes
+folders. Its display panel offers the Pinned and In work toggles and, in Tree,
+Detailed rows; pinned sessions and sessions in work stay under their project
+in both views. VS Code excludes
 worktrees and managed
 Chats, while retaining its workspace-scoped grouped list and inline archived
 buckets.
@@ -212,21 +213,7 @@ the links), the branch, project and model in the whole-row tooltip. The display
 menu's Detailed rows toggle (`detailedZoneRows`, `sidebarDetailedZoneRows`, per
 surface, off by default, offered in Tree only) gives Tree the two-line rows.
 Both never expand, with subsessions feeding the badges; a run row there opens
-its overview.
-
-## Pinned
-
-The display menu's Show pinned section toggle (`showPinnedSection`,
-`sidebarShowPinnedSection`, per surface, off by default) adds a `pinned`
-activity zone between Chats and In work, in both views. It lists pinned
-top-level, unarchived project sessions in the shared lifecycle order; pinned
-chats stay pinned at the top of Chats. A pinned session in work is listed in
-Pinned only. Like In work, its sessions also stay in their projects, search
-lists each of them once, in the zone (`zoneSessionIds` carries both zones' ids),
-and the rows follow the same render context. Pins are the device-local
-`useSessionPinnedStore`, so the zone differs between devices. The phone sheet
-and VS Code have no Pinned zone toggle: VS Code shows no section toggles and the
-phone's display panel offers only In work. Search
+its overview. Search
 keeps a root whose subsession matches (`sessionTreeMatchesSidebarQuery`): those
 subsessions are nowhere else in the sidebar. The zone counts only sessions that match
 themselves (`countSessionTreeQueryMatches`), and a group subtracts the trees
@@ -261,6 +248,23 @@ never-opened project still shows them; a collapsed or timeline row also counts
 its subsessions' requests. Row memoization
 compares `metadata` by reference and `time.idle`, so metadata-only changes
 (work, goal, recap) re-render the row.
+
+## Pinned
+
+The display menu's Show pinned section toggle (`showPinnedSection`,
+`sidebarShowPinnedSection`, per surface, off by default) adds a `pinned`
+activity zone between Chats and In work, in both views. It lists pinned
+top-level, unarchived project sessions in the shared lifecycle order; pinned
+chats stay pinned at the top of Chats. A pinned session in work is listed in
+Pinned only. Like In work, its sessions also stay in their projects, search
+lists each of them once, in the zone (`zoneSessionIds` carries both zones' ids),
+and the rows follow the same render context. Pins are the device-local
+`useSessionPinnedStore`, so the zone differs between devices. The phone sheet
+mirrors both toggles: its display panel offers Show pinned section and, in
+Tree, Detailed rows, and its Pinned and In work sections render
+`MobileTimelineRows` with `compact` in Tree unless detailed rows are on. VS Code
+shows no section toggles, so it has no Pinned zone and its In work rows stay on
+one line.
 
 ## Timeline view
 
