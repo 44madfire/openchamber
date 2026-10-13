@@ -947,6 +947,22 @@ html:not(.dark) .chat-scroll {
   margin: 0;
 }
 
+/* The collapsed session sidebar sliding out over the chat on hover
+   (Sidebar.tsx). `--oc-peek-offset` is the start side's sign. */
+@keyframes oc-sidebar-peek-in {
+  from {
+    transform: translateX(var(--oc-peek-offset));
+    opacity: 0;
+  }
+}
+
+@keyframes oc-sidebar-peek-out {
+  to {
+    transform: translateX(var(--oc-peek-offset));
+    opacity: 0;
+  }
+}
+
 /* Pierre diff viewer styling */
 .pierre-diff-wrapper {
   --diffs-font-family: var(--font-mono, ui-monospace, monospace);

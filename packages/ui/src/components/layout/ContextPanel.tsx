@@ -1085,6 +1085,10 @@ export const ContextPanel: React.FC<{ zone?: ContextZone }> = ({ zone = 'right' 
         // so a closed zone at zero size clips them away with the card and only
         // the size ever animates.
         'flex min-h-0 flex-col overflow-clip bg-background',
+        // Its own stacking context: the resize handle's z-50 orders it above
+        // the card only, and the session sidebar shown over the chat on hover
+        // (z-25) covers the zone handle and all.
+        'isolate',
         // Anchored to its window edge while expanded: `inset-0` would teleport
         // the far edge instantly (position does not transition), so only the
         // size animates and the zone grows toward the chat from where it docks.

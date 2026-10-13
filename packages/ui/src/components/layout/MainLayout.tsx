@@ -2,6 +2,8 @@ import React from 'react';
 import { Header } from './Header';
 import { Sidebar } from './Sidebar';
 import { SidebarTopBar } from './SidebarTopBar';
+import { useSidebarPeek } from './useSidebarPeek';
+import { useLayoutAnimationMs } from '@/hooks/useLayoutAnimationMs';
 import { TitlebarLeftControls } from './TitlebarLeftControls';
 import { ContextPanel } from './ContextPanel';
 import { ContextSurfacePanes } from './ContextSurfacePanes';
@@ -71,14 +73,16 @@ const OnDemand: React.FC<{
  */
 const LeftSidebar = React.memo<{ isMobile: boolean }>(({ isMobile }) => {
     const isSidebarOpen = useUIStore((state) => state.isSidebarOpen);
+    const peek = useSidebarPeek({ enabled: !isSidebarOpen && !isMobile, layoutAnimationMs: useLayoutAnimationMs() });
     return (
         <Sidebar
             isOpen={isSidebarOpen}
             isMobile={isMobile}
             className="border-border"
             topBar={<SidebarTopBar />}
+            peek={peek}
         >
-            <SessionSidebar isVisible={isSidebarOpen} />
+            <SessionSidebar isVisible={isSidebarOpen || peek.state !== false} />
         </Sidebar>
     );
 });
