@@ -1,3 +1,23 @@
+## [2.3.1] - 2026-10-13
+
+### New
+
+- **Usage: Antigravity card.** Antigravity accounts get their own card with 5-hour and weekly limits. (thanks to @brushax)
+
+### Improvements
+
+- Commit messages and pull request text use the model of OpenCode's title agent when one is configured. (thanks to @DeryFerd)
+- Chat: "Move to background" also works when a shell command or subagent runs inside a Code Mode script. (thanks to @batteryshark)
+
+### Fixes
+
+- Chat: when the agent answers twice in one turn, the first answer stays visible with Activity collapsed.
+- Chat: choosing the Default thinking level no longer makes /btw and follow-up messages fail. (thanks to @rebelliard)
+- Chat: long math formulas scroll sideways, so the whole formula can be read. (thanks to @kuriishi)
+- Skills: the Installed badge shows only on the source you installed the skill from. (thanks to @DeryFerd)
+- Usage: Console sign-ins with newer workspace ids show their limits again. (thanks to @DeryFerd)
+- Usage: with the ChatGPT sign-in, Codex says usage is unavailable for that sign-in method and chat keeps working. (thanks to @DeryFerd)
+
 ## [2.3.0] - 2026-10-12
 
 ### New
