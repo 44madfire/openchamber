@@ -44,6 +44,7 @@ import { StatusRowContainer } from './StatusRowContainer';
 import { SessionRecapNote } from '@/components/chat/SessionRecapSpacer';
 import {
     FLOATING_COMPOSER_DEFAULT_TAIL_INSET_PX,
+    FLOATING_COMPOSER_GAP_PX,
     forgetComposerSlot,
     recordComposerSlotHeight,
 } from '@/components/chat/composer/state/composerTailInset';
@@ -395,22 +396,24 @@ const ChatViewport = React.memo(({
                 this element itself, see composerInsetReaders), so a growing
                 composer or panel resizes the footer without a list re-render;
                 the list's own footer observer then extends the content.
-                While the session works, the band never drops below the
-                composer plus the status row above it: a composer grown past
-                its allowance (a background command, a queued message) leaves
-                only a sliver of the gap, and the row covered the last line. */}
+                While the session works, the composer gets no growth
+                allowance: the status row and the live end fade sit in the
+                gap, so a composer grown into it (a background command, a
+                queued message) left the last line under the row. */}
             <div
                 ref={registerComposerInsetReader}
                 className="flex-shrink-0"
                 style={{
                     height: floatingComposer
-                        ? `calc(max(var(--chat-composer-tail-inset, ${FLOATING_COMPOSER_DEFAULT_TAIL_INSET_PX}px), var(--chat-composer-inset, 0px) + ${statusRowClearance}px) + var(--chat-floating-panel-clearance, 0px))`
+                        ? `calc(${sessionIsWorking
+                            ? `max(var(--chat-composer-tail-inset, ${FLOATING_COMPOSER_DEFAULT_TAIL_INSET_PX}px), var(--chat-composer-inset, 0px) + ${FLOATING_COMPOSER_GAP_PX}px)`
+                            : `var(--chat-composer-tail-inset, ${FLOATING_COMPOSER_DEFAULT_TAIL_INSET_PX}px)`} + var(--chat-floating-panel-clearance, 0px))`
                         : (isMobile ? '40px' : '10vh'),
                 }}
                 aria-hidden="true"
             />
         </>
-    ), [currentSessionId, directory, floatingComposer, isMobile, statusRowClearance]);
+    ), [currentSessionId, directory, floatingComposer, isMobile, sessionIsWorking]);
 
     const endFadeStyle: React.CSSProperties & Record<'--chat-status-row-clearance', string> = {
         '--chat-status-row-clearance': `${statusRowClearance}px`,

@@ -180,9 +180,10 @@ composer (suggestion, "looks done", background commands) or a few lines of
 text grow into the band without moving the transcript; growth past 88px
 (`FLOATING_COMPOSER_GROWTH_ALLOWANCE_PX`) pushes the transcript and keeps
 about 16px between the last row and the composer. While the session works,
-the spacer never drops below the composer plus the floating status row's
-measured height (`statusRowClearance` in `ChatContainer`), so a grown
-composer never leaves the status row over the last line. The rule and the resting
+the composer gets no growth allowance and the spacer never drops below the
+current height plus the full gap: the floating status row and the live end
+fade sit in that gap, and a composer grown into it left the last line under
+the row. The rule and the resting
 height per column live in `state/composerTailInset.ts`; the mobile morph uses
 the same rule to announce how far the transcript's end moves, which is less
 than the slot's height change whenever part of it is taken from the gap. While the slot is taller than at rest
