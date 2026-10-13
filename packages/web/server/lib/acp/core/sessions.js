@@ -1714,6 +1714,18 @@ export const createAcpSessionService = ({
     const decoded = decode(key);
     if (!decoded) throw unknownError(key);
     const existing = live.get(key);
+    // A record mid-rebuild (fork warmup, cold open racing elsewhere)
+    // serves nothing until its replay lands: await the shared guard
+    // instead of returning an empty transcript. Without this, opening
+    // a fork URL in the rebuild window shows a draft that the router
+    // then drops.
+    if (existing?.replaying && opening.has(key)) {
+      await opening.get(key).catch(() => {});
+      const settled = live.get(key);
+      if (!settled?.projector) throw unknownError(key);
+      touch(settled);
+      return { session: settled.projector.session(), events: [] };
+    }
     if (existing?.projector && !existing.readOnly) {
       // Warm after a backend restart: the connection generation moved on;
       // `resume` if capable, else `load` — never serve a stale projector.
@@ -2439,6 +2451,19 @@ export const createAcpSessionService = ({
    */
   const openForkRecord = async (forkedRecord) => {
     const connected = forkedRecord.connected;
+    // Shield the rebuild with an opening guard: concurrent open() calls
+    // for the fork key await the SAME replay instead of racing it, so a
+    // reader can never see the fork mid-rebuild (empty transcript) or
+    // start a second load against it.
+    if (opening.has(forkedRecord.key)) {
+      await opening.get(forkedRecord.key).catch(() => {});
+      const settled = live.get(forkedRecord.key);
+      if (settled?.projector) return { session: settled.projector.session(), events: [] };
+      throw unknownError(forkedRecord.key);
+    }
+    let releaseOpening;
+    const gate = new Promise((resolve) => { releaseOpening = resolve; });
+    opening.set(forkedRecord.key, gate);
     forkedRecord.replaying = true;
     forkedRecord.replayBuffer = [];
     forkedRecord.projector.beginReplay();
@@ -2454,6 +2479,8 @@ export const createAcpSessionService = ({
       forkedRecord.replaying = false;
       forkedRecord.replayBuffer = null;
       dropLive(forkedRecord.key, { onlyRecord: forkedRecord });
+      if (opening.get(forkedRecord.key) === gate) opening.delete(forkedRecord.key);
+      releaseOpening();
       throw new AcpSessionError(`ACP fork failed to load: ${error?.message ?? error}`, {
         code: error?.code ?? 'ACP_LOAD_FAILED',
         cause: error,
@@ -2466,6 +2493,8 @@ export const createAcpSessionService = ({
     forkedRecord.replayBuffer = null;
     forkedRecord.entry = { ...forkedRecord.entry, messageIds: forkedRecord.projector.transcriptIds().slice(-5000) };
     await index.upsert(forkedRecord.key, { messageIds: forkedRecord.entry.messageIds, updated: now() }).catch(() => {});
+    if (opening.get(forkedRecord.key) === gate) opening.delete(forkedRecord.key);
+    releaseOpening();
     const events = [...replacement, ...buffered];
     emitSync(forkedRecord.directory, events);
     return { session: forkedRecord.projector.session(), events };

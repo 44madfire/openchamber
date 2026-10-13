@@ -872,3 +872,43 @@ describe('acp checkpoint review findings, round 2', () => {
     expect(reopened.session.metadata.acp.revertedFromTurn).toBeUndefined();
   });
 });
+
+describe('acp fork warmup (UI smoke)', () => {
+  it('open during fork rebuild waits for the replay, never an empty page', async () => {
+    const { service } = await setup({
+      entry: {
+        env: {
+          FAKE_ACP_FORK: 'true',
+          FAKE_ACP_CAPABILITIES: JSON.stringify({ sessionCapabilities: { fork: {} } }),
+          FAKE_ACP_LOAD_REPLAY: JSON.stringify([
+            { sessionUpdate: 'user_message_chunk', messageId: 'u-1', content: { type: 'text', text: 'first' } },
+            { sessionUpdate: 'agent_message_chunk', messageId: 'm-1', content: { type: 'text', text: 'answer' } },
+          ]),
+        },
+      },
+    });
+    const frames = syncEvents(service);
+    const cwd = await tempDir('acp-cpw-forkwarm-');
+    await fsp.writeFile(join(cwd, 'f.txt'), 'v1\n');
+    const { session } = await service.create({ backendId: 'fake', directory: cwd });
+    await service.prompt({ key: session.id, messageId: 'msg-1', parts: [{ type: 'text', text: 'one' }] });
+    await untilIdle(frames);
+    // Slow the fork's load by gating it through a wrapped connection is
+    // overkill: the guard path is deterministic — start the fork, then
+    // open the key while its replay is in flight (same tick race the
+    // router hit). The open must resolve with a populated transcript.
+    const forking = service.fork({ key: session.id });
+    // Yield until the fork record exists and is replaying.
+    const forkKey = await until(async () => {
+      const rows = await service.list({ directory: cwd });
+      const found = rows.find((s) => s.id !== session.id);
+      return found?.id ?? null;
+    }, { timeout: 10000 });
+    const opened = await service.open({ key: forkKey });
+    const { session: forked } = await forking;
+    expect(opened.session.id).toBe(forked.id);
+    const page = await service.messages({ key: forkKey });
+    expect(page.items.length).toBeGreaterThan(0);
+    expect(opened.session.title).toBeDefined();
+  });
+});

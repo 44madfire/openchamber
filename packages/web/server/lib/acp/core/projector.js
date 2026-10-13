@@ -717,6 +717,28 @@ export const createSessionProjector = ({ key, backendId, directory, index = null
     }
   };
 
+  // A replayed assistant finished before the replay: seal its streams and
+  // mark it complete (`finish` + `time.completed`, like a live turn's
+  // settle) so consumers that require completed turns (AI rename) treat
+  // replayed history as finished work, not a running turn.
+  const completeReplayedAssistant = (events, assistantId, at) => {
+    const assistant = messageById(assistantId);
+    if (!assistant || assistant.role !== 'assistant') return;
+    sealAssistantStreams(events, assistantId, at);
+    if (assistant.finish === undefined) {
+      assistant.finish = 'stop';
+      assistant.time.completed = at;
+      events.push({
+        type: 'message.patched',
+        properties: {
+          sessionID: key,
+          messageID: assistantId,
+          patch: { time: { completed: at }, finish: 'stop' },
+        },
+      });
+    }
+  };
+
   const applyUserReplay = (events, chunk) => {
     const text = textOf(chunk?.content);
     const agentId = typeof chunk?.messageId === 'string' && chunk.messageId ? chunk.messageId : null;
@@ -753,9 +775,10 @@ export const createSessionProjector = ({ key, backendId, directory, index = null
     appendPart(id, part);
     events.push({ type: 'message.parts.replaced', properties: { sessionID: key, messageID: id, parts: [{ ...part }] } });
     // Each replayed user turn starts a fresh assistant message; without this
-    // every replayed agent chunk would accumulate on the first reply.
+    // every replayed agent chunk would accumulate on the first reply. The
+    // rotated assistant finished before the replay: mark it complete.
     if (state.replayAssistantId) {
-      sealAssistantStreams(events, state.replayAssistantId, at);
+      completeReplayedAssistant(events, state.replayAssistantId, at);
     }
     state.replayAssistantId = null;
     touch();
@@ -1577,6 +1600,22 @@ export const createSessionProjector = ({ key, backendId, directory, index = null
           touch();
         } else {
           delete state.info.revert;
+        }
+      }
+      // The trailing assistant (no later user turn rotated it) also
+      // finished before the replay: complete it in place. No events —
+      // the replacement batch carries removals only, and the buffered
+      // canonical messages already went out; the record state is what
+      // pages serve from here on. Part seals go out as updates so live
+      // rows converge.
+      if (state.replayAssistantId) {
+        const assistant = messageById(state.replayAssistantId);
+        if (assistant && assistant.role === 'assistant' && assistant.finish === undefined) {
+          const at = tickAfter();
+          sealAssistantStreams([], state.replayAssistantId, at);
+          assistant.finish = 'stop';
+          assistant.time.completed = at;
+          touch();
         }
       }
       state.replacedIds = null;

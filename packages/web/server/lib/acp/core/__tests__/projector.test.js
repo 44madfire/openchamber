@@ -752,3 +752,22 @@ describe('acp projector revert commit', () => {
     expect(projector.session().revert).toBeUndefined();
   });
 });
+
+describe('acp projector replayed completion', () => {
+  it('marks rotated and trailing replayed assistants complete', () => {
+    const projector = projectorFor('omp');
+    projector.beginReplay();
+    projector.applyUpdate({ sessionId: 'n', update: { sessionUpdate: 'user_message_chunk', messageId: 'u-1', content: { type: 'text', text: 'one' } } }, { replay: true });
+    projector.applyUpdate({ sessionId: 'n', update: { sessionUpdate: 'agent_message_chunk', messageId: 'm-1', content: { type: 'text', text: 'r1' } } }, { replay: true });
+    projector.applyUpdate({ sessionId: 'n', update: { sessionUpdate: 'user_message_chunk', messageId: 'u-2', content: { type: 'text', text: 'two' } } }, { replay: true });
+    projector.applyUpdate({ sessionId: 'n', update: { sessionUpdate: 'agent_message_chunk', messageId: 'm-2', content: { type: 'text', text: 'r2' } } }, { replay: true });
+    projector.endReplay();
+    const page = projector.page({ limit: 10 });
+    const assistants = page.items.filter((item) => item.info.role === 'assistant');
+    expect(assistants).toHaveLength(2);
+    for (const item of assistants) {
+      expect(item.info.finish).toBe('stop');
+      expect(item.info.time.completed).toEqual(expect.any(Number));
+    }
+  });
+});
