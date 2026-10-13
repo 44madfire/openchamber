@@ -36,7 +36,6 @@
     "type-check:ui": "bun run --cwd packages/ui type-check",
     "settings-registry:generate": "bun run --cwd packages/ui src/lib/settings/registry-snapshot.ts",
     "type-check:electron": "bun run --cwd packages/electron type-check",
-    "type-check:mobile": "bun run --cwd packages/mobile type-check",
     "lint": "bun run --filter '*' lint",
     "lint:web": "bun run --cwd packages/web lint",
     "lint:ui": "bun run --cwd packages/ui lint",
