@@ -9,7 +9,7 @@
  * (`settings-registry.json`, see `registry-snapshot.ts`) — the server's and the
  * VS Code bridge's key lists. A key that is not here does not persist.
  *
- * Scopes (see `.opencode/plans/settings-scopes.md`):
+ * Scopes (see `DOCUMENTATION.md` in this folder):
  * - `instance`: a fact about the machine the server runs on. Never synced.
  * - `profile`: the person's preference. Synced to every client of the
  *   instance; a few are stored per surface kind (`perSurface`).
