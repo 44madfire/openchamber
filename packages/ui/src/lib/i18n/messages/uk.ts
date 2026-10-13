@@ -3,6 +3,7 @@ import { settingsDict } from './uk.settings';
 import { linearIssuePickerI18n } from './linear-issue-picker.i18n';
 import { referencePickerI18n } from './reference-picker.i18n';
 import { sessionMenuHintsI18n } from './session-menu-hints.i18n';
+import { projectKnowledgeI18n } from './project-knowledge.i18n';
 import { linearPanelI18n } from './linear-panel.i18n';
 import { routingI18n } from './routing.i18n';
 import { pluginPanelI18n } from './plugin-panel.i18n';
@@ -139,6 +140,7 @@ export const dict: Record<I18nKey, string> = {
   ...linearIssuePickerI18n.uk,
   ...referencePickerI18n.uk,
   ...sessionMenuHintsI18n.uk,
+  ...projectKnowledgeI18n.uk,
   ...linearPanelI18n.uk,
   ...routingI18n.uk,
   ...pluginPanelI18n.uk,
@@ -1870,16 +1872,10 @@ export const dict: Record<I18nKey, string> = {
   "rightSidebar.contextNotesTodo.empty.selectProject": "Виберіть проєкт, щоб додати нотатки та завдання.",
   "rightSidebar.contextNotesTodo.notes.placeholder": "Зберігайте контекст, нагадування або посилання",
   "rightSidebar.contextNotesTodo.notes.addAria": "Додати нотатку",
-  "rightSidebar.contextNotesTodo.notes.empty": "Нотаток ще немає. Занотуйте контекст, нагадування або посилання.",
   "rightSidebar.contextNotesTodo.notes.actions.expand": "Розгорнути нотатку",
-  "rightSidebar.contextNotesTodo.notes.actions.collapse": "Згорнути нотатку",
   "rightSidebar.contextNotesTodo.notes.actions.delete": "Видалити нотатку",
-  "rightSidebar.contextNotesTodo.notes.actions.pin": "Закріпити в контексті агента",
-  "rightSidebar.contextNotesTodo.notes.actions.unpin": "Відкріпити з контексту агента",
   "rightSidebar.contextNotesTodo.notes.source.selection": "З чату",
   "rightSidebar.contextNotesTodo.notes.source.agent": "Від агента",
-  "rightSidebar.contextNotesTodo.search.placeholder": "Пошук",
-  "rightSidebar.contextNotesTodo.search.clear": "Очистити пошук",
   "rightSidebar.contextNotesTodo.search.noResults": "Нічого не знайдено за запитом «{query}».",
   "rightSidebar.contextNotesTodo.toast.deleteNoteFailed": "Не вдалося видалити нотатку",
   "rightSidebar.contextNotesTodo.toast.createNoteFailed": "Не вдалося створити нотатку",
@@ -1889,7 +1885,6 @@ export const dict: Record<I18nKey, string> = {
   "rightSidebar.contextNotesTodo.plans.actions.back": "Назад до планів",
   "rightSidebar.contextNotesTodo.tabs.memory": "Памʼять",
   "rightSidebar.contextNotesTodo.sections.label": "Розділи контексту проєкту",
-  "rightSidebar.contextNotesTodo.sections.resize": "Змінити ширину бічної панелі розділів",
   "rightSidebar.contextNotesTodo.memory.scope.project": "Проєкт",
   "rightSidebar.contextNotesTodo.memory.scope.label": "Область памʼяті",
   "rightSidebar.contextNotesTodo.memory.scope.global": "Про вас",
@@ -1915,7 +1910,6 @@ export const dict: Record<I18nKey, string> = {
   "rightSidebar.contextNotesTodo.todo.actions.markComplete": "Позначити \"{text}\" як завершене",
   "rightSidebar.contextNotesTodo.todo.actions.collapse": "Згорнути завдання \"{text}\"",
   "rightSidebar.contextNotesTodo.todo.actions.expand": "Розгорнути завдання \"{text}\"",
-  "rightSidebar.contextNotesTodo.todo.actions.delete": "Видалити \"{text}\"",
   "rightSidebar.contextNotesTodo.todo.actions.send": "Надіслати \"{text}\"",
   "rightSidebar.contextNotesTodo.todo.actions.reorder": "Змінити порядок \"{text}\"",
   "rightSidebar.contextNotesTodo.todo.sendMenu.currentSession": "Надіслати до поточної сесії",
@@ -1927,7 +1921,6 @@ export const dict: Record<I18nKey, string> = {
   "rightSidebar.contextNotesTodo.plans.sharedBadge": "У репозиторії",
   "rightSidebar.contextNotesTodo.plans.share": "Перенести в теку планів репозиторію, щоб його бачив кожен, хто клонує репозиторій",
   "rightSidebar.contextNotesTodo.plans.makePersonal": "Перенести в мої плани, з репозиторію",
-  "rightSidebar.contextNotesTodo.plans.deletePlanWithTitle": "Видалити план \"{title}\"",
   "rightSidebar.contextNotesTodo.sendDialog.title.newSession": "Надіслати до нової сесії",
   "rightSidebar.contextNotesTodo.sendDialog.title.newWorktree": "Надіслати до нової сесії в worktree",
   "rightSidebar.contextNotesTodo.sendDialog.variant.default": "За замовчуванням",

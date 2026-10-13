@@ -3,6 +3,7 @@ import { settingsDict } from './pt-BR.settings';
 import { linearIssuePickerI18n } from './linear-issue-picker.i18n';
 import { referencePickerI18n } from './reference-picker.i18n';
 import { sessionMenuHintsI18n } from './session-menu-hints.i18n';
+import { projectKnowledgeI18n } from './project-knowledge.i18n';
 import { linearPanelI18n } from './linear-panel.i18n';
 import { routingI18n } from './routing.i18n';
 import { pluginPanelI18n } from './plugin-panel.i18n';
@@ -139,6 +140,7 @@ export const dict: Record<I18nKey, string> = {
   ...linearIssuePickerI18n['pt-BR'],
   ...referencePickerI18n['pt-BR'],
   ...sessionMenuHintsI18n['pt-BR'],
+  ...projectKnowledgeI18n['pt-BR'],
   ...linearPanelI18n['pt-BR'],
   ...routingI18n['pt-BR'],
   ...pluginPanelI18n['pt-BR'],
@@ -1870,16 +1872,10 @@ export const dict: Record<I18nKey, string> = {
   "rightSidebar.contextNotesTodo.empty.selectProject": "Selecione um projeto para adicionar notas e tarefas pendentes.",
   "rightSidebar.contextNotesTodo.notes.placeholder": "Capture contexto, lembretes ou links",
   "rightSidebar.contextNotesTodo.notes.addAria": "Adicionar nota",
-  "rightSidebar.contextNotesTodo.notes.empty": "Ainda não há notas. Registre contexto, lembretes ou links.",
   "rightSidebar.contextNotesTodo.notes.actions.expand": "Expandir nota",
-  "rightSidebar.contextNotesTodo.notes.actions.collapse": "Recolher nota",
   "rightSidebar.contextNotesTodo.notes.actions.delete": "Excluir nota",
-  "rightSidebar.contextNotesTodo.notes.actions.pin": "Fixar no contexto do agente",
-  "rightSidebar.contextNotesTodo.notes.actions.unpin": "Desafixar do contexto do agente",
   "rightSidebar.contextNotesTodo.notes.source.selection": "Do chat",
   "rightSidebar.contextNotesTodo.notes.source.agent": "Do agente",
-  "rightSidebar.contextNotesTodo.search.placeholder": "Buscar",
-  "rightSidebar.contextNotesTodo.search.clear": "Limpar busca",
   "rightSidebar.contextNotesTodo.search.noResults": "Nada corresponde a \"{query}\".",
   "rightSidebar.contextNotesTodo.toast.deleteNoteFailed": "Falha ao excluir a nota",
   "rightSidebar.contextNotesTodo.toast.createNoteFailed": "Falha ao criar a nota",
@@ -1889,7 +1885,6 @@ export const dict: Record<I18nKey, string> = {
   "rightSidebar.contextNotesTodo.plans.actions.back": "Voltar aos planos",
   "rightSidebar.contextNotesTodo.tabs.memory": "Memória",
   "rightSidebar.contextNotesTodo.sections.label": "Seções do contexto do projeto",
-  "rightSidebar.contextNotesTodo.sections.resize": "Redimensionar a barra de seções",
   "rightSidebar.contextNotesTodo.memory.scope.project": "Projeto",
   "rightSidebar.contextNotesTodo.memory.scope.label": "Escopo da memória",
   "rightSidebar.contextNotesTodo.memory.scope.global": "Sobre você",
@@ -1915,7 +1910,6 @@ export const dict: Record<I18nKey, string> = {
   "rightSidebar.contextNotesTodo.todo.actions.markComplete": "Marcar \"{text}\" como concluída",
   "rightSidebar.contextNotesTodo.todo.actions.collapse": "Recolher tarefa pendente \"{text}\"",
   "rightSidebar.contextNotesTodo.todo.actions.expand": "Expandir tarefa pendente \"{text}\"",
-  "rightSidebar.contextNotesTodo.todo.actions.delete": "Excluir \"{text}\"",
   "rightSidebar.contextNotesTodo.todo.actions.send": "Enviar \"{text}\"",
   "rightSidebar.contextNotesTodo.todo.actions.reorder": "Reordenar \"{text}\"",
   "rightSidebar.contextNotesTodo.todo.sendMenu.currentSession": "Enviar à sessão atual",
@@ -1927,7 +1921,6 @@ export const dict: Record<I18nKey, string> = {
   "rightSidebar.contextNotesTodo.plans.sharedBadge": "No repositório",
   "rightSidebar.contextNotesTodo.plans.share": "Mover para a pasta de planos do repositório, para que todos que o baixarem o vejam",
   "rightSidebar.contextNotesTodo.plans.makePersonal": "Mover para meus planos, fora do repositório",
-  "rightSidebar.contextNotesTodo.plans.deletePlanWithTitle": "Excluir plano \"{title}\"",
   "rightSidebar.contextNotesTodo.sendDialog.title.newSession": "Enviar a uma nova sessão",
   "rightSidebar.contextNotesTodo.sendDialog.title.newWorktree": "Enviar a uma nova sessão de worktree",
   "rightSidebar.contextNotesTodo.sendDialog.variant.default": "Padrão",

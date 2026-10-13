@@ -68,6 +68,8 @@ type PlanViewProps = {
   /** Called after a send action routes the user to the chat — hosts that show
       PlanView in an overlay (mobile fullscreen surface) close it here. */
   onNavigatedToChat?: () => void;
+  /** Rendered before the title, e.g. the project knowledge panel's back control. */
+  leading?: React.ReactNode;
 };
 
 type PlanSendAction = 'improve' | 'implement';
@@ -144,7 +146,7 @@ type SelectedLineRange = {
   end: number;
 };
 
-export const PlanView: React.FC<PlanViewProps> = ({ visible = true, targetPath = null, savedProjectPlan = null, onNavigatedToChat }) => {
+export const PlanView: React.FC<PlanViewProps> = ({ visible = true, targetPath = null, savedProjectPlan = null, onNavigatedToChat, leading }) => {
   const { t } = useI18n();
   const inPanelHeader = useInContextPanelHeader();
   const currentSessionId = useSessionUIStore((state) => state.currentSessionId);
@@ -873,6 +875,7 @@ export const PlanView: React.FC<PlanViewProps> = ({ visible = true, targetPath =
     <div className="relative flex h-full min-h-0 min-w-0 w-full flex-col overflow-hidden bg-background">
       <ContextPanelHeaderToolbar>
       <div className={cn('flex min-w-0 items-center gap-2', inPanelHeader ? 'flex-1 py-1 pe-1' : 'border-b border-border/40 px-3 py-1.5 flex-shrink-0')}>
+        {leading}
         <div className="min-w-0 flex-1">
           <div className="typography-ui-label font-medium truncate">{parsedTitle}</div>
           {loadError ? (

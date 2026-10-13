@@ -2,6 +2,7 @@ import { settingsDict } from './fr.settings';
 import { linearIssuePickerI18n } from './linear-issue-picker.i18n';
 import { referencePickerI18n } from './reference-picker.i18n';
 import { sessionMenuHintsI18n } from './session-menu-hints.i18n';
+import { projectKnowledgeI18n } from './project-knowledge.i18n';
 import { linearPanelI18n } from './linear-panel.i18n';
 import { routingI18n } from './routing.i18n';
 import { pluginPanelI18n } from './plugin-panel.i18n';
@@ -128,6 +129,7 @@ export const dict = {
   ...linearIssuePickerI18n.fr,
   ...referencePickerI18n.fr,
   ...sessionMenuHintsI18n.fr,
+  ...projectKnowledgeI18n.fr,
   ...linearPanelI18n.fr,
   ...routingI18n.fr,
   ...pluginPanelI18n.fr,
@@ -1650,16 +1652,10 @@ export const dict = {
   'rightSidebar.contextNotesTodo.empty.selectProject': 'Sélectionnez un projet pour ajouter des notes et des tâches.',
   'rightSidebar.contextNotesTodo.notes.placeholder': 'Capturez le contexte, les rappels ou les liens',
   'rightSidebar.contextNotesTodo.notes.addAria': 'Ajouter une note',
-  'rightSidebar.contextNotesTodo.notes.empty': 'Aucune note pour le moment. Notez du contexte, des rappels ou des liens.',
   'rightSidebar.contextNotesTodo.notes.actions.expand': 'Développer la note',
-  'rightSidebar.contextNotesTodo.notes.actions.collapse': 'Réduire la note',
   'rightSidebar.contextNotesTodo.notes.actions.delete': 'Supprimer la note',
-  'rightSidebar.contextNotesTodo.notes.actions.pin': 'Épingler au contexte de l\'agent',
-  'rightSidebar.contextNotesTodo.notes.actions.unpin': 'Détacher du contexte de l\'agent',
   'rightSidebar.contextNotesTodo.notes.source.selection': 'Depuis le chat',
   'rightSidebar.contextNotesTodo.notes.source.agent': 'Depuis l\'agent',
-  'rightSidebar.contextNotesTodo.search.placeholder': 'Rechercher',
-  'rightSidebar.contextNotesTodo.search.clear': 'Effacer la recherche',
   'rightSidebar.contextNotesTodo.search.noResults': 'Aucun résultat pour "{query}".',
   'rightSidebar.contextNotesTodo.toast.deleteNoteFailed': 'Échec de la suppression de la note',
   'rightSidebar.contextNotesTodo.toast.createNoteFailed': 'Échec de la création de la note',
@@ -1669,7 +1665,6 @@ export const dict = {
   'rightSidebar.contextNotesTodo.plans.actions.back': 'Retour aux plans',
   'rightSidebar.contextNotesTodo.tabs.memory': 'Mémoire',
   'rightSidebar.contextNotesTodo.sections.label': 'Sections du contexte du projet',
-  'rightSidebar.contextNotesTodo.sections.resize': 'Redimensionner la barre des sections',
   'rightSidebar.contextNotesTodo.memory.scope.project': 'Projet',
   'rightSidebar.contextNotesTodo.memory.scope.label': 'Portée de la mémoire',
   'rightSidebar.contextNotesTodo.memory.scope.global': 'À votre sujet',
@@ -1695,7 +1690,6 @@ export const dict = {
   'rightSidebar.contextNotesTodo.todo.actions.markComplete': 'Marquer "{text}" comme terminée',
   'rightSidebar.contextNotesTodo.todo.actions.collapse': 'Réduire la tâche "{text}"',
   'rightSidebar.contextNotesTodo.todo.actions.expand': 'Développer la tâche "{text}"',
-  'rightSidebar.contextNotesTodo.todo.actions.delete': 'Supprimer "{text}"',
   'rightSidebar.contextNotesTodo.todo.actions.send': 'Envoyer "{text}"',
   'rightSidebar.contextNotesTodo.todo.actions.reorder': 'Réordonner "{text}"',
   'rightSidebar.contextNotesTodo.todo.sendMenu.currentSession': 'Envoyer à la session en cours',
@@ -1707,7 +1701,6 @@ export const dict = {
   'rightSidebar.contextNotesTodo.plans.sharedBadge': 'Dans le dépôt',
   'rightSidebar.contextNotesTodo.plans.share': 'Déplacer vers le dossier des plans du dépôt, pour que tous ceux qui le récupèrent le voient',
   'rightSidebar.contextNotesTodo.plans.makePersonal': 'Déplacer vers mes plans, hors du dépôt',
-  'rightSidebar.contextNotesTodo.plans.deletePlanWithTitle': 'Supprimer le plan "{title}"',
   'rightSidebar.contextNotesTodo.sendDialog.title.newSession': 'Envoyer à une nouvelle session',
   'rightSidebar.contextNotesTodo.sendDialog.title.newWorktree': 'Envoyer vers un nouvel worktree',
   'rightSidebar.contextNotesTodo.sendDialog.variant.default': 'Défaut',

@@ -3,6 +3,7 @@ import { settingsDict } from './es.settings';
 import { linearIssuePickerI18n } from './linear-issue-picker.i18n';
 import { referencePickerI18n } from './reference-picker.i18n';
 import { sessionMenuHintsI18n } from './session-menu-hints.i18n';
+import { projectKnowledgeI18n } from './project-knowledge.i18n';
 import { linearPanelI18n } from './linear-panel.i18n';
 import { routingI18n } from './routing.i18n';
 import { pluginPanelI18n } from './plugin-panel.i18n';
@@ -139,6 +140,7 @@ export const dict: Record<I18nKey, string> = {
   ...linearIssuePickerI18n.es,
   ...referencePickerI18n.es,
   ...sessionMenuHintsI18n.es,
+  ...projectKnowledgeI18n.es,
   ...linearPanelI18n.es,
   ...routingI18n.es,
   ...pluginPanelI18n.es,
@@ -1870,16 +1872,10 @@ export const dict: Record<I18nKey, string> = {
   "rightSidebar.contextNotesTodo.empty.selectProject": "Selecciona un proyecto para añadir notas y tareas pendientes.",
   "rightSidebar.contextNotesTodo.notes.placeholder": "Captura contexto, recordatorios o enlaces",
   "rightSidebar.contextNotesTodo.notes.addAria": "Añadir nota",
-  "rightSidebar.contextNotesTodo.notes.empty": "Aún no hay notas. Guarda contexto, recordatorios o enlaces.",
   "rightSidebar.contextNotesTodo.notes.actions.expand": "Expandir nota",
-  "rightSidebar.contextNotesTodo.notes.actions.collapse": "Contraer nota",
   "rightSidebar.contextNotesTodo.notes.actions.delete": "Eliminar nota",
-  "rightSidebar.contextNotesTodo.notes.actions.pin": "Fijar al contexto del agente",
-  "rightSidebar.contextNotesTodo.notes.actions.unpin": "Quitar del contexto del agente",
   "rightSidebar.contextNotesTodo.notes.source.selection": "Del chat",
   "rightSidebar.contextNotesTodo.notes.source.agent": "Del agente",
-  "rightSidebar.contextNotesTodo.search.placeholder": "Buscar",
-  "rightSidebar.contextNotesTodo.search.clear": "Borrar búsqueda",
   "rightSidebar.contextNotesTodo.search.noResults": "Nada coincide con \"{query}\".",
   "rightSidebar.contextNotesTodo.toast.deleteNoteFailed": "No se pudo eliminar la nota",
   "rightSidebar.contextNotesTodo.toast.createNoteFailed": "No se pudo crear la nota",
@@ -1889,7 +1885,6 @@ export const dict: Record<I18nKey, string> = {
   "rightSidebar.contextNotesTodo.plans.actions.back": "Volver a los planes",
   "rightSidebar.contextNotesTodo.tabs.memory": "Memoria",
   "rightSidebar.contextNotesTodo.sections.label": "Secciones del contexto del proyecto",
-  "rightSidebar.contextNotesTodo.sections.resize": "Redimensionar la barra de secciones",
   "rightSidebar.contextNotesTodo.memory.scope.project": "Proyecto",
   "rightSidebar.contextNotesTodo.memory.scope.label": "Ámbito de la memoria",
   "rightSidebar.contextNotesTodo.memory.scope.global": "Sobre ti",
@@ -1915,7 +1910,6 @@ export const dict: Record<I18nKey, string> = {
   "rightSidebar.contextNotesTodo.todo.actions.markComplete": "Marcar \"{text}\" como completada",
   "rightSidebar.contextNotesTodo.todo.actions.collapse": "Colapsar tarea pendiente \"{text}\"",
   "rightSidebar.contextNotesTodo.todo.actions.expand": "Expandir tarea pendiente \"{text}\"",
-  "rightSidebar.contextNotesTodo.todo.actions.delete": "Eliminar \"{text}\"",
   "rightSidebar.contextNotesTodo.todo.actions.send": "Enviar \"{text}\"",
   "rightSidebar.contextNotesTodo.todo.actions.reorder": "Reordenar \"{text}\"",
   "rightSidebar.contextNotesTodo.todo.sendMenu.currentSession": "Enviar a la sesión actual",
@@ -1927,7 +1921,6 @@ export const dict: Record<I18nKey, string> = {
   "rightSidebar.contextNotesTodo.plans.sharedBadge": "En el repo",
   "rightSidebar.contextNotesTodo.plans.share": "Mover a la carpeta de planes del repositorio, para que todos los que lo clonen lo vean",
   "rightSidebar.contextNotesTodo.plans.makePersonal": "Mover a mis planes, fuera del repositorio",
-  "rightSidebar.contextNotesTodo.plans.deletePlanWithTitle": "Eliminar plan \"{title}\"",
   "rightSidebar.contextNotesTodo.sendDialog.title.newSession": "Enviar a una nueva sesión",
   "rightSidebar.contextNotesTodo.sendDialog.title.newWorktree": "Enviar a una nueva sesión de worktree",
   "rightSidebar.contextNotesTodo.sendDialog.variant.default": "Predeterminado",

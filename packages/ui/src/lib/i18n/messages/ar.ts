@@ -2,6 +2,7 @@ import { settingsDict } from './ar.settings';
 import { linearIssuePickerI18n } from './linear-issue-picker.i18n';
 import { referencePickerI18n } from './reference-picker.i18n';
 import { sessionMenuHintsI18n } from './session-menu-hints.i18n';
+import { projectKnowledgeI18n } from './project-knowledge.i18n';
 import { linearPanelI18n } from './linear-panel.i18n';
 import { routingI18n } from './routing.i18n';
 import { pluginPanelI18n } from './plugin-panel.i18n';
@@ -1860,16 +1861,10 @@ export const dict = {
   'rightSidebar.contextNotesTodo.empty.selectProject': 'اختر مشروعًا لإضافة الملاحظات والمهام.',
   'rightSidebar.contextNotesTodo.notes.placeholder': 'دوّن السياق أو التذكيرات أو الروابط',
   'rightSidebar.contextNotesTodo.notes.addAria': 'إضافة ملاحظة',
-  'rightSidebar.contextNotesTodo.notes.empty': 'لا توجد ملاحظات بعد. دوّن السياق أو التذكيرات أو الروابط.',
   'rightSidebar.contextNotesTodo.notes.actions.expand': 'توسيع الملاحظة',
-  'rightSidebar.contextNotesTodo.notes.actions.collapse': 'طي الملاحظة',
   'rightSidebar.contextNotesTodo.notes.actions.delete': 'حذف الملاحظة',
-  'rightSidebar.contextNotesTodo.notes.actions.pin': 'تثبيت في سياق الوكيل',
-  'rightSidebar.contextNotesTodo.notes.actions.unpin': 'إلغاء التثبيت من سياق الوكيل',
   'rightSidebar.contextNotesTodo.notes.source.selection': 'من المحادثة',
   'rightSidebar.contextNotesTodo.notes.source.agent': 'من الوكيل',
-  'rightSidebar.contextNotesTodo.search.placeholder': 'بحث',
-  'rightSidebar.contextNotesTodo.search.clear': 'مسح البحث',
   'rightSidebar.contextNotesTodo.search.noResults': "لا شيء يطابق \"{query}\".",
   'rightSidebar.contextNotesTodo.toast.deleteNoteFailed': 'تعذّر حذف الملاحظة',
   'rightSidebar.contextNotesTodo.toast.createNoteFailed': 'تعذّر إنشاء الملاحظة',
@@ -1879,7 +1874,6 @@ export const dict = {
   'rightSidebar.contextNotesTodo.plans.actions.back': 'العودة إلى الخطط',
   'rightSidebar.contextNotesTodo.tabs.memory': 'الذاكرة',
   'rightSidebar.contextNotesTodo.sections.label': 'أقسام سياق المشروع',
-  'rightSidebar.contextNotesTodo.sections.resize': 'تغيير حجم الشريط الجانبي للأقسام',
   'rightSidebar.contextNotesTodo.memory.scope.project': 'المشروع',
   'rightSidebar.contextNotesTodo.memory.scope.label': 'نطاق الذاكرة',
   'rightSidebar.contextNotesTodo.memory.scope.global': 'عنك',
@@ -1905,7 +1899,6 @@ export const dict = {
   'rightSidebar.contextNotesTodo.todo.actions.markComplete': "وضع علامة مكتملة على \"{text}\"",
   'rightSidebar.contextNotesTodo.todo.actions.collapse': "طي المهمة \"{text}\"",
   'rightSidebar.contextNotesTodo.todo.actions.expand': "توسيع المهمة \"{text}\"",
-  'rightSidebar.contextNotesTodo.todo.actions.delete': "حذف \"{text}\"",
   'rightSidebar.contextNotesTodo.todo.actions.send': "إرسال \"{text}\"",
   'rightSidebar.contextNotesTodo.todo.actions.reorder': "إعادة ترتيب \"{text}\"",
   'rightSidebar.contextNotesTodo.todo.sendMenu.currentSession': 'إرسال إلى الجلسة الحالية',
@@ -1917,7 +1910,6 @@ export const dict = {
   'rightSidebar.contextNotesTodo.plans.sharedBadge': 'في المستودع',
   'rightSidebar.contextNotesTodo.plans.share': 'نقل إلى مجلد خطط المستودع، ليراها كل من يسحب المستودع',
   'rightSidebar.contextNotesTodo.plans.makePersonal': 'نقل إلى خططي، خارج المستودع',
-  'rightSidebar.contextNotesTodo.plans.deletePlanWithTitle': "حذف الخطة \"{title}\"",
   'rightSidebar.contextNotesTodo.sendDialog.title.newSession': 'إرسال إلى جلسة جديدة',
   'rightSidebar.contextNotesTodo.sendDialog.title.newWorktree': 'إرسال إلى شجرة عمل (worktree) جديدة',
   'rightSidebar.contextNotesTodo.sendDialog.variant.default': 'افتراضي',
@@ -3759,6 +3751,7 @@ export const dict = {
   ...linearIssuePickerI18n.ar,
   ...referencePickerI18n.ar,
   ...sessionMenuHintsI18n.ar,
+  ...projectKnowledgeI18n.ar,
   ...linearPanelI18n.ar,
   ...routingI18n.ar,
   ...pluginPanelI18n.ar,

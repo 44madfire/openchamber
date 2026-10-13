@@ -2,6 +2,7 @@ import { settingsDict } from './de.settings';
 import { linearIssuePickerI18n } from './linear-issue-picker.i18n';
 import { referencePickerI18n } from './reference-picker.i18n';
 import { sessionMenuHintsI18n } from './session-menu-hints.i18n';
+import { projectKnowledgeI18n } from './project-knowledge.i18n';
 import { linearPanelI18n } from './linear-panel.i18n';
 import { routingI18n } from './routing.i18n';
 import { pluginPanelI18n } from './plugin-panel.i18n';
@@ -128,6 +129,7 @@ export const dict = {
   ...linearIssuePickerI18n.de,
   ...referencePickerI18n.de,
   ...sessionMenuHintsI18n.de,
+  ...projectKnowledgeI18n.de,
   ...linearPanelI18n.de,
   ...routingI18n.de,
   ...pluginPanelI18n.de,
@@ -1659,16 +1661,10 @@ export const dict = {
   'rightSidebar.contextNotesTodo.empty.selectProject': 'Wähle ein Projekt aus, um Notizen und Aufgaben hinzuzufügen.',
   'rightSidebar.contextNotesTodo.notes.placeholder': 'Kontext, Erinnerungen oder Links festhalten',
   'rightSidebar.contextNotesTodo.notes.addAria': 'Notiz hinzufügen',
-  'rightSidebar.contextNotesTodo.notes.empty': 'Noch keine Notizen. Halte Kontext, Erinnerungen oder Links fest.',
   'rightSidebar.contextNotesTodo.notes.actions.expand': 'Notiz aufklappen',
-  'rightSidebar.contextNotesTodo.notes.actions.collapse': 'Notiz zuklappen',
   'rightSidebar.contextNotesTodo.notes.actions.delete': 'Notiz löschen',
-  'rightSidebar.contextNotesTodo.notes.actions.pin': 'An Agent-Kontext anheften',
-  'rightSidebar.contextNotesTodo.notes.actions.unpin': 'Vom Agent-Kontext lösen',
   'rightSidebar.contextNotesTodo.notes.source.selection': 'Aus dem Chat',
   'rightSidebar.contextNotesTodo.notes.source.agent': 'Vom Agenten',
-  'rightSidebar.contextNotesTodo.search.placeholder': 'Suchen',
-  'rightSidebar.contextNotesTodo.search.clear': 'Suche zurücksetzen',
   'rightSidebar.contextNotesTodo.search.noResults': 'Nichts passt zu "{query}".',
   'rightSidebar.contextNotesTodo.toast.deleteNoteFailed': 'Notiz konnte nicht gelöscht werden',
   'rightSidebar.contextNotesTodo.toast.createNoteFailed': 'Notiz konnte nicht erstellt werden',
@@ -1678,7 +1674,6 @@ export const dict = {
   'rightSidebar.contextNotesTodo.plans.actions.back': 'Zurück zu den Plänen',
   'rightSidebar.contextNotesTodo.tabs.memory': 'Gedächtnis',
   'rightSidebar.contextNotesTodo.sections.label': 'Bereiche des Projektkontexts',
-  'rightSidebar.contextNotesTodo.sections.resize': 'Breite der Bereichsleiste ändern',
   'rightSidebar.contextNotesTodo.memory.scope.project': 'Projekt',
   'rightSidebar.contextNotesTodo.memory.scope.label': 'Gedächtnisbereich',
   'rightSidebar.contextNotesTodo.memory.scope.global': 'Über Sie',
@@ -1704,7 +1699,6 @@ export const dict = {
   'rightSidebar.contextNotesTodo.todo.actions.markComplete': 'Markiere "{text}" als erledigt',
   'rightSidebar.contextNotesTodo.todo.actions.collapse': 'Aufgabe "{text}" einklappen',
   'rightSidebar.contextNotesTodo.todo.actions.expand': 'Aufgabe "{text}" ausklappen',
-  'rightSidebar.contextNotesTodo.todo.actions.delete': 'Lösche "{text}"',
   'rightSidebar.contextNotesTodo.todo.actions.send': 'Sende "{text}"',
   'rightSidebar.contextNotesTodo.todo.actions.reorder': 'Ordne "{text}" neu',
   'rightSidebar.contextNotesTodo.todo.sendMenu.currentSession': 'An aktuelle Sitzung senden',
@@ -1716,7 +1710,6 @@ export const dict = {
   'rightSidebar.contextNotesTodo.plans.sharedBadge': 'Im Repo',
   'rightSidebar.contextNotesTodo.plans.share': 'In den Plan-Ordner des Repositorys verschieben, damit alle, die es pullen, ihn sehen',
   'rightSidebar.contextNotesTodo.plans.makePersonal': 'Zu meinen Plänen verschieben, aus dem Repository heraus',
-  'rightSidebar.contextNotesTodo.plans.deletePlanWithTitle': 'Lösche Plan "{title}"',
   'rightSidebar.contextNotesTodo.sendDialog.title.newSession': 'An neue Sitzung senden',
   'rightSidebar.contextNotesTodo.sendDialog.title.newWorktree': 'An neuen Worktree senden',
   'rightSidebar.contextNotesTodo.sendDialog.variant.default': 'Standard',

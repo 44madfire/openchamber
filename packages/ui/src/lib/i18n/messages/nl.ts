@@ -2,6 +2,7 @@ import { settingsDict } from './nl.settings';
 import { linearIssuePickerI18n } from './linear-issue-picker.i18n';
 import { referencePickerI18n } from './reference-picker.i18n';
 import { sessionMenuHintsI18n } from './session-menu-hints.i18n';
+import { projectKnowledgeI18n } from './project-knowledge.i18n';
 import { linearPanelI18n } from './linear-panel.i18n';
 import { routingI18n } from './routing.i18n';
 import { pluginPanelI18n } from './plugin-panel.i18n';
@@ -128,6 +129,7 @@ export const dict = {
   ...linearIssuePickerI18n.nl,
   ...referencePickerI18n.nl,
   ...sessionMenuHintsI18n.nl,
+  ...projectKnowledgeI18n.nl,
   ...linearPanelI18n.nl,
   ...routingI18n.nl,
   ...pluginPanelI18n.nl,
@@ -1896,16 +1898,10 @@ export const dict = {
   'rightSidebar.contextNotesTodo.empty.selectProject': 'Kies een project om notities en taken toe te voegen.',
   'rightSidebar.contextNotesTodo.notes.placeholder': 'Leg context, herinneringen of links vast',
   'rightSidebar.contextNotesTodo.notes.addAria': 'Notitie toevoegen',
-  'rightSidebar.contextNotesTodo.notes.empty': 'Nog geen notities. Leg context, herinneringen of links vast.',
   'rightSidebar.contextNotesTodo.notes.actions.expand': 'Notitie uitvouwen',
-  'rightSidebar.contextNotesTodo.notes.actions.collapse': 'Notitie samenvouwen',
   'rightSidebar.contextNotesTodo.notes.actions.delete': 'Notitie verwijderen',
-  'rightSidebar.contextNotesTodo.notes.actions.pin': 'Vastzetten in agentcontext',
-  'rightSidebar.contextNotesTodo.notes.actions.unpin': 'Vastzetting uit agentcontext halen',
   'rightSidebar.contextNotesTodo.notes.source.selection': 'Uit chat',
   'rightSidebar.contextNotesTodo.notes.source.agent': 'Uit agent',
-  'rightSidebar.contextNotesTodo.search.placeholder': 'Zoeken',
-  'rightSidebar.contextNotesTodo.search.clear': 'Zoekopdracht wissen',
   'rightSidebar.contextNotesTodo.search.noResults': 'Niets komt overeen met "{query}".',
   'rightSidebar.contextNotesTodo.toast.deleteNoteFailed': 'Kan de notitie niet verwijderen',
   'rightSidebar.contextNotesTodo.toast.createNoteFailed': 'Kan de notitie niet aanmaken',
@@ -1915,7 +1911,6 @@ export const dict = {
   'rightSidebar.contextNotesTodo.plans.actions.back': 'Terug naar plannen',
   'rightSidebar.contextNotesTodo.tabs.memory': 'Geheugen',
   'rightSidebar.contextNotesTodo.sections.label': 'Secties met projectcontext',
-  'rightSidebar.contextNotesTodo.sections.resize': 'Grootte van de sectiezijbalk aanpassen',
   'rightSidebar.contextNotesTodo.memory.scope.project': 'Project',
   'rightSidebar.contextNotesTodo.memory.scope.label': 'Geheugenbereik',
   'rightSidebar.contextNotesTodo.memory.scope.global': 'Over u',
@@ -1941,7 +1936,6 @@ export const dict = {
   'rightSidebar.contextNotesTodo.todo.actions.markComplete': '"{text}" als afgerond markeren',
   'rightSidebar.contextNotesTodo.todo.actions.collapse': 'Taak "{text}" samenvouwen',
   'rightSidebar.contextNotesTodo.todo.actions.expand': 'Taak "{text}" uitvouwen',
-  'rightSidebar.contextNotesTodo.todo.actions.delete': '"{text}" verwijderen',
   'rightSidebar.contextNotesTodo.todo.actions.send': '"{text}" sturen',
   'rightSidebar.contextNotesTodo.todo.actions.reorder': '"{text}" herordenen',
   'rightSidebar.contextNotesTodo.todo.sendMenu.currentSession': 'Naar huidige sessie sturen',
@@ -1953,7 +1947,6 @@ export const dict = {
   'rightSidebar.contextNotesTodo.plans.sharedBadge': 'In repo',
   'rightSidebar.contextNotesTodo.plans.share': 'Verplaatsen naar de plannenmap van de repository, zodat iedereen die de repository pullt het ziet',
   'rightSidebar.contextNotesTodo.plans.makePersonal': 'Verplaatsen naar mijn plannen, buiten de repository',
-  'rightSidebar.contextNotesTodo.plans.deletePlanWithTitle': 'Plan "{title}" verwijderen',
   'rightSidebar.contextNotesTodo.sendDialog.title.newSession': 'Naar nieuwe sessie sturen',
   'rightSidebar.contextNotesTodo.sendDialog.title.newWorktree': 'Naar nieuwe worktree sturen',
   'rightSidebar.contextNotesTodo.sendDialog.variant.default': 'Standaard',

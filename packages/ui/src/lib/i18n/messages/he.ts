@@ -2,6 +2,7 @@ import { settingsDict } from './he.settings';
 import { linearIssuePickerI18n } from './linear-issue-picker.i18n';
 import { referencePickerI18n } from './reference-picker.i18n';
 import { sessionMenuHintsI18n } from './session-menu-hints.i18n';
+import { projectKnowledgeI18n } from './project-knowledge.i18n';
 import { linearPanelI18n } from './linear-panel.i18n';
 import { routingI18n } from './routing.i18n';
 import { pluginPanelI18n } from './plugin-panel.i18n';
@@ -1860,16 +1861,10 @@ export const dict = {
   'rightSidebar.contextNotesTodo.empty.selectProject': 'יש לבחור פרויקט כדי להוסיף הערות ומשימות.',
   'rightSidebar.contextNotesTodo.notes.placeholder': 'רשמו הקשר, תזכורות או קישורים',
   'rightSidebar.contextNotesTodo.notes.addAria': 'הוסף הערה',
-  'rightSidebar.contextNotesTodo.notes.empty': 'אין עדיין הערות. אפשר לרשום הקשר, תזכורות או קישורים.',
   'rightSidebar.contextNotesTodo.notes.actions.expand': 'הרחב הערה',
-  'rightSidebar.contextNotesTodo.notes.actions.collapse': 'כווץ הערה',
   'rightSidebar.contextNotesTodo.notes.actions.delete': 'מחק הערה',
-  'rightSidebar.contextNotesTodo.notes.actions.pin': 'הצמד להקשר של הסוכן',
-  'rightSidebar.contextNotesTodo.notes.actions.unpin': 'בטל הצמדה מההקשר של הסוכן',
   'rightSidebar.contextNotesTodo.notes.source.selection': 'מהצ\'אט',
   'rightSidebar.contextNotesTodo.notes.source.agent': 'מהסוכן',
-  'rightSidebar.contextNotesTodo.search.placeholder': 'חיפוש',
-  'rightSidebar.contextNotesTodo.search.clear': 'נקה חיפוש',
   'rightSidebar.contextNotesTodo.search.noResults': "אין תוצאות עבור \"{query}\".",
   'rightSidebar.contextNotesTodo.toast.deleteNoteFailed': 'לא ניתן היה למחוק את ההערה',
   'rightSidebar.contextNotesTodo.toast.createNoteFailed': 'לא ניתן היה ליצור את ההערה',
@@ -1879,7 +1874,6 @@ export const dict = {
   'rightSidebar.contextNotesTodo.plans.actions.back': 'חזרה לתוכניות',
   'rightSidebar.contextNotesTodo.tabs.memory': 'זיכרון',
   'rightSidebar.contextNotesTodo.sections.label': 'מקטעי הקשר הפרויקט',
-  'rightSidebar.contextNotesTodo.sections.resize': 'שנה גודל של סרגל המקטעים',
   'rightSidebar.contextNotesTodo.memory.scope.project': 'פרויקט',
   'rightSidebar.contextNotesTodo.memory.scope.label': 'היקף הזיכרון',
   'rightSidebar.contextNotesTodo.memory.scope.global': 'עליך',
@@ -1905,7 +1899,6 @@ export const dict = {
   'rightSidebar.contextNotesTodo.todo.actions.markComplete': "סמן את \"{text}\" כהושלמה",
   'rightSidebar.contextNotesTodo.todo.actions.collapse': "כווץ את המשימה \"{text}\"",
   'rightSidebar.contextNotesTodo.todo.actions.expand': "הרחב את המשימה \"{text}\"",
-  'rightSidebar.contextNotesTodo.todo.actions.delete': "מחק את \"{text}\"",
   'rightSidebar.contextNotesTodo.todo.actions.send': "שלח את \"{text}\"",
   'rightSidebar.contextNotesTodo.todo.actions.reorder': "שנה את מיקום \"{text}\"",
   'rightSidebar.contextNotesTodo.todo.sendMenu.currentSession': 'שלח להפעלה הנוכחית',
@@ -1917,7 +1910,6 @@ export const dict = {
   'rightSidebar.contextNotesTodo.plans.sharedBadge': 'במאגר',
   'rightSidebar.contextNotesTodo.plans.share': 'העבר לתיקיית התוכניות של המאגר, כדי שכל מי שמושך את המאגר יראה אותה',
   'rightSidebar.contextNotesTodo.plans.makePersonal': 'העבר לתוכניות שלי, מחוץ למאגר',
-  'rightSidebar.contextNotesTodo.plans.deletePlanWithTitle': "מחק את התוכנית \"{title}\"",
   'rightSidebar.contextNotesTodo.sendDialog.title.newSession': 'שליחה להפעלה חדשה',
   'rightSidebar.contextNotesTodo.sendDialog.title.newWorktree': 'שליחה לעץ עבודה חדש',
   'rightSidebar.contextNotesTodo.sendDialog.variant.default': 'ברירת מחדל',
@@ -3759,6 +3751,7 @@ export const dict = {
   ...linearIssuePickerI18n.he,
   ...referencePickerI18n.he,
   ...sessionMenuHintsI18n.he,
+  ...projectKnowledgeI18n.he,
   ...linearPanelI18n.he,
   ...routingI18n.he,
   ...pluginPanelI18n.he,

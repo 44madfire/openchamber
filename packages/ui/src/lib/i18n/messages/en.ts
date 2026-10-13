@@ -2,6 +2,7 @@ import { settingsDict } from './en.settings';
 import { linearIssuePickerI18n } from './linear-issue-picker.i18n';
 import { referencePickerI18n } from './reference-picker.i18n';
 import { sessionMenuHintsI18n } from './session-menu-hints.i18n';
+import { projectKnowledgeI18n } from './project-knowledge.i18n';
 import { linearPanelI18n } from './linear-panel.i18n';
 import { routingI18n } from './routing.i18n';
 import { pluginPanelI18n } from './plugin-panel.i18n';
@@ -128,6 +129,7 @@ export const dict = {
   ...linearIssuePickerI18n.en,
   ...referencePickerI18n.en,
   ...sessionMenuHintsI18n.en,
+  ...projectKnowledgeI18n.en,
   ...linearPanelI18n.en,
   ...routingI18n.en,
   ...pluginPanelI18n.en,
@@ -1904,16 +1906,10 @@ export const dict = {
   'rightSidebar.contextNotesTodo.empty.selectProject': 'Select a project to add notes and todos.',
   'rightSidebar.contextNotesTodo.notes.placeholder': 'Capture context, reminders, or links',
   'rightSidebar.contextNotesTodo.notes.addAria': 'Add note',
-  'rightSidebar.contextNotesTodo.notes.empty': 'No notes yet. Capture context, reminders, or links.',
   'rightSidebar.contextNotesTodo.notes.actions.expand': 'Expand note',
-  'rightSidebar.contextNotesTodo.notes.actions.collapse': 'Collapse note',
   'rightSidebar.contextNotesTodo.notes.actions.delete': 'Delete note',
-  'rightSidebar.contextNotesTodo.notes.actions.pin': 'Pin to agent context',
-  'rightSidebar.contextNotesTodo.notes.actions.unpin': 'Unpin from agent context',
   'rightSidebar.contextNotesTodo.notes.source.selection': 'From chat',
   'rightSidebar.contextNotesTodo.notes.source.agent': 'From agent',
-  'rightSidebar.contextNotesTodo.search.placeholder': 'Search',
-  'rightSidebar.contextNotesTodo.search.clear': 'Clear search',
   'rightSidebar.contextNotesTodo.search.noResults': 'Nothing matches "{query}".',
   'rightSidebar.contextNotesTodo.toast.deleteNoteFailed': 'Failed to delete note',
   'rightSidebar.contextNotesTodo.toast.createNoteFailed': 'Failed to create note',
@@ -1923,7 +1919,6 @@ export const dict = {
   'rightSidebar.contextNotesTodo.plans.actions.back': 'Back to plans',
   'rightSidebar.contextNotesTodo.tabs.memory': 'Memory',
   'rightSidebar.contextNotesTodo.sections.label': 'Project context sections',
-  'rightSidebar.contextNotesTodo.sections.resize': 'Resize sections sidebar',
   'rightSidebar.contextNotesTodo.memory.scope.project': 'Project',
   'rightSidebar.contextNotesTodo.memory.scope.label': 'Memory scope',
   'rightSidebar.contextNotesTodo.memory.scope.global': 'About you',
@@ -1949,7 +1944,6 @@ export const dict = {
   'rightSidebar.contextNotesTodo.todo.actions.markComplete': 'Mark "{text}" complete',
   'rightSidebar.contextNotesTodo.todo.actions.collapse': 'Collapse todo "{text}"',
   'rightSidebar.contextNotesTodo.todo.actions.expand': 'Expand todo "{text}"',
-  'rightSidebar.contextNotesTodo.todo.actions.delete': 'Delete "{text}"',
   'rightSidebar.contextNotesTodo.todo.actions.send': 'Send "{text}"',
   'rightSidebar.contextNotesTodo.todo.actions.reorder': 'Reorder "{text}"',
   'rightSidebar.contextNotesTodo.todo.sendMenu.currentSession': 'Send to current session',
@@ -1961,7 +1955,6 @@ export const dict = {
   'rightSidebar.contextNotesTodo.plans.sharedBadge': 'In repo',
   'rightSidebar.contextNotesTodo.plans.share': 'Move to the repository plans folder, so everyone who pulls the repository sees it',
   'rightSidebar.contextNotesTodo.plans.makePersonal': 'Move to my plans, out of the repository',
-  'rightSidebar.contextNotesTodo.plans.deletePlanWithTitle': 'Delete plan "{title}"',
   'rightSidebar.contextNotesTodo.sendDialog.title.newSession': 'Send to new session',
   'rightSidebar.contextNotesTodo.sendDialog.title.newWorktree': 'Send to new worktree',
   'rightSidebar.contextNotesTodo.sendDialog.variant.default': 'Default',

@@ -3,6 +3,7 @@ import { settingsDict } from './zh-TW.settings';
 import { linearIssuePickerI18n } from './linear-issue-picker.i18n';
 import { referencePickerI18n } from './reference-picker.i18n';
 import { sessionMenuHintsI18n } from './session-menu-hints.i18n';
+import { projectKnowledgeI18n } from './project-knowledge.i18n';
 import { linearPanelI18n } from './linear-panel.i18n';
 import { routingI18n } from './routing.i18n';
 import { pluginPanelI18n } from './plugin-panel.i18n';
@@ -129,6 +130,7 @@ export const dict: Record<I18nKey, string> = {
   ...linearIssuePickerI18n['zh-TW'],
   ...referencePickerI18n['zh-TW'],
   ...sessionMenuHintsI18n['zh-TW'],
+  ...projectKnowledgeI18n['zh-TW'],
   ...linearPanelI18n['zh-TW'],
   ...routingI18n['zh-TW'],
   ...pluginPanelI18n['zh-TW'],
@@ -1885,16 +1887,10 @@ export const dict: Record<I18nKey, string> = {
   'rightSidebar.contextNotesTodo.empty.selectProject': '請選擇一個專案以新增筆記和待辦事項。',
   'rightSidebar.contextNotesTodo.notes.placeholder': '記錄上下文、提醒或連結',
   'rightSidebar.contextNotesTodo.notes.addAria': '新增筆記',
-  'rightSidebar.contextNotesTodo.notes.empty': '尚無筆記。可以記錄脈絡、提醒或連結。',
   'rightSidebar.contextNotesTodo.notes.actions.expand': '展開筆記',
-  'rightSidebar.contextNotesTodo.notes.actions.collapse': '收合筆記',
   'rightSidebar.contextNotesTodo.notes.actions.delete': '刪除筆記',
-  'rightSidebar.contextNotesTodo.notes.actions.pin': '釘選到代理上下文',
-  'rightSidebar.contextNotesTodo.notes.actions.unpin': '從代理上下文取消釘選',
   'rightSidebar.contextNotesTodo.notes.source.selection': '來自對話',
   'rightSidebar.contextNotesTodo.notes.source.agent': '來自代理',
-  'rightSidebar.contextNotesTodo.search.placeholder': '搜尋',
-  'rightSidebar.contextNotesTodo.search.clear': '清除搜尋',
   'rightSidebar.contextNotesTodo.search.noResults': '沒有符合「{query}」的內容。',
   'rightSidebar.contextNotesTodo.toast.deleteNoteFailed': '刪除筆記失敗',
   'rightSidebar.contextNotesTodo.toast.createNoteFailed': '建立筆記失敗',
@@ -1904,7 +1900,6 @@ export const dict: Record<I18nKey, string> = {
   'rightSidebar.contextNotesTodo.plans.actions.back': '返回計畫列表',
   'rightSidebar.contextNotesTodo.tabs.memory': '記憶',
   'rightSidebar.contextNotesTodo.sections.label': '專案脈絡分區',
-  'rightSidebar.contextNotesTodo.sections.resize': '調整分區側欄寬度',
   'rightSidebar.contextNotesTodo.memory.scope.project': '專案',
   'rightSidebar.contextNotesTodo.memory.scope.label': '記憶範圍',
   'rightSidebar.contextNotesTodo.memory.scope.global': '關於你',
@@ -1930,7 +1925,6 @@ export const dict: Record<I18nKey, string> = {
   'rightSidebar.contextNotesTodo.todo.actions.markComplete': '將「{text}」標記為已完成',
   'rightSidebar.contextNotesTodo.todo.actions.collapse': '摺疊待辦「{text}」',
   'rightSidebar.contextNotesTodo.todo.actions.expand': '展開待辦「{text}」',
-  'rightSidebar.contextNotesTodo.todo.actions.delete': '刪除「{text}」',
   'rightSidebar.contextNotesTodo.todo.actions.send': '傳送「{text}」',
   'rightSidebar.contextNotesTodo.todo.actions.reorder': '重新排序「{text}」',
   'rightSidebar.contextNotesTodo.todo.sendMenu.currentSession': '傳送到目前會話',
@@ -1942,7 +1936,6 @@ export const dict: Record<I18nKey, string> = {
   'rightSidebar.contextNotesTodo.plans.sharedBadge': '在儲存庫中',
   'rightSidebar.contextNotesTodo.plans.share': '移至儲存庫計畫資料夾，拉取儲存庫的每個人都能看到',
   'rightSidebar.contextNotesTodo.plans.makePersonal': '移至我的計畫，移出儲存庫',
-  'rightSidebar.contextNotesTodo.plans.deletePlanWithTitle': '刪除計畫「{title}」',
   'rightSidebar.contextNotesTodo.sendDialog.title.newSession': '傳送到新會話',
   'rightSidebar.contextNotesTodo.sendDialog.title.newWorktree': '傳送到新 worktree',
   'rightSidebar.contextNotesTodo.sendDialog.variant.default': '預設',

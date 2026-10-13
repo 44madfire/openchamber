@@ -3,6 +3,7 @@ import { settingsDict } from './zh-CN.settings';
 import { linearIssuePickerI18n } from './linear-issue-picker.i18n';
 import { referencePickerI18n } from './reference-picker.i18n';
 import { sessionMenuHintsI18n } from './session-menu-hints.i18n';
+import { projectKnowledgeI18n } from './project-knowledge.i18n';
 import { linearPanelI18n } from './linear-panel.i18n';
 import { routingI18n } from './routing.i18n';
 import { pluginPanelI18n } from './plugin-panel.i18n';
@@ -129,6 +130,7 @@ export const dict: Record<I18nKey, string> = {
   ...linearIssuePickerI18n['zh-CN'],
   ...referencePickerI18n['zh-CN'],
   ...sessionMenuHintsI18n['zh-CN'],
+  ...projectKnowledgeI18n['zh-CN'],
   ...linearPanelI18n['zh-CN'],
   ...routingI18n['zh-CN'],
   ...pluginPanelI18n['zh-CN'],
@@ -1870,16 +1872,10 @@ export const dict: Record<I18nKey, string> = {
   'rightSidebar.contextNotesTodo.empty.selectProject': '请选择一个项目以添加笔记和待办事项。',
   'rightSidebar.contextNotesTodo.notes.placeholder': '记录上下文、提醒或链接',
   'rightSidebar.contextNotesTodo.notes.addAria': '添加笔记',
-  'rightSidebar.contextNotesTodo.notes.empty': '还没有笔记。可以记录上下文、提醒或链接。',
   'rightSidebar.contextNotesTodo.notes.actions.expand': '展开笔记',
-  'rightSidebar.contextNotesTodo.notes.actions.collapse': '折叠笔记',
   'rightSidebar.contextNotesTodo.notes.actions.delete': '删除笔记',
-  'rightSidebar.contextNotesTodo.notes.actions.pin': '固定到智能体上下文',
-  'rightSidebar.contextNotesTodo.notes.actions.unpin': '从智能体上下文取消固定',
   'rightSidebar.contextNotesTodo.notes.source.selection': '来自对话',
   'rightSidebar.contextNotesTodo.notes.source.agent': '来自智能体',
-  'rightSidebar.contextNotesTodo.search.placeholder': '搜索',
-  'rightSidebar.contextNotesTodo.search.clear': '清除搜索',
   'rightSidebar.contextNotesTodo.search.noResults': '没有匹配 "{query}" 的内容。',
   'rightSidebar.contextNotesTodo.toast.deleteNoteFailed': '删除笔记失败',
   'rightSidebar.contextNotesTodo.toast.createNoteFailed': '创建笔记失败',
@@ -1889,7 +1885,6 @@ export const dict: Record<I18nKey, string> = {
   'rightSidebar.contextNotesTodo.plans.actions.back': '返回计划列表',
   'rightSidebar.contextNotesTodo.tabs.memory': '记忆',
   'rightSidebar.contextNotesTodo.sections.label': '项目上下文分区',
-  'rightSidebar.contextNotesTodo.sections.resize': '调整分区侧栏宽度',
   'rightSidebar.contextNotesTodo.memory.scope.project': '项目',
   'rightSidebar.contextNotesTodo.memory.scope.label': '记忆范围',
   'rightSidebar.contextNotesTodo.memory.scope.global': '关于你',
@@ -1915,7 +1910,6 @@ export const dict: Record<I18nKey, string> = {
   'rightSidebar.contextNotesTodo.todo.actions.markComplete': '将“{text}”标记为已完成',
   'rightSidebar.contextNotesTodo.todo.actions.collapse': '折叠待办“{text}”',
   'rightSidebar.contextNotesTodo.todo.actions.expand': '展开待办“{text}”',
-  'rightSidebar.contextNotesTodo.todo.actions.delete': '删除“{text}”',
   'rightSidebar.contextNotesTodo.todo.actions.send': '发送“{text}”',
   'rightSidebar.contextNotesTodo.todo.actions.reorder': '重新排序"{text}"',
   'rightSidebar.contextNotesTodo.todo.sendMenu.currentSession': '发送到当前会话',
@@ -1927,7 +1921,6 @@ export const dict: Record<I18nKey, string> = {
   'rightSidebar.contextNotesTodo.plans.sharedBadge': '在仓库中',
   'rightSidebar.contextNotesTodo.plans.share': '移至仓库计划文件夹，拉取仓库的每个人都能看到',
   'rightSidebar.contextNotesTodo.plans.makePersonal': '移至我的计划，移出仓库',
-  'rightSidebar.contextNotesTodo.plans.deletePlanWithTitle': '删除计划“{title}”',
   'rightSidebar.contextNotesTodo.sendDialog.title.newSession': '发送到新会话',
   'rightSidebar.contextNotesTodo.sendDialog.title.newWorktree': '发送到新工作树',
   'rightSidebar.contextNotesTodo.sendDialog.variant.default': '默认',

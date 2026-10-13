@@ -2,6 +2,7 @@ import { settingsDict } from './tr.settings';
 import { linearIssuePickerI18n } from './linear-issue-picker.i18n';
 import { referencePickerI18n } from './reference-picker.i18n';
 import { sessionMenuHintsI18n } from './session-menu-hints.i18n';
+import { projectKnowledgeI18n } from './project-knowledge.i18n';
 import { linearPanelI18n } from './linear-panel.i18n';
 import { routingI18n } from './routing.i18n';
 import { pluginPanelI18n } from './plugin-panel.i18n';
@@ -67,6 +68,7 @@ export const dict = {
   ...linearIssuePickerI18n.tr,
   ...referencePickerI18n.tr,
   ...sessionMenuHintsI18n.tr,
+  ...projectKnowledgeI18n.tr,
   ...linearPanelI18n.tr,
   ...routingI18n.tr,
   ...pluginPanelI18n.tr,
@@ -1763,16 +1765,10 @@ export const dict = {
   'rightSidebar.contextNotesTodo.empty.selectProject': 'Not ve yapılacak eklemek için bir proje seçin.',
   'rightSidebar.contextNotesTodo.notes.placeholder': 'Bağlam, hatırlatıcı veya bağlantı yakala',
   'rightSidebar.contextNotesTodo.notes.addAria': 'Not ekle',
-  'rightSidebar.contextNotesTodo.notes.empty': 'Henüz not yok. Bağlam, hatırlatıcı veya bağlantı yakalayın.',
   'rightSidebar.contextNotesTodo.notes.actions.expand': 'Notu genişlet',
-  'rightSidebar.contextNotesTodo.notes.actions.collapse': 'Notu daralt',
   'rightSidebar.contextNotesTodo.notes.actions.delete': 'Notu sil',
-  'rightSidebar.contextNotesTodo.notes.actions.pin': 'Agent bağlamına sabitle',
-  'rightSidebar.contextNotesTodo.notes.actions.unpin': 'Agent bağlamından sabitlemeyi kaldır',
   'rightSidebar.contextNotesTodo.notes.source.selection': 'Sohbetten',
   'rightSidebar.contextNotesTodo.notes.source.agent': 'Agent\'tan',
-  'rightSidebar.contextNotesTodo.search.placeholder': 'Ara',
-  'rightSidebar.contextNotesTodo.search.clear': 'Aramayı temizle',
   'rightSidebar.contextNotesTodo.search.noResults': '"{query}" ile eşleşen bir şey yok.',
   'rightSidebar.contextNotesTodo.toast.deleteNoteFailed': 'Not silinemedi',
   'rightSidebar.contextNotesTodo.toast.createNoteFailed': 'Not oluşturulamadı',
@@ -1782,7 +1778,6 @@ export const dict = {
   'rightSidebar.contextNotesTodo.plans.actions.back': 'Planlara geri dön',
   'rightSidebar.contextNotesTodo.tabs.memory': 'Hafıza',
   'rightSidebar.contextNotesTodo.sections.label': 'Proje bağlamı bölümleri',
-  'rightSidebar.contextNotesTodo.sections.resize': 'Bölüm kenar çubuğunu yeniden boyutlandır',
   'rightSidebar.contextNotesTodo.memory.scope.project': 'Proje',
   'rightSidebar.contextNotesTodo.memory.scope.label': 'Hafıza kapsamı',
   'rightSidebar.contextNotesTodo.memory.scope.global': 'Senin hakkında',
@@ -1808,7 +1803,6 @@ export const dict = {
   'rightSidebar.contextNotesTodo.todo.actions.markComplete': 'Tamamlandı olarak işaretle: "{text}"',
   'rightSidebar.contextNotesTodo.todo.actions.collapse': 'Daralt: "{text}"',
   'rightSidebar.contextNotesTodo.todo.actions.expand': 'Genişlet: "{text}"',
-  'rightSidebar.contextNotesTodo.todo.actions.delete': 'Sil: "{text}"',
   'rightSidebar.contextNotesTodo.todo.actions.send': 'Gönder: "{text}"',
   'rightSidebar.contextNotesTodo.todo.actions.reorder': 'Yeniden sırala: "{text}"',
   'rightSidebar.contextNotesTodo.todo.sendMenu.currentSession': 'Mevcut session\'a gönder',
@@ -1820,7 +1814,6 @@ export const dict = {
   'rightSidebar.contextNotesTodo.plans.sharedBadge': 'Depoda',
   'rightSidebar.contextNotesTodo.plans.share': 'Depo planlar klasörüne taşı; depoyu çeken herkes görür',
   'rightSidebar.contextNotesTodo.plans.makePersonal': 'Depodan çıkarıp planlarıma taşı',
-  'rightSidebar.contextNotesTodo.plans.deletePlanWithTitle': 'Planı sil: "{title}"',
   'rightSidebar.contextNotesTodo.sendDialog.title.newSession': 'Yeni session\'a gönder',
   'rightSidebar.contextNotesTodo.sendDialog.title.newWorktree': 'Yeni worktree\'ye gönder',
   'rightSidebar.contextNotesTodo.sendDialog.variant.default': 'Varsayılan',

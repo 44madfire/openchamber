@@ -81,6 +81,8 @@ export interface SavedProjectPlanTarget {
 
 export const PROJECT_NOTE_BODY_MAX_LENGTH = 3000;
 export const PROJECT_TODO_TEXT_MAX_LENGTH = 1000;
+/** The server clamps plan titles to the same length. */
+export const PROJECT_PLAN_TITLE_MAX_LENGTH = 160;
 
 /**
  * Split a plan document into title and body, mirroring the server's own rule so

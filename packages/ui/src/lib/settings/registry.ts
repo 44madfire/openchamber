@@ -638,7 +638,6 @@ export const LOCAL_DEVICE_KEYS = [
   'contextEditorTreeVisible',
   'contextEditorVisible',
   'contextEditorTreeWidth',
-  'notesPanelHeight',
   'workStatusExpandedSections',
   'messageQueueExpanded',
   'workStatusScrollTop',
@@ -658,7 +657,6 @@ export const LOCAL_DEVICE_KEYS = [
   'dockBadgeEnabled',
   'alwaysShowScrollbars',
   'agentMemoryViewedAt',
-  'projectContextSidebarWidth',
 ] as const;
 
 /**

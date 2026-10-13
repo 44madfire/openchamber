@@ -885,7 +885,6 @@ interface UIStore {
       it leaves only the tree, with the file tabs kept open. */
   contextEditorVisible: boolean;
   contextEditorTreeWidth: number;
-  notesPanelHeight: number;
   /** Expanded collapsible sections of the in-chat work-status panel, by id. */
   workStatusExpandedSections: Record<string, boolean>;
   /**
@@ -1135,8 +1134,6 @@ interface UIStore {
    * new/changed badges; there is no stored review state.
    */
   agentMemoryViewedAt: Record<string, number>;
-  /** Width of the project context panel's section sidebar, in pixels. */
-  projectContextSidebarWidth: number;
   /** Active tab of the project context panel (notes/todos/plans). */
   projectContextTab: string;
   inputSpellcheckEnabled: boolean;
@@ -1209,7 +1206,6 @@ interface UIStore {
    * on screen it goes along: the zone it left closes and the new one opens on it.
    */
   moveContextSurfaceToZone: (mode: ContextPanelMode, zone: ContextZone) => void;
-  setNotesPanelHeight: (height: number) => void;
   setWorkStatusSectionExpanded: (sectionId: string, expanded: boolean) => void;
   setMessageQueueExpanded: (expanded: boolean) => void;
   setWorkStatusScrollTop: (scrollTop: number) => void;
@@ -1380,7 +1376,6 @@ interface UIStore {
   setAgentMemoryFeatureAvailable: (value: boolean) => void;
   setRoutingFeatureAvailable: (value: boolean) => void;
   markAgentMemoryViewed: (key: string, viewedAt: number) => void;
-  setProjectContextSidebarWidth: (width: number) => void;
   setProjectContextTab: (value: string) => void;
   setInputSpellcheckEnabled: (value: boolean) => void;
   setLargeTextPasteBehavior: (value: LargeTextPasteBehavior) => void;
@@ -1435,7 +1430,6 @@ export const useUIStore = create<UIStore>()(
         fileTreeSide: 'right',
         contextEditorVisible: true,
         contextEditorTreeWidth: 240,
-        notesPanelHeight: 112,
         workStatusExpandedSections: {},
         messageQueueExpanded: false,
         workStatusScrollTop: 0,
@@ -1590,7 +1584,6 @@ export const useUIStore = create<UIStore>()(
         agentMemoryFeatureAvailable: false,
         routingFeatureAvailable: false,
         agentMemoryViewedAt: {},
-        projectContextSidebarWidth: 168,
         projectContextTab: 'notes',
         inputSpellcheckEnabled: false,
         largeTextPasteBehavior: DEFAULT_LARGE_TEXT_PASTE_BEHAVIOR,
@@ -2200,10 +2193,6 @@ export const useUIStore = create<UIStore>()(
 
             return { contextSurfaceZones: placement, contextPanelByDirectory: byDirectory };
           });
-        },
-
-        setNotesPanelHeight: (height) => {
-          set({ notesPanelHeight: height });
         },
 
         setWorkStatusSectionExpanded: (sectionId, expanded) => {
@@ -3150,9 +3139,6 @@ export const useUIStore = create<UIStore>()(
         setRoutingFeatureAvailable: (value) => {
           set({ routingFeatureAvailable: value });
         },
-        setProjectContextSidebarWidth: (width) => {
-          set({ projectContextSidebarWidth: width });
-        },
         markAgentMemoryViewed: (key, viewedAt) => {
           set((state) => ({
             // Never moves backwards: a stale unmount landing after a newer look
@@ -3426,9 +3412,6 @@ export const useUIStore = create<UIStore>()(
             if (!Array.isArray(state.workStatusHiddenSections)) {
               state.workStatusHiddenSections = [];
             }
-            if (typeof state.notesPanelHeight !== 'number' || !Number.isFinite(state.notesPanelHeight)) {
-              state.notesPanelHeight = 112;
-            }
           }
 
           // v0 -> v1: reset legacy notification templates
@@ -3547,7 +3530,6 @@ export const useUIStore = create<UIStore>()(
           fileTreeSide: state.fileTreeSide,
           contextEditorVisible: state.contextEditorVisible,
           contextEditorTreeWidth: state.contextEditorTreeWidth,
-          notesPanelHeight: state.notesPanelHeight,
           workStatusExpandedSections: state.workStatusExpandedSections,
           messageQueueExpanded: state.messageQueueExpanded,
           workStatusScrollTop: state.workStatusScrollTop,
@@ -3650,7 +3632,6 @@ export const useUIStore = create<UIStore>()(
           isolatedSpacesEnabled: state.isolatedSpacesEnabled,
           permissionDefaultMode: state.permissionDefaultMode,
           agentMemoryViewedAt: state.agentMemoryViewedAt,
-          projectContextSidebarWidth: state.projectContextSidebarWidth,
           inputSpellcheckEnabled: state.inputSpellcheckEnabled,
           largeTextPasteBehavior: state.largeTextPasteBehavior,
           enterToSend: state.enterToSend,

@@ -3,6 +3,7 @@ import { settingsDict } from './ja.settings';
 import { linearIssuePickerI18n } from './linear-issue-picker.i18n';
 import { referencePickerI18n } from './reference-picker.i18n';
 import { sessionMenuHintsI18n } from './session-menu-hints.i18n';
+import { projectKnowledgeI18n } from './project-knowledge.i18n';
 import { linearPanelI18n } from './linear-panel.i18n';
 import { routingI18n } from './routing.i18n';
 import { pluginPanelI18n } from './plugin-panel.i18n';
@@ -129,6 +130,7 @@ export const dict: Record<I18nKey, string> = {
   ...linearIssuePickerI18n.ja,
   ...referencePickerI18n.ja,
   ...sessionMenuHintsI18n.ja,
+  ...projectKnowledgeI18n.ja,
   ...linearPanelI18n.ja,
   ...routingI18n.ja,
   ...pluginPanelI18n.ja,
@@ -1900,16 +1902,10 @@ export const dict: Record<I18nKey, string> = {
   'rightSidebar.contextNotesTodo.empty.selectProject': 'プロジェクトを選択してメモとTODOを追加します。',
   'rightSidebar.contextNotesTodo.notes.placeholder': 'コンテキスト、リマインダー、リンクを記録',
   'rightSidebar.contextNotesTodo.notes.addAria': 'ノートを追加',
-  'rightSidebar.contextNotesTodo.notes.empty': 'ノートはまだありません。文脈やメモ、リンクを残せます。',
   'rightSidebar.contextNotesTodo.notes.actions.expand': 'ノートを展開',
-  'rightSidebar.contextNotesTodo.notes.actions.collapse': 'ノートを折りたたむ',
   'rightSidebar.contextNotesTodo.notes.actions.delete': 'ノートを削除',
-  'rightSidebar.contextNotesTodo.notes.actions.pin': 'エージェントのコンテキストにピン留め',
-  'rightSidebar.contextNotesTodo.notes.actions.unpin': 'エージェントのコンテキストからピン留めを解除',
   'rightSidebar.contextNotesTodo.notes.source.selection': 'チャットから',
   'rightSidebar.contextNotesTodo.notes.source.agent': 'エージェントから',
-  'rightSidebar.contextNotesTodo.search.placeholder': '検索',
-  'rightSidebar.contextNotesTodo.search.clear': '検索をクリア',
   'rightSidebar.contextNotesTodo.search.noResults': '「{query}」に一致するものはありません。',
   'rightSidebar.contextNotesTodo.toast.deleteNoteFailed': 'ノートを削除できませんでした',
   'rightSidebar.contextNotesTodo.toast.createNoteFailed': 'ノートを作成できませんでした',
@@ -1919,7 +1915,6 @@ export const dict: Record<I18nKey, string> = {
   'rightSidebar.contextNotesTodo.plans.actions.back': 'プラン一覧に戻る',
   'rightSidebar.contextNotesTodo.tabs.memory': 'メモリ',
   'rightSidebar.contextNotesTodo.sections.label': 'プロジェクトコンテキストのセクション',
-  'rightSidebar.contextNotesTodo.sections.resize': 'セクションサイドバーの幅を変更',
   'rightSidebar.contextNotesTodo.memory.scope.project': 'プロジェクト',
   'rightSidebar.contextNotesTodo.memory.scope.label': 'メモリの範囲',
   'rightSidebar.contextNotesTodo.memory.scope.global': 'あなたについて',
@@ -1945,7 +1940,6 @@ export const dict: Record<I18nKey, string> = {
   'rightSidebar.contextNotesTodo.todo.actions.markComplete': '「{text}」を完了にする',
   'rightSidebar.contextNotesTodo.todo.actions.collapse': 'TODO「{text}」を折りたたむ',
   'rightSidebar.contextNotesTodo.todo.actions.expand': 'TODO「{text}」を展開',
-  'rightSidebar.contextNotesTodo.todo.actions.delete': '「{text}」を削除',
   'rightSidebar.contextNotesTodo.todo.actions.send': '「{text}」を送信',
   'rightSidebar.contextNotesTodo.todo.actions.reorder': '「{text}」を並び替え',
   'rightSidebar.contextNotesTodo.todo.sendMenu.currentSession': '現在のセッションに送信',
@@ -1957,7 +1951,6 @@ export const dict: Record<I18nKey, string> = {
   'rightSidebar.contextNotesTodo.plans.sharedBadge': 'リポジトリ内',
   'rightSidebar.contextNotesTodo.plans.share': 'リポジトリのプランフォルダーへ移動し、pull した全員が見られるようにします',
   'rightSidebar.contextNotesTodo.plans.makePersonal': 'リポジトリから自分のプランへ移動',
-  'rightSidebar.contextNotesTodo.plans.deletePlanWithTitle': '計画「{title}」を削除',
   'rightSidebar.contextNotesTodo.sendDialog.title.newSession': '新しいセッションに送信',
   'rightSidebar.contextNotesTodo.sendDialog.title.newWorktree': '新しいワークツリーに送信',
   'rightSidebar.contextNotesTodo.sendDialog.variant.default': 'デフォルト',

@@ -3,6 +3,7 @@ import { settingsDict } from './pl.settings';
 import { linearIssuePickerI18n } from './linear-issue-picker.i18n';
 import { referencePickerI18n } from './reference-picker.i18n';
 import { sessionMenuHintsI18n } from './session-menu-hints.i18n';
+import { projectKnowledgeI18n } from './project-knowledge.i18n';
 import { linearPanelI18n } from './linear-panel.i18n';
 import { routingI18n } from './routing.i18n';
 import { pluginPanelI18n } from './plugin-panel.i18n';
@@ -129,6 +130,7 @@ export const dict: Record<I18nKey, string> = {
   ...linearIssuePickerI18n.pl,
   ...referencePickerI18n.pl,
   ...sessionMenuHintsI18n.pl,
+  ...projectKnowledgeI18n.pl,
   ...linearPanelI18n.pl,
   ...routingI18n.pl,
   ...pluginPanelI18n.pl,
@@ -3008,7 +3010,6 @@ export const dict: Record<I18nKey, string> = {
   'rightSidebar.contextNotesTodo.plans.sharedBadge': 'W repozytorium',
   'rightSidebar.contextNotesTodo.plans.share': 'Przenieś do folderu planów w repozytorium, aby każdy, kto je pobierze, go widział',
   'rightSidebar.contextNotesTodo.plans.makePersonal': 'Przenieś do moich planów, poza repozytorium',
-  'rightSidebar.contextNotesTodo.plans.deletePlanWithTitle': 'Usuń plan „{title}”',
   'rightSidebar.contextNotesTodo.plans.empty': 'Brak zapisanych planów.',
   'rightSidebar.contextNotesTodo.plans.importFromFile': 'Importuj plan z pliku',
   'rightSidebar.contextNotesTodo.sendDialog.actions.cancel': 'Anuluj',
@@ -3034,7 +3035,6 @@ export const dict: Record<I18nKey, string> = {
   'rightSidebar.contextNotesTodo.toast.sentToNewWorktreeSession': 'Zadanie wysłane do nowej sesji drzewa pracy',
   'rightSidebar.contextNotesTodo.toast.worktreeRequiresGitRepo': 'Akcje drzewa pracy są dostępne tylko dla repozytoriów Git',
   'rightSidebar.contextNotesTodo.todo.actions.collapse': 'Zwiń zadanie „{text}”',
-  'rightSidebar.contextNotesTodo.todo.actions.delete': 'Usuń „{text}”',
   'rightSidebar.contextNotesTodo.todo.actions.expand': 'Rozwiń zadanie „{text}”',
   'rightSidebar.contextNotesTodo.todo.actions.markComplete': 'Oznacz „{text}” jako ukończone',
   'rightSidebar.contextNotesTodo.todo.actions.send': 'Wyślij „{text}”',
@@ -3047,16 +3047,10 @@ export const dict: Record<I18nKey, string> = {
   'rightSidebar.contextNotesTodo.todo.sendMenu.newSession': 'Wyślij do nowej sesji',
   'rightSidebar.contextNotesTodo.todo.sendMenu.newWorktreeSession': 'Wyślij do nowej sesji drzewa pracy',
   'rightSidebar.contextNotesTodo.notes.addAria': 'Dodaj notatkę',
-  'rightSidebar.contextNotesTodo.notes.empty': 'Brak notatek. Zapisz kontekst, przypomnienia lub linki.',
   'rightSidebar.contextNotesTodo.notes.actions.expand': 'Rozwiń notatkę',
-  'rightSidebar.contextNotesTodo.notes.actions.collapse': 'Zwiń notatkę',
   'rightSidebar.contextNotesTodo.notes.actions.delete': 'Usuń notatkę',
-  'rightSidebar.contextNotesTodo.notes.actions.pin': 'Przypnij do kontekstu agenta',
-  'rightSidebar.contextNotesTodo.notes.actions.unpin': 'Odepnij od kontekstu agenta',
   'rightSidebar.contextNotesTodo.notes.source.selection': 'Z czatu',
   'rightSidebar.contextNotesTodo.notes.source.agent': 'Od agenta',
-  'rightSidebar.contextNotesTodo.search.placeholder': 'Szukaj',
-  'rightSidebar.contextNotesTodo.search.clear': 'Wyczyść wyszukiwanie',
   'rightSidebar.contextNotesTodo.search.noResults': 'Nic nie pasuje do "{query}".',
   'rightSidebar.contextNotesTodo.toast.deleteNoteFailed': 'Nie udało się usunąć notatki',
   'rightSidebar.contextNotesTodo.toast.createNoteFailed': 'Nie udało się utworzyć notatki',
@@ -3066,7 +3060,6 @@ export const dict: Record<I18nKey, string> = {
   'rightSidebar.contextNotesTodo.plans.actions.back': 'Wróć do planów',
   'rightSidebar.contextNotesTodo.tabs.memory': 'Pamięć',
   'rightSidebar.contextNotesTodo.sections.label': 'Sekcje kontekstu projektu',
-  'rightSidebar.contextNotesTodo.sections.resize': 'Zmień szerokość paska sekcji',
   'rightSidebar.contextNotesTodo.memory.scope.project': 'Projekt',
   'rightSidebar.contextNotesTodo.memory.scope.label': 'Zakres pamięci',
   'rightSidebar.contextNotesTodo.memory.scope.global': 'O Tobie',
