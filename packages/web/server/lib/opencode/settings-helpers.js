@@ -363,6 +363,12 @@ export const createSettingsHelpers = (dependencies) => {
     if (typeof candidate.sidebarShowWorkSection === 'boolean') {
       result.sidebarShowWorkSection = candidate.sidebarShowWorkSection;
     }
+    if (candidate.sidebarShowPinnedSection === true || candidate.sidebarShowPinnedSection === false) {
+      result.sidebarShowPinnedSection = candidate.sidebarShowPinnedSection;
+    }
+    if (candidate.sidebarDetailedZoneRows === true || candidate.sidebarDetailedZoneRows === false) {
+      result.sidebarDetailedZoneRows = candidate.sidebarDetailedZoneRows;
+    }
 
     if (Array.isArray(candidate.securityScopedBookmarks)) {
       result.securityScopedBookmarks = normalizeStringArray(candidate.securityScopedBookmarks);

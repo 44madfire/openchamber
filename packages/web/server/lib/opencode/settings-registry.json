@@ -293,6 +293,14 @@
       "scope": "profile",
       "perSurface": true
     },
+    "sidebarShowPinnedSection": {
+      "scope": "profile",
+      "perSurface": true
+    },
+    "sidebarDetailedZoneRows": {
+      "scope": "profile",
+      "perSurface": true
+    },
     "workStatusSectionOrder": {
       "scope": "profile"
     },

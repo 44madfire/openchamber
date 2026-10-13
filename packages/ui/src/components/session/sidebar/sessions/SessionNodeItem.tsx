@@ -402,9 +402,11 @@ function SessionNodeItemComponent(props: SessionNodeItemProps): React.ReactNode 
       return project.label?.trim() || formatDirectoryName(normalizePath(project.path) ?? project.path, null) || project.path;
     }, [projectId, secondaryMeta?.projectLabel]),
   );
-  const isTimelineRow = isTwoLineTimelineContext(renderContext) || renderContext === 'timeline-chat';
-  const isTimelineChatRow = renderContext === 'timeline-chat';
-  // Timeline rows in In work and Recent show the project's own icon; the row
+  // Flat rows: no tree gutter, live state on the right. Chats and the Tree
+  // view's Pinned and In work rows keep it on one line.
+  const isOneLineTimelineRow = renderContext === 'timeline-chat' || renderContext === 'mixed-compact';
+  const isTimelineRow = isTwoLineTimelineContext(renderContext) || isOneLineTimelineRow;
+  // Two-line rows in Pinned and In work show the project's own icon; the row
   // reads exactly that one project record, and `find` keeps the reference
   // stable between renders.
   const timelineProject = useProjectsStore(
@@ -914,12 +916,12 @@ function SessionNodeItemComponent(props: SessionNodeItemProps): React.ReactNode 
           style={{ paddingInlineStart: TIMELINE_ROW_LEFT_PX }}
           className={cn(
             'oc-ref-tint-scope group relative my-0.5 flex items-center rounded-md pe-2.5',
-            isTimelineChatRow ? 'py-1' : 'py-1.5',
+            isOneLineTimelineRow ? 'py-1' : 'py-1.5',
             isActive && 'bg-interactive-selection/70 text-interactive-selection-foreground',
           )}
         >
           <SessionTimelineRowBody
-            compact={isTimelineChatRow}
+            compact={isOneLineTimelineRow}
             project={timelineProject}
             projectLabel={tooltipProjectLabel}
             title={renameForm}
@@ -936,8 +938,10 @@ function SessionNodeItemComponent(props: SessionNodeItemProps): React.ReactNode 
                 style={primaryRef.color ? refTintStyle(primaryRef.color) : undefined}
               >
                 <Icon name={primaryRef.icon} className="h-3 w-3" />
-                <span className="leading-none tabular-nums">{primaryRef.label}</span>
-                {moreRefCount > 0 ? <span className="leading-none tabular-nums text-muted-foreground">+{moreRefCount}</span> : null}
+                {isOneLineTimelineRow ? null : <>
+                  <span className="leading-none tabular-nums">{primaryRef.label}</span>
+                  {moreRefCount > 0 ? <span className="leading-none tabular-nums text-muted-foreground">+{moreRefCount}</span> : null}
+                </>}
               </span>
             ) : null}
             zombieIndicator={null}
@@ -979,7 +983,7 @@ function SessionNodeItemComponent(props: SessionNodeItemProps): React.ReactNode 
   // is how far the actions reach in from the row content's right edge: their
   // width less the 6px they sit nearer the row edge (16px buttons, 20px on
   // two-line timeline rows, 2px apart).
-  const actionsReserveClass = isTimelineRow && !isTimelineChatRow
+  const actionsReserveClass = isTimelineRow && !isOneLineTimelineRow
     ? ['[--oc-actions-reserve:14px]', '[--oc-actions-reserve:36px]', '[--oc-actions-reserve:58px]', '[--oc-actions-reserve:80px]'][extraHoverActions]
     : ['[--oc-actions-reserve:10px]', '[--oc-actions-reserve:28px]', '[--oc-actions-reserve:46px]', '[--oc-actions-reserve:64px]'][extraHoverActions];
   // An open row menu (dropdown or right-click) keeps the actions shown, so
@@ -1542,9 +1546,9 @@ function SessionNodeItemComponent(props: SessionNodeItemProps): React.ReactNode 
 
   // Three-line timeline rows are taller, so their hover actions step up one
   // size to match the metadata they replace (the pin marker, the dot, the time).
-  const actionButtonSizeClass = alwaysShowActions ? 'h-6 w-6' : isTimelineRow && !isTimelineChatRow ? 'h-5 w-5' : 'h-4 w-4';
-  const actionIconSizeClass = alwaysShowActions ? 'h-3.5 w-3.5' : isTimelineRow && !isTimelineChatRow ? 'h-3 w-3' : 'h-2.5 w-2.5';
-  const checkIconSizeClass = alwaysShowActions ? 'h-4 w-4' : isTimelineRow && !isTimelineChatRow ? 'h-3.5 w-3.5' : 'h-3 w-3';
+  const actionButtonSizeClass = alwaysShowActions ? 'h-6 w-6' : isTimelineRow && !isOneLineTimelineRow ? 'h-5 w-5' : 'h-4 w-4';
+  const actionIconSizeClass = alwaysShowActions ? 'h-3.5 w-3.5' : isTimelineRow && !isOneLineTimelineRow ? 'h-3 w-3' : 'h-2.5 w-2.5';
+  const checkIconSizeClass = alwaysShowActions ? 'h-4 w-4' : isTimelineRow && !isOneLineTimelineRow ? 'h-3.5 w-3.5' : 'h-3 w-3';
 
   // The recap of the last turn, for the whole-row tooltip, under the same
   // freshness rule the chat uses.
@@ -1607,8 +1611,11 @@ function SessionNodeItemComponent(props: SessionNodeItemProps): React.ReactNode 
           onKeyDown={(event) => event.stopPropagation()}
         >
           <Icon name={primaryRef.icon} className="h-3 w-3" />
-          <span className="leading-none tabular-nums">{primaryRef.label}</span>
-          {moreRefCount > 0 ? <span data-ref-more className="leading-none tabular-nums text-muted-foreground">+{moreRefCount}</span> : null}
+          {/* One-line rows keep the coloured mark only; its tooltip lists every link. */}
+          {isOneLineTimelineRow ? null : <>
+            <span className="leading-none tabular-nums">{primaryRef.label}</span>
+            {moreRefCount > 0 ? <span data-ref-more className="leading-none tabular-nums text-muted-foreground">+{moreRefCount}</span> : null}
+          </>}
         </button>
       </TooltipTrigger>
       <TooltipContent side="top" sideOffset={6} className="max-w-xs">
@@ -1745,7 +1752,7 @@ function SessionNodeItemComponent(props: SessionNodeItemProps): React.ReactNode 
                   'oc-ref-tint-scope group relative my-0.5 flex cursor-pointer items-center rounded-md pe-2.5',
                   !isTimelineRow && 'gap-1.5',
                   // Tree rows sit a little tighter than the timeline's.
-                  isTimelineRow ? (isTimelineChatRow ? 'py-1' : 'py-1.5') : 'py-[3px]',
+                  isTimelineRow ? (isOneLineTimelineRow ? 'py-1' : 'py-1.5') : 'py-[3px]',
                   !(isActive || isRowSelected) && 'hover:bg-interactive-hover/60',
                   (isActive || isRowSelected) && 'bg-interactive-selection/70 text-interactive-selection-foreground',
                   isRowSelected && 'ring-1 ring-inset ring-border',
@@ -1847,7 +1854,7 @@ function SessionNodeItemComponent(props: SessionNodeItemProps): React.ReactNode 
             // row's vertical centre.
             // Three-line rows: the row's 6px top padding plus the fixed 20px
             // first line, so the 20px buttons cover that line exactly.
-            isTimelineRow && !isTimelineChatRow ? 'top-1.5 h-5' : 'top-1/2 -translate-y-1/2',
+            isTimelineRow && !isOneLineTimelineRow ? 'top-1.5 h-5' : 'top-1/2 -translate-y-1/2',
             isSessionMenuOpen
               ? 'opacity-100'
               : (alwaysShowActions && !isVSCode)

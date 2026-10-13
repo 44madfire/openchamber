@@ -365,6 +365,8 @@ export const SETTINGS_REGISTRY = {
   sidebarWorktreeSortOrder: field({ scope: 'profile', parse: parseOneOf(['recent', 'manual', 'a-z']), ui: sessionDisplayField('worktreeSortOrder') }),
   sidebarShowChatsSection: field({ scope: 'profile', perSurface: true, parse: parseBoolean, ui: sessionDisplayField('showChatsSection') }),
   sidebarShowWorkSection: field({ scope: 'profile', perSurface: true, parse: parseBoolean, ui: sessionDisplayField('showWorkSection') }),
+  sidebarShowPinnedSection: field({ scope: 'profile', perSurface: true, parse: parseBoolean, ui: sessionDisplayField('showPinnedSection') }),
+  sidebarDetailedZoneRows: field({ scope: 'profile', perSurface: true, parse: parseBoolean, ui: sessionDisplayField('detailedZoneRows') }),
 
   // ── Work status ──
   workStatusSectionOrder: field({

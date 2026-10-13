@@ -833,7 +833,7 @@ describe('settings registry gate', () => {
     lastDirectory: '/home/testuser/project', homeDirectory: '/home/testuser', opencodeBinary: '/usr/local/bin/opencode',
     projects: [{ id: 'p', path: '/home/testuser/project' }], activeProjectId: 'p',
     securityScopedBookmarks: ['bookmark'], pinnedDirectories: ['/home/testuser/project'],
-    desktopLanAccessEnabled: true, desktopKeepAwakeEnabled: true, desktopMinimizeToTrayEnabled: true, desktopMacMenuBarEnabled: true, desktopLinuxNativeFrame: true, sidebarShowChatsSection: false, sidebarShowWorkSection: false,
+    desktopLanAccessEnabled: true, desktopKeepAwakeEnabled: true, desktopMinimizeToTrayEnabled: true, desktopMacMenuBarEnabled: true, desktopLinuxNativeFrame: true, sidebarShowChatsSection: false, sidebarShowWorkSection: false, sidebarShowPinnedSection: true, sidebarDetailedZoneRows: true,
     desktopUiPassword: 'secret', githubClientId: 'client', githubScopes: 'repo', gitlabClientId: 'gitlab-client', skillCatalogs: [{ id: 'c', label: 'C', source: 'https://x' }],
     defaultGitIdentityId: 'global', permissionAutoAccept: { sessions: { s: true }, revision: 1 }, permissionDefaultMode: 'safety', messageSearchEnabled: true, messageSearchReasoningEnabled: true,
     agentControlToolEnabled: true, agentWebToolEnabled: true, browserProvider: 'builtin', agentMemoryToolEnabled: true, agentKnowledgeToolEnabled: true, agentNotifyToolEnabled: true, agentToolsCodeMode: true, agentWorktreeMoveWithoutAsking: true, isolatedSpacesEnabled: true, isolatedSpacesIdleStop: { enabled: true, hours: 4 }, isolatedSpacesSshHost: 'me@box.local:2222', openCodeUpdateToastDismissedVersion: '1.0.0',

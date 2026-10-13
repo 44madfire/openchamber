@@ -204,9 +204,29 @@ default) shows it. With the zone hidden its sessions stay in their projects.
 `workItems` and `workSessionIds` to the row model. A session in work also stays
 in its project group and folders, in both views, so it appears in two places.
 Search lists it once, in the work block. Chats are never in work
-and offer no Track action. An empty zone is not rendered. Rows use
-`renderContext: 'timeline-mixed'` in both views: two lines, the project's icon
-before the branch, never expanded, with subsessions feeding the badges. Search
+and offer no Track action. An empty zone is not rendered. In List, rows use
+`renderContext: 'timeline-mixed'`: two lines, the project's icon before the
+branch. In Tree they use `'mixed-compact'` by default: one line like a Chats
+row, the PR or issue as a coloured mark without its number (its tooltip lists
+the links), the branch, project and model in the whole-row tooltip. The display
+menu's Detailed rows toggle (`detailedZoneRows`, `sidebarDetailedZoneRows`, per
+surface, off by default, offered in Tree only) gives Tree the two-line rows.
+Both never expand, with subsessions feeding the badges; a run row there opens
+its overview.
+
+## Pinned
+
+The display menu's Show pinned section toggle (`showPinnedSection`,
+`sidebarShowPinnedSection`, per surface, off by default) adds a `pinned`
+activity zone between Chats and In work, in both views. It lists pinned
+top-level, unarchived project sessions in the shared lifecycle order; pinned
+chats stay pinned at the top of Chats. A pinned session in work is listed in
+Pinned only. Like In work, its sessions also stay in their projects, search
+lists each of them once, in the zone (`zoneSessionIds` carries both zones' ids),
+and the rows follow the same render context. Pins are the device-local
+`useSessionPinnedStore`, so the zone differs between devices. The phone sheet
+and VS Code have no Pinned zone toggle: VS Code shows no section toggles and the
+phone's display panel offers only In work. Search
 keeps a root whose subsession matches (`sessionTreeMatchesSidebarQuery`): those
 subsessions are nowhere else in the sidebar. The zone counts only sessions that match
 themselves (`countSessionTreeQueryMatches`), and a group subtracts the trees
@@ -250,7 +270,8 @@ pair as the changes file tree). VS Code has no switch and always renders
 `projects`. The display menu opens with Select sessions, then the view, then
 the project sort, worktree sort and project display as submenus that name the
 current choice (Tree only; VS Code keeps the project sort), then the section
-toggles, then Collapse all / Expand all.
+toggles (Chats, Pinned, In work) and, in Tree, Detailed rows, then Collapse
+all / Expand all.
 
 - Chats rows render with `renderContext: 'timeline-chat'` in both views: one
   line, no left gutter, pin marker and status icon on the right beside the
@@ -264,13 +285,13 @@ toggles, then Collapse all / Expand all.
 - Zone collapse state lives in `useSessionProjectViewState` next to project
   collapse and lasts for the mount only. The display menu's Collapse all /
   Expand all set every project and the zones (`SIDEBAR_ACTIVITY_KEYS`: Chats,
-  In work) together, in both views. Session folders keep their own
+  Pinned, In work) together, in both views. Session folders keep their own
   collapse state.
 - Zone and project headers are sticky in both views; there is no user toggle.
   Both views draw the same zone headers, with the leading icon that turns
   into the collapse chevron on hover and the Chats new-chat button; project
   headers are shared too, with the same hover actions and menu.
-- Below Chats and In work it renders one project
+- Below Chats, Pinned and In work it renders one project
   header per project followed by that project's non-archived root sessions
   from every worktree and space, in the shared lifecycle order with pinned
   sessions first. Projects keep the manual order whatever the stored project
@@ -280,7 +301,7 @@ toggles, then Collapse all / Expand all.
   all, forgets that state, so expanding starts from 7 again. A project without
   sessions shows its load status, or nothing under its header.
 - Timeline rows carry `renderContext: 'timeline'` (under a project) or
-  `'timeline-mixed'` (In work), depth 0 and empty children. They
+  `'timeline-mixed'` (Pinned and In work), depth 0 and empty children. They
   never expand, show no chevron, no folders and no worktree groups. Folders are
   not projected, so the row menu hides `Move to folder`. Their archive/delete
   actions still cover the full subtree, because `collectSessionSubtreeIds`
