@@ -1322,6 +1322,8 @@ interface UIStore {
   toggleFavoriteAgent: (agentName: string) => void;
   addRecentEffort: (providerID: string, modelID: string, variant: string | undefined) => void;
   setDiffLayoutPreference: (mode: 'dynamic' | 'inline' | 'side-by-side') => void;
+  /** The layout setting for every diff, dropping the per-file choices (the Changes header toggle). */
+  setDiffLayoutForAllFiles: (mode: 'inline' | 'side-by-side') => void;
   setDiffFileLayout: (filePath: string, mode: 'inline' | 'side-by-side') => void;
   setDiffWrapLines: (wrap: boolean) => void;
   setDiffHideWhitespace: (hide: boolean) => void;
@@ -2703,6 +2705,10 @@ export const useUIStore = create<UIStore>()(
 
         setDiffLayoutPreference: (mode) => {
           set({ diffLayoutPreference: mode });
+        },
+
+        setDiffLayoutForAllFiles: (mode) => {
+          set({ diffLayoutPreference: mode, diffFileLayout: {} });
         },
 
         setDiffFileLayout: (filePath, mode) => {

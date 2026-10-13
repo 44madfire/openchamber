@@ -1261,7 +1261,7 @@ export const DiffView: React.FC<DiffViewProps> = ({
     const setPendingDiffFile = useUIStore((state) => state.setPendingDiffFile);
     const diffLayoutPreference = useUIStore((state) => state.diffLayoutPreference);
     const diffFileLayout = useUIStore((state) => state.diffFileLayout);
-    const setDiffFileLayout = useUIStore((state) => state.setDiffFileLayout);
+    const setDiffLayoutForAllFiles = useUIStore((state) => state.setDiffLayoutForAllFiles);
     const diffWrapLinesStore = useUIStore((state) => state.diffWrapLines);
     const setDiffWrapLines = useUIStore((state) => state.setDiffWrapLines);
     const diffHideWhitespace = useUIStore((state) => state.diffHideWhitespace);
@@ -2186,14 +2186,11 @@ export const DiffView: React.FC<DiffViewProps> = ({
         return () => window.removeEventListener('keydown', handleKeyDown);
     }, [displayFile, handleSelectFileAndScroll, isTreeMode, navigationFiles, treeSelectedFile, visible]);
 
+    // The header toggle picks the layout for every diff from now on: it writes
+    // the Appearance setting and drops the per-file choices.
     const handleHeaderLayoutChange = React.useCallback((mode: DiffViewMode) => {
-        const nextLayout: 'inline' | 'side-by-side' =
-            mode === 'side-by-side' ? 'side-by-side' : 'inline';
-
-        changedFiles.forEach((file) => {
-            setDiffFileLayout(file.path, nextLayout);
-        });
-    }, [changedFiles, setDiffFileLayout]);
+        setDiffLayoutForAllFiles(mode === 'side-by-side' ? 'side-by-side' : 'inline');
+    }, [setDiffLayoutForAllFiles]);
 
     const [openingEditorFilePath, setOpeningEditorFilePath] = React.useState<string | null>(null);
 
