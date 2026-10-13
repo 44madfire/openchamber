@@ -173,6 +173,7 @@ const hasBlockingChatOverlay = (): boolean => {
         isAboutDialogOpen,
         isCommandPaletteOpen,
         isHelpDialogOpen,
+        isProjectActionsDialogOpen,
         isImagePreviewOpen,
         runOverviewKey,
         isSessionSwitcherOpen,
@@ -182,6 +183,7 @@ const hasBlockingChatOverlay = (): boolean => {
     return isAboutDialogOpen
         || isCommandPaletteOpen
         || isHelpDialogOpen
+        || isProjectActionsDialogOpen
         || isImagePreviewOpen
         || runOverviewKey !== null
         || isSessionSwitcherOpen

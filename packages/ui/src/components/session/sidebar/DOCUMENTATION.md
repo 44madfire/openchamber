@@ -499,8 +499,8 @@ matching and ordering. Search does not fetch sessions or broaden list membership
 
 ## Project action indicators
 
-`SidebarTerminalActivity` shares terminal discovery with the action header and terminal
-panel while the sidebar is visible. One server listing covers all directories, including
+`SidebarTerminalActivity` shares terminal discovery with the project action views and the
+terminal panel while the sidebar is visible. One server listing covers all directories, including
 collapsed projects. The sidebar keeps that loop running only while a project action is
 known to be running anywhere; with nothing running it lists once on mount, to pick up
 runs another client started, and then stays quiet so an idle sidebar costs no polling. It preserves local mutations newer than the listing and keeps known

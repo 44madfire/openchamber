@@ -59,6 +59,7 @@ function hasOverlayOpen(): boolean {
   const state = useUIStore.getState();
   return state.isCommandPaletteOpen
     || state.isHelpDialogOpen
+    || state.isProjectActionsDialogOpen
     || state.isSessionSwitcherOpen
     || state.isAboutDialogOpen
     || state.isSettingsDialogOpen
@@ -188,6 +189,12 @@ export const useKeyboardShortcuts = () => {
     },
     open_help: () => {
       useUIStore.getState().toggleHelpDialog();
+    },
+    open_project_actions: () => {
+      // Desktop and web only: VS Code and the phone shell run no project actions.
+      const state = useUIStore.getState();
+      if (state.isMobile || isVSCodeRuntime()) return false;
+      state.setProjectActionsDialogOpen(!state.isProjectActionsDialogOpen);
     },
     new_mini_chat: () => {
       if (!canUseElectronDesktopIPC()) return false;

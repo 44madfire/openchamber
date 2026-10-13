@@ -20,6 +20,7 @@ import { SessionSidebar } from '@/components/session/SessionSidebar';
 import { SessionDialogs } from '@/components/session/SessionDialogs';
 import { SpaceActionsSheet, SpaceDeleteDialog } from '@/components/session/spaces/SpaceActions';
 import { DiffWorkerProvider } from '@/contexts/DiffWorkerProvider';
+import { ProjectActionsProvider } from './ProjectActionsProvider';
 import { RunAutoFusion } from '@/lib/multirun/autoFusion';
 
 import { useUIStore } from '@/stores/useUIStore';
@@ -42,6 +43,7 @@ const loadSettingsWindow = () => import('@/components/views/SettingsWindow').the
 // the store once mounted, and stays mounted after its first open.
 const loadCommandPalette = () => import('../ui/CommandPalette').then((m) => m.CommandPalette);
 const loadHelpDialog = () => import('../ui/HelpDialog').then((m) => m.HelpDialog);
+const loadProjectActionsDialog = () => import('./ProjectActionsDialog').then((m) => m.ProjectActionsDialog);
 const loadOpenCodeStatusDialog = () => import('../ui/OpenCodeStatusDialog').then((m) => m.OpenCodeStatusDialog);
 const loadRunOverview = () => import('@/components/multirun/RunOverview').then((m) => m.RunOverview);
 const loadScheduledTasksDialog = () => import('@/components/session/ScheduledTasksDialog').then((m) => m.ScheduledTasksDialog);
@@ -118,6 +120,7 @@ export const MainLayout: React.FC = () => {
     const isSpacesPageOpen = useUIStore((state) => state.isolatedSpacesEnabled && state.spacesPageProjectId !== null);
     const isCommandPaletteOpen = useUIStore((state) => state.isCommandPaletteOpen);
     const isHelpDialogOpen = useUIStore((state) => state.isHelpDialogOpen);
+    const isProjectActionsDialogOpen = useUIStore((state) => state.isProjectActionsDialogOpen);
     const isOpenCodeStatusDialogOpen = useUIStore((state) => state.isOpenCodeStatusDialogOpen);
     const isSpaceAccessDialogOpen = useSpacesStore((state) => state.accessDialog !== null);
     const isSpaceApplyDialogOpen = useSpacesStore((state) => state.applyDialog !== null);
@@ -168,12 +171,14 @@ export const MainLayout: React.FC = () => {
 
     return (
         <DiffWorkerProvider>
+            <ProjectActionsProvider>
             <div
                 data-page-scroll-lock="true"
                 className="main-content-safe-area relative flex h-[100dvh] bg-background"
             >
                 <OnDemand needed={isCommandPaletteOpen} load={loadCommandPalette} onFailure={() => useUIStore.getState().setCommandPaletteOpen(false)} />
                 <OnDemand needed={isHelpDialogOpen} load={loadHelpDialog} onFailure={() => useUIStore.getState().setHelpDialogOpen(false)} />
+                <OnDemand needed={isProjectActionsDialogOpen} load={loadProjectActionsDialog} onFailure={() => useUIStore.getState().setProjectActionsDialogOpen(false)} />
                 <OnDemand needed={isOpenCodeStatusDialogOpen} load={loadOpenCodeStatusDialog} onFailure={() => useUIStore.getState().setOpenCodeStatusDialogOpen(false)} />
                 <RunAutoFusion />
                 <SessionDialogs />
@@ -255,6 +260,7 @@ export const MainLayout: React.FC = () => {
                     />
                 ) : null}
             </div>
+            </ProjectActionsProvider>
         </DiffWorkerProvider>
     );
 };

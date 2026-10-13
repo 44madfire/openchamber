@@ -11,6 +11,7 @@ import { usageStatsI18n } from './usage-stats.i18n';
 import { webSearchI18n } from './websearch.i18n';
 import { isolatedSpacesI18n } from './isolated-spaces.i18n';
 import { sourceBoardI18n } from './source-board.i18n';
+import { projectActionsI18n } from './project-actions.i18n';
 import { environmentI18n } from './environment.i18n';
 import { providersI18n } from './providers.i18n';
 import { mcpGridI18n } from './mcp-grid.i18n';
@@ -3763,6 +3764,7 @@ export const dict = {
   ...webSearchI18n.ar,
   ...isolatedSpacesI18n.ar,
   ...sourceBoardI18n.ar,
+  ...projectActionsI18n.ar,
   ...environmentI18n.ar,
   ...providersI18n.ar,
   ...mcpGridI18n.ar,
