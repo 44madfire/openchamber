@@ -44,6 +44,7 @@ import {
   type MermaidRender,
 } from './markdown/decorate';
 import type { RenderedCopyFormat } from './markdown/selectionMarkdown';
+import { attachInlineMarkdownImages } from './markdown/inlineMarkdownImages';
 import { observeMarkdownTableWidth } from './markdown/tableWidthObserver';
 import { findTextPosition } from './markdown/textPosition';
 import { createMermaidViewerRegistry, MERMAID_BLOCK_SELECTOR, shouldRefreshMermaidViewers } from './markdown/mermaidViewer';
@@ -648,6 +649,43 @@ const useFileReferenceInteractions = ({
       container.removeEventListener('keydown', handleKeyDown);
     };
   }, [containerRef, editor, effectiveDirectory, preferRuntimeEditor, enabled]);
+};
+
+// Draws a settled assistant part's local images in place of their labels
+// (markdown/inlineMarkdownImages.ts). Off while streaming and without a
+// session, which the image grant route needs.
+const useInlineMarkdownImages = ({
+  containerRef,
+  sessionId,
+  messageId,
+  directory,
+  onShowPopup,
+}: {
+  containerRef: React.RefObject<HTMLDivElement | null>;
+  sessionId: string | undefined;
+  messageId: string | undefined;
+  directory: string;
+  onShowPopup?: (content: ToolPopupContent) => void;
+}) => {
+  const onShowPopupRef = React.useRef(onShowPopup);
+  React.useEffect(() => {
+    onShowPopupRef.current = onShowPopup;
+  }, [onShowPopup]);
+  const apiBaseUrl = getRuntimeApiBaseUrl();
+
+  React.useEffect(() => {
+    const container = containerRef.current;
+    if (!container || !sessionId || !messageId) return;
+    return attachInlineMarkdownImages({
+      container,
+      sessionId,
+      messageId,
+      directory,
+      apiBaseUrl,
+      useWorkspaceFsBridge: isVSCodeRuntime(),
+      onShowPopup: (content) => onShowPopupRef.current?.(content),
+    });
+  }, [apiBaseUrl, containerRef, directory, messageId, sessionId]);
 };
 
 const useMermaidInlineInteractions = ({
@@ -1373,8 +1411,9 @@ const MarkdownRendererImpl: React.FC<MarkdownRendererProps> = ({
   const openLinksInBrowserPanel = useUIStore((state) => state.openLinksInBrowserPanel) && isDesktopShell();
   const ctx = useDecorateContext(currentTheme, effectiveDirectory && !openLinksInBrowserPanel ? handlePreviewLoopback : undefined, DEFAULT_MERMAID_CONTROLS);
   const { locale } = useI18n();
-  // Assistant images live in the gallery under the message; tool output and
-  // reasoning draw local images and link remote ones (see MarkdownImageMode).
+  // Assistant images render as labels that useInlineMarkdownImages replaces
+  // with the pictures once the part settles; tool output and reasoning draw
+  // local images and link remote ones (see MarkdownImageMode).
   const imageMode: MarkdownImageMode = variant === 'assistant' ? 'label' : 'local';
   const settledPart = part
     && (part.type === 'text' || part.type === 'reasoning')
@@ -1413,6 +1452,14 @@ const MarkdownRendererImpl: React.FC<MarkdownRendererProps> = ({
     ctx,
     domCacheKey,
     tableLayoutSettled: !isStreaming,
+  });
+
+  useInlineMarkdownImages({
+    containerRef,
+    sessionId: imageMode === 'label' && !isStreaming ? settledSessionID : undefined,
+    messageId: settledMessageID,
+    directory: effectiveDirectory,
+    onShowPopup,
   });
 
   const markdownContent = (
