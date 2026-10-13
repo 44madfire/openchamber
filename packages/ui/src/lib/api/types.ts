@@ -72,7 +72,7 @@ export interface TerminalSession {
   cols: number;
   rows: number;
   status: 'running' | 'exited' | 'error';
-  mode?: 'interactive' | 'command';
+  mode?: 'interactive' | 'command' | 'direct';
   purpose?: TerminalSessionPurpose;
 }
 
@@ -104,7 +104,7 @@ export interface TerminalStreamEvent {
 
   runtime?: 'node' | 'bun';
   ptyBackend?: string;
-  mode?: 'interactive' | 'command';
+  mode?: 'interactive' | 'command' | 'direct';
   purpose?: TerminalSessionPurpose;
 }
 
@@ -134,7 +134,18 @@ interface CommandCreateTerminalOptions extends BaseCreateTerminalOptions {
   command: string;
 }
 
-export type CreateTerminalOptions = InteractiveCreateTerminalOptions | CommandCreateTerminalOptions;
+/**
+ * Argv/env-exact spawn with no shell in between (server `direct` mode): the
+ * PTY runs `argv` verbatim with `env` overlaid. For invocations the server
+ * resolved, such as ACP terminal auth — never assemble a shell string.
+ */
+interface DirectCreateTerminalOptions extends BaseCreateTerminalOptions {
+  mode: 'direct';
+  argv: string[];
+  env?: Record<string, string>;
+}
+
+export type CreateTerminalOptions = InteractiveCreateTerminalOptions | CommandCreateTerminalOptions | DirectCreateTerminalOptions;
 export type RestartTerminalOptions = InteractiveCreateTerminalOptions;
 
 export interface ResizeTerminalPayload {
@@ -160,7 +171,7 @@ export interface TerminalServerSession {
   cwd: string;
   status: 'running' | 'exited';
   createdAt: number | null;
-  mode?: 'interactive' | 'command';
+  mode?: 'interactive' | 'command' | 'direct';
   purpose?: TerminalSessionPurpose;
 }
 

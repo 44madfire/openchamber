@@ -11,10 +11,14 @@ import { Button } from '@/components/ui/button';
 import { useSessionUIStore } from '@/sync/session-ui-store';
 import { useSessionMessageRecords } from '@/sync/sync-context';
 import { isAcpUnsupported } from '@/lib/acp/capabilities';
+import { acpTurnOf, canRevertTurn } from '@/lib/acp/revert';
+import { isAcpSessionId } from '@/lib/acp/session-key';
+import { useAcpCheckpoints } from '@/hooks/useAcpCheckpoints';
 import { useChatSessionSelection } from './chatColumnSession';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { Icon } from "@/components/icon/Icon";
 import { getCurrentIntlLocale, useI18n } from '@/lib/i18n';
+import type { Message } from '@/lib/opencode/model';
 import { getFullText, getMessagePreview } from './lib/messagePreview';
 import { useDeviceInfo } from '@/lib/device';
 import { cn } from '@/lib/utils';
@@ -111,8 +115,12 @@ const TimelineDialogBody: React.FC<TimelineDialogBodyProps> = ({
     const messages = useSessionMessageRecords(currentSessionId, currentSessionDirectory);
     const revertToMessage = useSessionUIStore((state) => state.revertToMessage);
     const forkFromMessage = useSessionUIStore((state) => state.forkFromMessage);
-    const revertHidden = isAcpUnsupported(currentSessionId, "revert");
+    const checkpoints = useAcpCheckpoints(currentSessionId, currentSessionDirectory);
     const forkHidden = isAcpUnsupported(currentSessionId, "fork");
+    const revertHiddenForMessage = React.useCallback((message: Pick<Message, "metadata" | "role">) => {
+        if (!isAcpSessionId(currentSessionId)) return isAcpUnsupported(currentSessionId, "revert");
+        return !canRevertTurn(currentSessionId, acpTurnOf(message), checkpoints);
+    }, [checkpoints, currentSessionId]);
     const { isMobile, isTablet } = useDeviceInfo();
     const alwaysShowActions = isMobile || isTablet;
 
@@ -405,7 +413,7 @@ const TimelineDialogBody: React.FC<TimelineDialogBodyProps> = ({
 
                                         <div className="flex-shrink-0 h-5 flex items-center mr-2">
                                             <div className={cn("gap-1", alwaysShowActions ? "flex" : "hidden group-hover:flex")}>
-                                                {revertHidden ? null : (
+                                                {revertHiddenForMessage(message.info) ? null : (
                                                 <Tooltip>
                                                     <TooltipTrigger asChild>
                                                         <button

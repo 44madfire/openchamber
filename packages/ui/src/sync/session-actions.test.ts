@@ -49,8 +49,70 @@ const movedSessionDirectories: Array<{ sessionID: string; directory: string }> =
 const globalArchivedSessions: Session[] = []
 let runtimeKey = "default-runtime"
 const AMBIGUOUS_TRANSPORT_FAILURE = Symbol("ambiguous-transport-failure")
+// ACP revert flow: checkpoint rows and revert answers the mocked acpClient serves.
+const acpCheckpointsBySession = new Map<string, Array<{ turn: number; complete: boolean }>>()
+const acpRevertCalls: Array<{ sessionId: string; turn: number }> = []
+let acpRevertAnswer: ((sessionId: string, turn: number) => unknown) | null = null
 
 const notFound = (kind: string) => Object.assign(new Error(`${kind}NotFoundError`), { status: 404 })
+
+mock.module("@/lib/acp/client", () => {
+  class AcpApiError extends Error {
+    status: number
+    code?: string
+    constructor(operation: string, status: number, message: string, options?: { code?: string }) {
+      super(`${operation} failed (${status}): ${message}`)
+      this.name = "AcpApiError"
+      this.status = status
+      this.code = options?.code
+    }
+  }
+  class AcpUnsupportedError extends Error {
+    operation: string
+    sessionId: string
+    constructor(operation: string, sessionId: string) {
+      super(`${operation} is not supported for ACP sessions`)
+      this.name = "AcpUnsupportedError"
+      this.operation = operation
+      this.sessionId = sessionId
+    }
+  }
+  // Structural subset of readAcpSessionMeta: the fork guard reads
+  // `capabilities.fork` only.
+  const readAcpSessionMeta = (session: { metadata?: Record<string, unknown> } | null | undefined) => {
+    const acp = (session?.metadata?.acp ?? null) as { backendId?: unknown; capabilities?: unknown } | null
+    if (!acp || typeof acp.backendId !== "string") return null
+    return { backendId: acp.backendId, capabilities: (acp.capabilities ?? {}) as Record<string, unknown> }
+  }
+  return {
+    AcpApiError,
+    AcpUnsupportedError,
+    readAcpSessionMeta,
+    acpClient: {
+      getSessionCheckpoints: async (sessionId: string) => acpCheckpointsBySession.get(sessionId) ?? [],
+      revertSession: async (sessionId: string, turn: number) => {
+        acpRevertCalls.push({ sessionId, turn })
+        if (!acpRevertAnswer) throw new Error("No ACP revert answer configured")
+        return acpRevertAnswer(sessionId, turn)
+      },
+    },
+  }
+})
+
+const toastWarnings: Array<{ message: string }> = []
+mock.module("sonner", () => ({
+  toast: {
+    warning: (message: string) => {
+      toastWarnings.push({ message })
+    },
+  },
+}))
+
+mock.module("@/lib/i18n/store", () => ({
+  useI18nStore: { getState: () => ({ dictionary: {} }) },
+  formatMessage: (_dictionary: unknown, key: string, params?: Record<string, unknown>) =>
+    `${key} ${JSON.stringify(params ?? {})}`,
+}))
 
 mock.module("@/lib/opencode/client", () => ({
   ascendingId: (prefix: string) => `${prefix}_${(idCounter += 1).toString(16).padStart(12, "0")}`,
@@ -3355,17 +3417,114 @@ describe("ACP session guards", () => {
     replyCalls.length = 0
   })
 
-  test("move, revert, and fork fail fast for ACP sessions without any SDK call", async () => {
+  test("move and fork fail fast for ACP sessions without any SDK call", async () => {
     const { AcpUnsupportedError } = await import("@/lib/acp/client")
-    const { forkAfterMessage, forkFromMessage, moveSessionToDirectory, revertToMessage, setActionRefs } = await import("./session-actions")
+    const { forkAfterMessage, forkFromMessage, moveSessionToDirectory, setActionRefs } = await import("./session-actions")
     setActionRefs(createChildStores([]), () => "/source")
 
     const session = { id: "ses_acp-omp_r1", directory: "/source" } as Session
     await expect(moveSessionToDirectory(session, "/source", "/destination")).rejects.toBeInstanceOf(AcpUnsupportedError)
-    await expect(revertToMessage("ses_acp-omp_r1", "msg_1")).rejects.toBeInstanceOf(AcpUnsupportedError)
     await expect(forkAfterMessage("ses_acp-omp_r1", "msg_1")).rejects.toBeInstanceOf(AcpUnsupportedError)
     await expect(forkFromMessage("ses_acp-omp_r1", "msg_1")).rejects.toBeInstanceOf(AcpUnsupportedError)
     expect(replyCalls).toHaveLength(0)
+  })
+
+  test("revertToMessage uses the stamped ACP turn ordinal and reverts without stage/clear", async () => {
+    const { revertToMessage, setActionRefs } = await import("./session-actions")
+    const session = { id: "ses_acp-omp_r1", directory: "/source", title: "ACP" } as Session
+    // A paginated tail window: u60 is the only loaded user, stamped turn 60.
+    // Counting the window would send turn 1; the stamp sends 60.
+    const store = createStore({}, {
+      session: [session],
+      message: {
+        "ses_acp-omp_r1": [
+          { id: "u60", sessionID: "ses_acp-omp_r1", role: "user", time: { created: 3 }, metadata: { acpTurn: 60 } },
+        ] as Message[],
+      },
+    })
+    setActionRefs(createChildStores([["/source", store]]), () => "/source")
+    acpCheckpointsBySession.set("ses_acp-omp_r1", [{ turn: 60, complete: true }])
+    acpRevertCalls.length = 0
+    acpRevertAnswer = (sessionId, turn) => ({
+      restored: ["a.ts"],
+      removed: [],
+      skipped: [],
+      session: {
+        ...session,
+        revert: { messageID: "u60" },
+        metadata: { acp: { backendId: "omp", revertedFromTurn: turn } },
+      },
+    })
+    try {
+      await revertToMessage("ses_acp-omp_r1", "u60")
+    } finally {
+      acpRevertAnswer = null
+      acpCheckpointsBySession.delete("ses_acp-omp_r1")
+    }
+    expect(acpRevertCalls).toEqual([{ sessionId: "ses_acp-omp_r1", turn: 60 }])
+    expect(replyCalls.filter((call) => call.method === "session.revert.stage")).toHaveLength(0)
+    const updated = store.getState().session.find((entry) => entry.id === "ses_acp-omp_r1")
+    expect(updated?.revert).toEqual({ messageID: "u60" })
+  })
+
+  test("revertToMessage refuses an incomplete ACP checkpoint turn", async () => {
+    const { AcpApiError } = await import("@/lib/acp/client")
+    const { revertToMessage, setActionRefs } = await import("./session-actions")
+    const session = { id: "ses_acp-omp_r1", directory: "/source", title: "ACP" } as Session
+    const store = createStore({}, {
+      session: [session],
+      message: {
+        "ses_acp-omp_r1": [
+          { id: "u1", sessionID: "ses_acp-omp_r1", role: "user", time: { created: 1 }, metadata: { acpTurn: 1 } },
+        ] as Message[],
+      },
+    })
+    setActionRefs(createChildStores([["/source", store]]), () => "/source")
+    acpCheckpointsBySession.set("ses_acp-omp_r1", [{ turn: 1, complete: false }])
+    acpRevertCalls.length = 0
+    try {
+      const error = await revertToMessage("ses_acp-omp_r1", "u1").catch((e) => e)
+      expect(error).toBeInstanceOf(AcpApiError)
+      expect(error.status).toBe(422)
+    } finally {
+      acpCheckpointsBySession.delete("ses_acp-omp_r1")
+    }
+    expect(acpRevertCalls).toHaveLength(0)
+  })
+
+  test("revertToMessage toasts skipped ACP paths and navigates to the fork key", async () => {
+    const { revertToMessage, setActionRefs } = await import("./session-actions")
+    const session = { id: "ses_acp-omp_r1", directory: "/source", title: "ACP" } as Session
+    const store = createStore({}, {
+      session: [session],
+      message: {
+        "ses_acp-omp_r1": [
+          { id: "u1", sessionID: "ses_acp-omp_r1", role: "user", time: { created: 1 }, metadata: { acpTurn: 1 } },
+        ] as Message[],
+      },
+    })
+    setActionRefs(createChildStores([["/source", store]]), () => "/source")
+    acpCheckpointsBySession.set("ses_acp-omp_r1", [{ turn: 1, complete: true }])
+    acpRevertCalls.length = 0
+    toastWarnings.length = 0
+    selectedSessions.length = 0
+    acpRevertAnswer = () => ({
+      restored: [],
+      removed: [],
+      skipped: [{ file: "locked.ts", reason: "obstructed" }],
+      session: { ...session, id: "ses_acp-omp_rfork" },
+    })
+    try {
+      await revertToMessage("ses_acp-omp_r1", "u1")
+    } finally {
+      acpRevertAnswer = null
+      acpCheckpointsBySession.delete("ses_acp-omp_r1")
+    }
+    expect(selectedSessions).toEqual([{ sessionId: "ses_acp-omp_rfork", directoryHint: "/source" }])
+    expect(store.getState().session.map((entry) => entry.id).sort()).toEqual(["ses_acp-omp_r1", "ses_acp-omp_rfork"])
+    expect(toastWarnings).toHaveLength(1)
+    expect(toastWarnings[0].message).toContain("chat.revert.toast.acpSkipped")
+    expect(toastWarnings[0].message).toContain("locked.ts")
   })
 
   test("an ACP send inserts one folded optimistic user record, reconciled by the echo", async () => {

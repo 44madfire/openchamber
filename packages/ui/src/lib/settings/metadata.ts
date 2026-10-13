@@ -11,6 +11,7 @@ export type SettingsPageSlug =
   | 'web-search'
   | 'usage'
   | 'agents'
+  | 'acp'
   | 'behavior'
   | 'commands'
   | 'mcp'
@@ -120,6 +121,13 @@ export const SETTINGS_PAGE_METADATA: readonly SettingsPageMeta[] = [
     group: 'opencode',
     kind: 'split',
     keywords: ['agent', 'agents', 'prompts', 'tools', 'permissions'],
+  },
+  {
+    slug: 'acp',
+    title: 'Agents (ACP)',
+    group: 'opencode',
+    kind: 'single',
+    keywords: ['acp', 'agent client protocol', 'backend', 'backends', 'omp', 'pi-acp', 'opencode acp', 'agent', 'agents'],
   },
   {
     slug: 'behavior',
@@ -319,6 +327,8 @@ export function getSettingsNavIcon(slug: SettingsPageSlug): IconName | null {
       return 'global';
     case 'agents':
       return 'ai-agent';
+    case 'acp':
+      return 'robot-2';
     case 'behavior':
       return 'brain';
     case 'commands':

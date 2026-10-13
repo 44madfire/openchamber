@@ -1,9 +1,12 @@
 import React from 'react';
 import { modelVariantNames } from '@/lib/modelVariants';
 import { isAcpUnsupported } from '@/lib/acp/capabilities';
+import { acpTurnOf, canRevertTurn } from '@/lib/acp/revert';
+import { isAcpSessionId } from '@/lib/acp/session-key';
 import { findCatalogModel, type Message, type Part } from '@/lib/opencode/model';
 import { useShallow } from 'zustand/react/shallow';
-
+import { useAcpCheckpoints } from '@/hooks/useAcpCheckpoints';
+import { useSession } from '@/sync/sync-context';
 import { MessageFreshnessDetector } from '@/lib/messageFreshness';
 import { useConfigStore } from '@/stores/useConfigStore';
 import { useUIStore } from '@/stores/useUIStore';
@@ -187,12 +190,21 @@ const ChatMessage: React.FC<ChatMessageProps> = ({
     const showStickyInlineHoverRow = isUser && !isMobile && stickyUserHeader && !useExternalUserActionsRow;
 
     const sessionId = message.info.sessionID;
-    // ACP sessions have no staged revert, and fork only when the backend
-    // advertises it (M1: none does). The buttons hide instead of failing.
-    const sessionForCapabilities = useGlobalSessionsStore((state) => (sessionId ? state.entityById.get(sessionId) : undefined));
-    const revertUnsupported = isAcpUnsupported(sessionId, "revert");
+    // ACP revert is checkpoint-gated (D13): the button shows only when this
+    // turn — the server-stamped `metadata.acpTurn` — has a complete
+    // checkpoint. Fork only when the backend advertises it. The buttons hide
+    // instead of failing.
+    // The session record comes from the directory store, not the global one:
+    // ACP sessions never reach the global store (its full load is
+    // global-only), so a global lookup would hide fork for every ACP session
+    // whose backend advertises it.
+    const sessionForCapabilities = useSession(sessionId);
+    const sessionDirectory = sessionForCapabilities?.directory ?? null;
+    const checkpoints = useAcpCheckpoints(sessionId, sessionDirectory);
+    const revertUnsupported = isAcpSessionId(sessionId)
+        ? !canRevertTurn(sessionId, acpTurnOf(message.info), checkpoints)
+        : isAcpUnsupported(sessionId, "revert");
     const forkUnsupported = isAcpUnsupported(sessionId, "fork", sessionForCapabilities);
-
     // Keep non-active-turn rows detached from context-store churn.
     const { currentContextAgent, savedSessionAgentSelection } = useContextStore(
         useShallow((state) => ({

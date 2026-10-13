@@ -235,4 +235,15 @@ describe('live activity report', () => {
             { file: '/project/empty', additions: 0, deletions: 0, status: 'added' },
         ] } })])])).toMatchObject({ files: 1, additions: 0, deletions: 0, hasCompleteDiff: true });
     });
+
+    test('the ACP generic tool counts only when it carries typed diffs', () => {
+        expect(summarizeLiveActivity([assistant('a', [
+            tool('think', 'acp', { metadata: { acpKind: 'think', acpTitle: 'Considering' } }),
+        ])]).files).toBe(0);
+        const result = summarizeLiveActivity([assistant('a', [
+            tool('other', 'acp', { metadata: { acpKind: 'other', files: [{ file: '/project/a.ts', patch: diff }] } }),
+        ])]);
+        expect(result.files).toBe(1);
+        expect(result.changedFiles[0]?.path).toBe('/project/a.ts');
+    });
 });

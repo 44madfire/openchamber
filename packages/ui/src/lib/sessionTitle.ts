@@ -1,5 +1,6 @@
 import type { AssistantMessage, Message, Part, SyntheticMessage } from '@/lib/opencode/model';
 import { z } from 'zod';
+import { isAcpSessionId } from '@/lib/acp/session-key';
 import { readContextPart } from './messages/contextParts';
 import { excerptMarkdown, formatContextMessage, formatMessageText } from './messages/messageMarkdown';
 import { runtimeFetch } from './runtime-fetch';
@@ -113,14 +114,26 @@ export async function generateSessionTitle(input: {
   turns: readonly TitleTurn[];
   directory: string;
   signal: AbortSignal;
+  /** The session being renamed; lets the server resolve the ACP one-off backend. */
+  sessionKey?: string;
 }): Promise<string> {
   const last = input.turns.at(-1);
   if (!last) throw new Error('No completed turns');
-  const response = await runtimeFetch('/api/small-model/generate', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    signal: input.signal,
-    body: JSON.stringify({
+  // ACP sessions resolve through `sessionKey` alone: their assistant records
+  // carry a synthetic provider (`acp:<backend>`) that names no OpenCode
+  // provider, and sending an OpenCode session key would misdirect the
+  // server's ACP fallback at its index lookup. OpenCode bodies stay
+  // byte-identical to their historical shape.
+  const isAcp = !!input.sessionKey && isAcpSessionId(input.sessionKey);
+  const body = isAcp
+    ? {
+      prompt: formatSessionTitleContext(input.turns),
+      system: TITLE_SYSTEM_PROMPT,
+      directory: input.directory,
+      sessionKey: input.sessionKey as string,
+      restrictToPreferredProvider: true,
+    }
+    : {
       prompt: formatSessionTitleContext(input.turns),
       system: TITLE_SYSTEM_PROMPT,
       directory: input.directory,
@@ -128,7 +141,12 @@ export async function generateSessionTitle(input: {
       preferredModelID: last.assistant.info.modelID,
       // Read by servers before 2026-10; newer ones stay on the named provider anyway.
       restrictToPreferredProvider: true,
-    }),
+    };
+  const response = await runtimeFetch('/api/small-model/generate', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    signal: input.signal,
+    body: JSON.stringify(body),
   });
   if (!response.ok) throw new Error('Session title generation failed');
   return generatedSessionTitleSchema.parse(await response.json());

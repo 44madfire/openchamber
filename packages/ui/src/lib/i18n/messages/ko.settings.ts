@@ -1,3 +1,4 @@
+import { acpSettingsI18n } from './acp.settings.i18n';
 import { extensionsSettingsI18n } from './extensions.settings.i18n';
 import { guestIntegrationsI18n } from './guest-integrations.i18n';
 import { linearIntegrationI18n } from './linear-integration.i18n';
@@ -2514,6 +2515,7 @@ export const settingsDict = {
   ...extensionCatalogI18n.ko,
   ...guestIntegrationsI18n.ko,
   ...extensionsSettingsI18n.ko,
+  ...acpSettingsI18n.ko,
   'settings.page.integrations.title': '통합',
   'settings.page.integrations.description': 'OpenChamber와 함께 쓰는 서비스와 구독을 연결합니다.',
   'settings.agents.page.field.steps': '최대 단계 수',

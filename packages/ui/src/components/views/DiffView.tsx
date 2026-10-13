@@ -61,8 +61,7 @@ import type { WalkthroughTarget } from '@/lib/walkthrough/types';
 import { useWalkthroughStore } from '@/stores/useWalkthroughStore';
 import { usePullRequestSelectionStore } from '@/stores/usePullRequestSelectionStore';
 import { useSessionUIStore } from '@/sync/session-ui-store';
-import { useSessionMessages } from '@/sync/sync-context';
-import { opencodeClient } from '@/lib/opencode/client';
+import { useLastTurnDiffs } from './useLastTurnDiffs';
 import { getFirstChangedModifiedLineFromPatch } from './diffPatchUtils';
 import { parseDiffFromFile, type FileDiffMetadata } from '@pierre/diffs';
 import { useRepositoryBinding } from '@/lib/source-control/repository-binding';
@@ -106,16 +105,6 @@ type DiffLoadFailure =
     | { kind: 'error'; message: string }
     | { kind: 'unavailable'; reason: GitPathUnavailableReason };
 type DiffScope = 'all' | PendingDiffScope;
-
-type TurnSnapshotDiff = {
-    file?: string;
-    status?: string;
-    before?: string;
-    after?: string;
-    patch?: string;
-    additions?: number;
-    deletions?: number;
-};
 
 type ComparisonDiffResult =
     | { status: 'loading' }
@@ -1271,7 +1260,6 @@ export const DiffView: React.FC<DiffViewProps> = ({
     const setDiffFileListMode = useUIStore((state) => state.setDiffFileListMode);
     const openContextFileAtLine = useUIStore((state) => state.openContextFileAtLine);
     const currentSessionId = useSessionUIStore((state) => state.currentSessionId);
-    const sessionMessages = useSessionMessages(activeDiffScope === 'turn' ? currentSessionId ?? '' : '', rootDirectory ?? undefined);
     const diffWrapLines = diffWrapLinesStore;
     const forcedStaged = activeDiffScope === 'staged' ? true : activeDiffScope === 'working' ? false : null;
     const activeDiffStaged = forcedStaged ?? displayFileStaged;
@@ -1328,33 +1316,13 @@ export const DiffView: React.FC<DiffViewProps> = ({
     // v1 read the last turn's diffs off a working-tree snapshot on the user
     // message. v2 computes them on request from the turn's snapshots
     // (`GET /api/session/:id/diff`), merged per file, so a file edited three
-    // times in one turn is one diff. Refetched whenever the transcript moves
-    // (a turn ending is what changes the answer).
-    const [lastTurnDiffs, setLastTurnDiffs] = React.useState<TurnSnapshotDiff[]>([]);
-    const lastMessageId = sessionMessages.length > 0 ? sessionMessages[sessionMessages.length - 1].id : '';
-    React.useEffect(() => {
-        if (activeDiffScope !== 'turn' || !currentSessionId || !visible) return;
-        let cancelled = false;
-        void opencodeClient.getSessionTurnDiff(currentSessionId, { directory: rootDirectory ?? undefined })
-            .then((files) => {
-                if (cancelled) return;
-                setLastTurnDiffs(files.map((entry) => ({
-                    file: entry.file,
-                    patch: entry.patch,
-                    status: entry.status,
-                    additions: entry.additions,
-                    deletions: entry.deletions,
-                })));
-            })
-            .catch((error) => {
-                if (cancelled) return;
-                console.warn('[diff-view] turn diff unavailable:', error instanceof Error ? error.message : error);
-                setLastTurnDiffs([]);
-            });
-        return () => {
-            cancelled = true;
-        };
-    }, [activeDiffScope, currentSessionId, lastMessageId, rootDirectory, visible]);
+    // times in one turn is one diff. See `useLastTurnDiffs` for refresh rules.
+    const lastTurnDiffs = useLastTurnDiffs(
+        currentSessionId,
+        rootDirectory ?? undefined,
+        activeDiffScope === 'turn',
+        visible,
+    );
 
     const lastTurnDiffData = React.useMemo(() => {
         const map = new Map<string, DiffData>();

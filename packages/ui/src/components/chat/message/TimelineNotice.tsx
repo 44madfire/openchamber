@@ -15,6 +15,7 @@ import React from 'react';
 
 import { Icon } from '@/components/icon/Icon';
 import { isAcpUnsupported } from '@/lib/acp/capabilities';
+import { isAcpSessionId } from '@/lib/acp/session-key';
 import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { ReasoningTimelineBlock } from './parts/ReasoningPart';
@@ -181,7 +182,9 @@ const SubagentRunActions: React.FC<{ message: SyntheticMessage; canFork: boolean
         void useSessionUIStore.getState().forkFromMessage(message.sessionID, message.id);
     }, [message.id, message.sessionID]);
     const session = useSession(message.sessionID);
-    const showRevert = !isAcpUnsupported(message.sessionID, "revert");
+    // An ACP subagent report is not a user turn and has no checkpoint row, so
+    // revert stays hidden for ACP sessions here; user messages carry it.
+    const showRevert = !isAcpSessionId(message.sessionID) && !isAcpUnsupported(message.sessionID, "revert");
     const showFork = canFork && !isAcpUnsupported(message.sessionID, "fork", session);
     if (!showRevert && !showFork) return null;
 

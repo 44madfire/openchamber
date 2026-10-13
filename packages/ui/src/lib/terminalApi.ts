@@ -47,7 +47,7 @@ const SOCKET_OPEN = 1;
 const IDLE_SOCKET_GRACE_MS = 15_000;
 const encoder = new TextEncoder();
 const decoder = new TextDecoder();
-const terminalModeSchema = z.enum(['interactive', 'command']);
+const terminalModeSchema = z.enum(['interactive', 'command', 'direct']);
 const terminalStatusSchema = z.enum(['running', 'exited', 'error']);
 const terminalRuntimeSchema = z.enum(['node', 'bun']);
 type TerminalSessionPurposeInput =
@@ -60,7 +60,7 @@ type TerminalSessionInput = {
   cols?: number;
   rows?: number;
   status?: 'running' | 'exited' | 'error';
-  mode?: 'interactive' | 'command';
+  mode?: 'interactive' | 'command' | 'direct';
   purpose?: TerminalSessionPurposeInput;
 } | null | undefined;
 const terminalSessionPurposeSchema = z.discriminatedUnion('type', [

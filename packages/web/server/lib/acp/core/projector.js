@@ -770,7 +770,8 @@ export const createSessionProjector = ({ key, backendId, directory, index = null
     const message = { id, sessionID: key, role: 'user', time: { created: at } };
     recordMessage(message);
     state.userTurnIds.push(id);
-    events.push({ type: 'message.updated', properties: { info: { ...message, time: { ...message.time } } } });
+    message.metadata = { acpTurn: state.userTurnIds.length };
+    events.push({ type: 'message.updated', properties: { info: { ...message, time: { ...message.time }, metadata: { ...message.metadata } } } });
     const part = { id: `${id}:text:0`, sessionID: key, messageID: id, type: 'text', text: cappedText(text) };
     appendPart(id, part);
     events.push({ type: 'message.parts.replaced', properties: { sessionID: key, messageID: id, parts: [{ ...part }] } });
@@ -1383,7 +1384,12 @@ export const createSessionProjector = ({ key, backendId, directory, index = null
       const message = { id: messageId, sessionID: key, role: 'user', time: { created: tickAfter() } };
       recordMessage(message);
       state.userTurnIds.push(messageId);
-      events.push({ type: 'message.updated', properties: { info: { ...message, time: { ...message.time } } } });
+      // Canonical turn stamp (D12): the 1-based ordinal in the
+      // accepted-turn list, so the UI reverts/gates/diffs the absolute
+      // turn instead of counting its loaded window. Identical across
+      // rebuilds (replay appends in transcript order).
+      message.metadata = { acpTurn: state.userTurnIds.length };
+      events.push({ type: 'message.updated', properties: { info: { ...message, time: { ...message.time }, metadata: { ...message.metadata } } } });
       const projected = (Array.isArray(parts) ? parts : []).flatMap((part, partIndex) => {
         if (part?.type === 'text' && typeof part.text === 'string') {
           return [{ id: `${messageId}:text:0`, sessionID: key, messageID: messageId, type: 'text', text: cappedText(part.text) }];

@@ -175,4 +175,38 @@ describe("generateCommitMessage diff collection", () => {
     // Two files in flight, each issuing a staged + unstaged pair.
     expect(peakDiffRequests).toBeLessThanOrEqual(4)
   })
+
+  test("OpenCode small-model bodies are byte-identical; only ACP adds sessionKey", async () => {
+    const { useSessionUIStore } = await import("@/sync/session-ui-store")
+    const { useConfigStore } = await import("@/stores/useConfigStore")
+    const bodies: Array<Record<string, unknown>> = []
+    request.mockImplementation(async (input, init) => {
+      const url = String(input)
+      if (url.includes("/api/small-model/generate")) {
+        bodies.push(JSON.parse(String((init as RequestInit).body)) as Record<string, unknown>)
+        return jsonResponse(JSON.stringify({ text: '{"subject":"s","highlights":[]}' }))
+      }
+      if (url.includes("/api/git/log")) {
+        return jsonResponse(JSON.stringify({ all: [], latest: null, total: 0 }))
+      }
+      if (url.includes("/api/magic-prompts")) {
+        return jsonResponse(JSON.stringify({ version: 1, overrides: {} }))
+      }
+      if (url.includes("/api/git/diff")) {
+        return jsonResponse(JSON.stringify({ path: "src/file.ts", diff: "", submodule: null }))
+      }
+      return jsonResponse("{}")
+    })
+    useConfigStore.setState({ currentProviderId: null, currentModelId: null } as never)
+    // OpenCode session active: exact historical keys, no sessionKey.
+    useSessionUIStore.setState({ currentSessionId: "ses_01ABc2" } as never)
+    await generateCommitMessage("/repo", ["src/file.ts"])
+    // ACP session active: sessionKey appended, nothing else changes.
+    useSessionUIStore.setState({ currentSessionId: "ses_acp-omp_r1" } as never)
+    await generateCommitMessage("/repo", ["src/file.ts"])
+    expect(bodies).toHaveLength(2)
+    expect(Object.keys(bodies[0])).toEqual(["system", "prompt", "directory"])
+    expect(Object.keys(bodies[1])).toEqual(["system", "prompt", "directory", "sessionKey"])
+    expect(bodies[1]?.sessionKey).toBe("ses_acp-omp_r1")
+  })
 })

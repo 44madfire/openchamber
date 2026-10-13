@@ -3,6 +3,7 @@ import * as gitHttp from './gitApiHttp';
 import { mapWithConcurrency } from './concurrency';
 import { opencodeClient } from './opencode/client';
 import { renderMagicPrompt } from './magicPrompts';
+import { isAcpSessionId } from '@/lib/acp/session-key';
 import { requestSmallModel } from './smallModelRequest';
 import { materializeOpenDraftSession, useSessionUIStore } from '@/sync/session-ui-store';
 import { useSelectionStore } from '@/sync/selection-store';
@@ -277,6 +278,11 @@ export async function generateCommitMessage(
   try {
     const diffs = await collectSelectedFileDiffs(directory, files);
     const { currentProviderId, currentModelId } = useConfigStore.getState();
+    const sessionKey = useSessionUIStore.getState().currentSessionId;
+    // Only ACP sessions resolve a one-off backend from the session key; an
+    // OpenCode key would misdirect the server fallback at its index lookup,
+    // so OpenCode bodies keep their exact historical fields.
+    const acpSessionKey = sessionKey && isAcpSessionId(sessionKey) ? sessionKey : undefined;
     const response = await requestSmallModel({
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -286,6 +292,7 @@ export async function generateCommitMessage(
         directory,
         ...(currentProviderId ? { preferredProviderID: currentProviderId } : {}),
         ...(currentModelId ? { preferredModelID: currentModelId } : {}),
+        ...(acpSessionKey ? { sessionKey: acpSessionKey } : {}),
       }),
     }, { notifyOnError: false });
 
@@ -480,6 +487,8 @@ export async function generatePullRequestDescription(
 
   try {
     const { currentProviderId, currentModelId } = useConfigStore.getState();
+    const sessionKey = useSessionUIStore.getState().currentSessionId;
+    const acpSessionKey = sessionKey && isAcpSessionId(sessionKey) ? sessionKey : undefined;
     const response = await requestSmallModel({
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -489,6 +498,7 @@ export async function generatePullRequestDescription(
         directory,
         ...(currentProviderId ? { preferredProviderID: currentProviderId } : {}),
         ...(currentModelId ? { preferredModelID: currentModelId } : {}),
+        ...(acpSessionKey ? { sessionKey: acpSessionKey } : {}),
       }),
     }, { notifyOnError: false });
 

@@ -1,3 +1,4 @@
+import { acpSettingsI18n } from './acp.settings.i18n';
 import { extensionsSettingsI18n } from './extensions.settings.i18n';
 import { guestIntegrationsI18n } from './guest-integrations.i18n';
 import { linearIntegrationI18n } from './linear-integration.i18n';
@@ -2504,6 +2505,7 @@ export const settingsDict = {
   ...extensionCatalogI18n.en,
   ...guestIntegrationsI18n.en,
   ...extensionsSettingsI18n.en,
+  ...acpSettingsI18n.en,
   'settings.page.integrations.title': 'Integrations',
   'settings.page.integrations.description': 'Connect the services and subscriptions OpenChamber works with.',
   'settings.agents.page.field.steps': 'Max steps',

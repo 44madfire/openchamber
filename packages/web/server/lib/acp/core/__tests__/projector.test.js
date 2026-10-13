@@ -771,3 +771,25 @@ describe('acp projector replayed completion', () => {
     }
   });
 });
+
+describe('acp projector turn stamp', () => {
+  it('stamps metadata.acpTurn on live and replayed user messages', () => {
+    const projector = projectorFor('omp');
+    projector.acceptPrompt('msg_1', [{ type: 'text', text: 'one' }]);
+    projector.applyPromptResult({ stopReason: 'end_turn' });
+    projector.acceptPrompt('msg_2', [{ type: 'text', text: 'two' }]);
+    projector.applyPromptResult({ stopReason: 'end_turn' });
+    const page = projector.page({ limit: 10 });
+    const users = page.items.filter((item) => item.info.role === 'user');
+    expect(users.map((u) => u.info.metadata?.acpTurn).sort()).toEqual([1, 2]);
+    const replayed = projectorFor('omp');
+    replayed.beginReplay();
+    replayed.applyUpdate({ sessionId: 'n', update: { sessionUpdate: 'user_message_chunk', messageId: 'u-1', content: { type: 'text', text: 'one' } } }, { replay: true });
+    replayed.applyUpdate({ sessionId: 'n', update: { sessionUpdate: 'agent_message_chunk', messageId: 'm-1', content: { type: 'text', text: 'r' } } }, { replay: true });
+    replayed.applyUpdate({ sessionId: 'n', update: { sessionUpdate: 'user_message_chunk', messageId: 'u-2', content: { type: 'text', text: 'two' } } }, { replay: true });
+    replayed.endReplay();
+    const rpage = replayed.page({ limit: 10 });
+    const rusers = rpage.items.filter((item) => item.info.role === 'user');
+    expect(rusers.map((u) => u.info.metadata?.acpTurn).sort()).toEqual([1, 2]);
+  });
+});

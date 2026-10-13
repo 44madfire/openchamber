@@ -224,6 +224,38 @@ describe("tool row description", () => {
     expect(toolDescription("acp", { path: "notes.md" }, {})).toEqual({ kind: "path", value: "notes.md" })
     expect(toolDescription("acp", {}, {})).toBe(null)
   })
+
+  test("the UI reads the generic identity the projector actually emits (think call end-to-end)", async () => {
+    // The projector is the server's word on the projected shape: feed it a
+    // real `think` call and read the settled part with the UI helpers. This
+    // pins the `metadata.acpTitle`/`acpKind` contract on both sides.
+    const { createSessionProjector } = await import("../../../../web/server/lib/acp/core/projector.js")
+    const projector = createSessionProjector({ key: "ses_acp-omp_r1", backendId: "omp", directory: "/repo" })
+    projector.acceptPrompt("msg_client-1", [{ type: "text", text: "hello" }])
+    projector.applyUpdate({
+      sessionId: "native-1",
+      update: { sessionUpdate: "tool_call", toolCallId: "call_1", kind: "think", title: "Considering alternatives" },
+    })
+    projector.applyUpdate({
+      sessionId: "native-1",
+      update: {
+        sessionUpdate: "tool_call_update",
+        toolCallId: "call_1",
+        status: "completed",
+        content: [{ type: "content", content: { type: "text", text: "done" } }],
+      },
+    })
+    const parts = projector.page({ limit: 10 }).items.flatMap((item) => item.parts)
+    const part = parts.find((entry) => entry.type === "tool" && entry.callID === "call_1") as
+      | { tool: string; state: { input?: Record<string, unknown>; metadata?: Record<string, unknown> } }
+      | undefined
+    expect(part?.tool).toBe("acp")
+    const metadata = part?.state.metadata as import("./model").Metadata | undefined
+    expect(acpToolTitle(metadata)).toBe("Considering alternatives")
+    expect(acpToolKind(metadata)).toBe("think")
+    expect(toolDescription("acp", part?.state.input as import("./model").ToolInput | undefined, metadata))
+      .toEqual({ kind: "text", value: "Considering alternatives" })
+  })
 })
 
 describe("execute call details", () => {

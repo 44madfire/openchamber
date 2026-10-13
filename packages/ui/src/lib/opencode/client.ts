@@ -1638,8 +1638,18 @@ class OpencodeService {
     }
   }
 
-  /** Transient text generated from the session's context; never enters history. */
+  /**
+   * Transient text generated from the session's context; never enters history.
+   * ACP sessions have no `session.generate` — the prompt runs as a throwaway
+   * one-off turn on the session's own backend (D15) instead.
+   */
   async generateSessionText(sessionId: string, prompt: string, directory?: string | null): Promise<string> {
+    if (isAcpSessionId(sessionId)) {
+      const generated = await call("acp.oneoff.generate", () =>
+        acpClient.generateOneOff({ sessionKey: sessionId, instruction: "Reply with exactly what is requested and nothing else.", input: prompt }),
+      )
+      return generated.text
+    }
     const result = await call("session.generate", () =>
       this.clientFor(directory).session.generate({ sessionID: sessionId, prompt }),
     )
@@ -1651,12 +1661,36 @@ class OpencodeService {
    * turn's snapshots: `from` names the user message whose turn to diff
    * (default: the newest), `to` extends the range through a later turn.
    * Covers edits the tool calls alone cannot describe (a `write`, a subagent).
+   * ACP sessions diff the newest serving checkpointed turn instead (D14):
+   * a `complete` row whose end snapshot has not landed yet 422s, so the
+   * lookup walks back past in-progress turns. `from`/`to` ranges stay
+   * OpenCode-only, because ACP turns are numbered by the projector and
+   * addressed by turn, not by message id.
    */
   async getSessionTurnDiff(
     sessionId: string,
     options?: { from?: string; to?: string; context?: number; directory?: string | null },
   ): Promise<FileDiffInfo[]> {
-    if (isAcpSessionId(sessionId)) throw new AcpUnsupportedError("session.diff", sessionId)
+    if (isAcpSessionId(sessionId)) {
+      const { directory, from, to } = options ?? {}
+      if (from !== undefined || to !== undefined) throw new AcpUnsupportedError("session.diff.range", sessionId)
+      const checkpoints = await call("acp.sessions.checkpoints", () => acpClient.getSessionCheckpoints(sessionId, directory))
+      // `complete` lands with the start snapshot, but a diff needs the end
+      // snapshot too: an in-progress newest turn 422s. Walk back to the
+      // newest turn whose diff actually serves.
+      const candidates = [...checkpoints].reverse().filter((row) => row.complete)
+      if (candidates.length === 0) throw new AcpApiError("acp.sessions.diff", 404, "no complete checkpoint turn")
+      let lastError: unknown = null
+      for (const candidate of candidates) {
+        try {
+          return await call("acp.sessions.diff", () => acpClient.getSessionTurnDiff(sessionId, candidate.turn, directory))
+        } catch (error) {
+          if (!(error instanceof AcpApiError) || error.status !== 422) throw error
+          lastError = error
+        }
+      }
+      throw lastError instanceof Error ? lastError : new AcpApiError("acp.sessions.diff", 422, "no turn diff is ready")
+    }
     const { from, to, context } = options ?? {}
     // The client's input type marks every field read-only, so it is built in one go.
     const input: SessionDiffInput = { sessionID: sessionId, from, to, context }
