@@ -166,12 +166,23 @@ describe('connectAcpAgent', () => {
     });
     let stderr = '';
     child.stderr.setEncoding('utf8');
-    child.stderr.on('data', (chunk) => { stderr += chunk; });
+    const stderrArrived = new Promise((resolve, reject) => {
+      const timer = setTimeout(() => reject(new Error('stderr echoes never arrived')), 15_000);
+      timer.unref?.();
+      child.stderr.on('data', (chunk) => {
+        stderr += chunk;
+        if (stderr.includes('PERMISSION:') && stderr.includes('ELICITATION:')) {
+          clearTimeout(timer);
+          resolve(stderr);
+        }
+      });
+    });
+    stderrArrived.catch(() => {});
     try {
       const connected = await connectAcpAgent({ child });
       const session = await connected.connection.newSession({ cwd: process.cwd(), mcpServers: [] });
       await connected.connection.prompt({ sessionId: session.sessionId, prompt: [] });
-      await new Promise((resolve) => setTimeout(resolve, 300));
+      await stderrArrived;
       expect(stderr).toContain('PERMISSION:{"outcome":{"outcome":"cancelled"}}');
       expect(stderr).toContain('ELICITATION:{"action":"cancel"}');
     } catch (error) {

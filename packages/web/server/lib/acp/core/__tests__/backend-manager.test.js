@@ -215,20 +215,44 @@ describe('backend manager', () => {
   });
 
   it('reaps idle backends and keeps leased ones alive', async () => {
+    // No fixed sleeps: the reap deadline passing is OBSERVED via a
+    // lease-free control backend reaping on it, while the leased backend
+    // stays ready — then the released lease reaps too.
     const manager = createAcpBackendManager({
       spawnAgent: await isolatedSpawn(),
-      registry: await seedRegistry([fakeEntry()]),
+      registry: await seedRegistry([fakeEntry(), fakeEntry({ id: 'control', label: 'control' })]),
       idleReapMs: 200,
+    });
+    const reaped = new Promise((resolve, reject) => {
+      const seen = new Set();
+      const timer = setTimeout(() => reject(new Error(`timed out waiting for idle reap (saw: ${[...seen]})`)), 15_000);
+      timer.unref?.();
+      manager.events.on('backend-idle-reaped', ({ backendId }) => {
+        seen.add(backendId);
+        if (seen.has('control') && seen.has('fake')) {
+          clearTimeout(timer);
+          resolve();
+        }
+      });
     });
     try {
       const lease = await manager.acquire('fake');
-      await new Promise((resolve) => setTimeout(resolve, 400));
+      await manager.ensureReady('control');
+      // The control (lease-free) reaps on the deadline; the leased one
+      // cannot — observe both without sleeping a fixed beat.
+      await new Promise((resolve, reject) => {
+        const timer = setTimeout(() => reject(new Error('control backend never reaped')), 15_000);
+        timer.unref?.();
+        manager.events.on('backend-idle-reaped', function onReap({ backendId }) {
+          if (backendId !== 'control') return;
+          clearTimeout(timer);
+          manager.events.removeListener('backend-idle-reaped', onReap);
+          resolve();
+        });
+      });
       expect((await manager.status('fake')).state).toBe('ready');
       lease.release();
-      await new Promise((resolve) => {
-        manager.events.once('backend-idle-reaped', resolve);
-        setTimeout(resolve, 3000);
-      });
+      await reaped;
       expect((await manager.status('fake')).state).toBe('idle');
     } finally {
       await manager.shutdown();
