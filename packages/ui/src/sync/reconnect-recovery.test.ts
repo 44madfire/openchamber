@@ -44,6 +44,32 @@ describe("getReconnectCandidateSessionIds", () => {
     }).sort()).toEqual(["busy", "child", "incomplete", "parent"])
   })
 
+  test("includes idle ACP sessions holding a pending permission or form", () => {
+    expect(getReconnectCandidateSessionIds({
+      session: [createSession("ses_acp-omp_rwaiting"), createSession("ses_acp-omp_rasking")],
+      session_status: {
+        "ses_acp-omp_rwaiting": { type: "idle" } as SessionStatus,
+        "ses_acp-omp_rasking": { type: "idle" } as SessionStatus,
+      },
+      message: {},
+      permission: { "ses_acp-omp_rwaiting": [{ id: "perm_1" }] },
+      form: { "ses_acp-omp_rasking": [{ id: "frm_1" }] },
+    }).sort()).toEqual(["ses_acp-omp_rasking", "ses_acp-omp_rwaiting"])
+  })
+
+  test("excludes idle OpenCode sessions holding only pending buckets", () => {
+    expect(getReconnectCandidateSessionIds({
+      session: [createSession("waiting"), createSession("asking")],
+      session_status: {
+        waiting: { type: "idle" } as SessionStatus,
+        asking: { type: "idle" } as SessionStatus,
+      },
+      message: {},
+      permission: { waiting: [{ id: "perm_1" }] },
+      form: { asking: [{ id: "frm_1" }] },
+    })).toEqual([])
+  })
+
   test("closed historical children do not trigger parent recovery or a history scan", () => {
     let parentReads = 0
     const session: Session[] = Array.from({ length: 15_000 }, (_, index) => ({

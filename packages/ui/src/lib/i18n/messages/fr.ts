@@ -3581,6 +3581,7 @@ export const dict = {
   'chat.formCard.submitFailed': 'Impossible d’envoyer la réponse',
   'chat.formCard.cancelFailed': 'Impossible d’annuler la demande',
   'chat.formCard.tryAgain': 'Réessayez.',
+  'chat.blockingRequest.expired': 'Cette demande a expiré',
   'chat.formDock.progress': '{current} sur {total}',
   'chat.formDock.waiting': '{count} de plus en attente',
   'chat.formDock.back': 'Retour',

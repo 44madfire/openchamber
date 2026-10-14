@@ -62,6 +62,43 @@ import { applyForkInheritance } from "@/lib/sessionForkInheritance"
 import { getSessionGoal } from "@/lib/sessionGoalMetadata"
 import { fetchGoalObjectiveContent, writeGoalObjectiveFile } from "@/lib/goalObjectiveFiles"
 
+/**
+ * An ACP permission or form reply the server answered with "unknown": the
+ * request died with the agent process (API restart, backend restart), so the
+ * card was removed and the caller should say it expired instead of failing.
+ */
+export class AcpBlockingRequestExpiredError extends Error {
+  readonly sessionId: string
+  readonly requestId: string
+
+  constructor(sessionId: string, requestId: string) {
+    super("This request expired")
+    this.name = "AcpBlockingRequestExpiredError"
+    this.sessionId = sessionId
+    this.requestId = requestId
+  }
+}
+
+const ACP_UNKNOWN_REQUEST_CODES: Record<string, true> = {
+  ACP_PERMISSION_UNKNOWN: true,
+  ACP_FORM_UNKNOWN: true,
+}
+
+/**
+ * True when the reply failed because the ACP request is gone server-side: a
+ * 404 explicitly carrying `ACP_PERMISSION_UNKNOWN` / `ACP_FORM_UNKNOWN`. The
+ * session id gates it, so an OpenCode 404 behind a misrouted ACP reply never
+ * mutes the real failure. An uncoded 404 (missing route, intermediary) does
+ * not count: only the unknown-request codes mean "expired".
+ */
+const isAcpBlockingRequestExpiredError = (sessionId: string, error: unknown): boolean => {
+  if (!isAcpSessionId(sessionId)) return false
+  if (!error || typeof error !== "object") return false
+  if (!("status" in error) || error.status !== 404) return false
+  if (!("code" in error) || typeof error.code !== "string") return false
+  return error.code in ACP_UNKNOWN_REQUEST_CODES
+}
+
 const MESSAGE_REFETCH_LIMIT = 100
 const SEND_CONFIRMATION_REFETCH_LIMIT = 30
 // A relay-tunnel send fails when the tunnel drops, and the confirming refetch
@@ -2300,6 +2337,10 @@ export async function respondToPermission(
       throw new Error("Permission reply failed")
     }
   } catch (error) {
+    if (isAcpBlockingRequestExpiredError(sessionId, error)) {
+      removePermissionRequestFromChildStores(sessionId, requestId)
+      throw new AcpBlockingRequestExpiredError(sessionId, requestId)
+    }
     // The server no longer has it, so the card has nothing left to answer.
     if (isPermissionRequestNotFoundError(error)) {
       removePermissionRequestFromChildStores(sessionId, requestId)
@@ -2321,6 +2362,10 @@ export async function dismissPermission(
       throw new Error("Permission dismissal failed")
     }
   } catch (error) {
+    if (isAcpBlockingRequestExpiredError(sessionId, error)) {
+      removePermissionRequestFromChildStores(sessionId, requestId)
+      throw new AcpBlockingRequestExpiredError(sessionId, requestId)
+    }
     if (isPermissionRequestNotFoundError(error)) {
       removePermissionRequestFromChildStores(sessionId, requestId)
     }
@@ -2383,6 +2428,7 @@ export async function dismissOpenPermissionsForSession(sessionId: string): Promi
       try {
         await dismissPermission(scopedSessionId, permission.id)
       } catch (error) {
+        if (error instanceof AcpBlockingRequestExpiredError) return
         if (isPermissionRequestNotFoundError(error)) return
         // Swallow: a failed dismissal must not block the send. The permission
         // is still pending server-side, so it goes back where it was.
@@ -2421,6 +2467,11 @@ export async function replyToForm(
     // present).
     removeFormRequestFromChildStores(sessionId, formId)
   } catch (error) {
+    if (isAcpBlockingRequestExpiredError(sessionId, error)) {
+      removeFormRequestFromChildStores(sessionId, formId)
+      recoverStaleBlockingRequest(sessionId)
+      throw new AcpBlockingRequestExpiredError(sessionId, formId)
+    }
     if (isFormRequestNotFoundError(error)) {
       removeFormRequestFromChildStores(sessionId, formId)
       recoverStaleBlockingRequest(sessionId)
@@ -2440,6 +2491,11 @@ export async function cancelForm(sessionId: string, formId: string): Promise<voi
     // lost-SSE-event rationale (issues #2911, #2448).
     removeFormRequestFromChildStores(sessionId, formId)
   } catch (error) {
+    if (isAcpBlockingRequestExpiredError(sessionId, error)) {
+      removeFormRequestFromChildStores(sessionId, formId)
+      recoverStaleBlockingRequest(sessionId)
+      throw new AcpBlockingRequestExpiredError(sessionId, formId)
+    }
     if (isFormRequestNotFoundError(error)) {
       removeFormRequestFromChildStores(sessionId, formId)
       recoverStaleBlockingRequest(sessionId)
@@ -2503,6 +2559,7 @@ export async function dismissOpenFormsForSession(sessionId: string): Promise<boo
       try {
         await cancelForm(scopedSessionId, form.id)
       } catch (error) {
+        if (error instanceof AcpBlockingRequestExpiredError) return
         if (isFormRequestNotFoundError(error)) return
         // Swallow: a failed cancellation must not block the send. The form
         // is still pending server-side, so it goes back where it was.

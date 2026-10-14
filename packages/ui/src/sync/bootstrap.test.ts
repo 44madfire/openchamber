@@ -203,6 +203,22 @@ describe("bootstrapDirectory", () => {
     expect(await bootstrap.environment).toBe("complete")
     expect(input.store.getState().form).toEqual({})
   })
+  test("an authoritative empty permission list clears stale ACP cards", async () => {
+    const acpId = "ses_acp-omp_r1"
+    const input = inputFor({
+      permission: {
+        [acpId]: [{ id: "perm_stale", sessionID: acpId, action: "shell", resources: [] }],
+      },
+      form: {
+        [acpId]: [{ id: "frm_stale", sessionID: acpId, title: "Pick", fields: [{ key: "answer", type: "boolean" }] }],
+      },
+    })
+    const bootstrap = bootstrapDirectory(input)
+    await bootstrap.sessions
+    expect(await bootstrap.environment).toBe("complete")
+    expect(input.store.getState().permission).toEqual({})
+    expect(input.store.getState().form).toEqual({})
+  })
 
   test("failed form recovery preserves previous forms", async () => {
     const previous = { session: [form("old")] }

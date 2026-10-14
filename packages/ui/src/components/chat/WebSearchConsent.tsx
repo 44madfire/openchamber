@@ -44,7 +44,11 @@ function useConsentReply(form: FormRequest, consent: WebSearchConsent) {
         setPending(true);
         try {
             await sessionActions.replyToForm(form.sessionID, form.id, { [consent.fieldKey]: value });
-        } catch {
+        } catch (error) {
+            if (error instanceof sessionActions.AcpBlockingRequestExpiredError) {
+                toast.info(t('chat.blockingRequest.expired'));
+                return;
+            }
             toast.error(t('chat.formCard.submitFailed'), { description: t('chat.formCard.tryAgain') });
         } finally {
             setPending(false);
@@ -55,7 +59,11 @@ function useConsentReply(form: FormRequest, consent: WebSearchConsent) {
         setPending(true);
         try {
             await sessionActions.cancelForm(form.sessionID, form.id);
-        } catch {
+        } catch (error) {
+            if (error instanceof sessionActions.AcpBlockingRequestExpiredError) {
+                toast.info(t('chat.blockingRequest.expired'));
+                return;
+            }
             toast.error(t('chat.formCard.cancelFailed'), { description: t('chat.formCard.tryAgain') });
         } finally {
             setPending(false);

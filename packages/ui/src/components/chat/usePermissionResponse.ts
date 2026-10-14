@@ -1,5 +1,7 @@
 import React from 'react';
 import type { PermissionReply, PermissionRequest } from '@/types/permission';
+import { toast } from '@/components/ui';
+import { useI18n } from '@/lib/i18n';
 import { useChatColumnActions, useChatSessionSelection } from './chatColumnSession';
 import { useSessions } from '@/sync/sync-context';
 import * as sessionActions from '@/sync/session-actions';
@@ -36,6 +38,7 @@ export const usePermissionResponse = (
   onResponse?: (response: PermissionReply) => void,
 ) => {
   const column: ColumnKind = useChatColumnActions().pinned ? 'pinned' : 'main';
+  const { t } = useI18n();
   const [isResponding, setIsResponding] = React.useState(false);
   const [hasResponded, setHasResponded] = React.useState(false);
   const respondToPermission = sessionActions.respondToPermission;
@@ -47,11 +50,19 @@ export const usePermissionResponse = (
       setHasResponded(true);
       onResponse?.(response);
     } catch (error) {
+      // The agent process is gone (API restart): the action already removed
+      // the card, so say it expired instead of logging a failure.
+      if (error instanceof sessionActions.AcpBlockingRequestExpiredError) {
+        setHasResponded(true);
+        onResponse?.(response);
+        toast.info(t('chat.blockingRequest.expired'));
+        return;
+      }
       console.error('[PermissionCard] Failed to respond to permission:', error);
     } finally {
       setIsResponding(false);
     }
-  }, [onResponse, permission.id, permission.sessionID, respondToPermission]);
+  }, [onResponse, permission.id, permission.sessionID, respondToPermission, t]);
 
   const respondRef = React.useRef(respond);
   respondRef.current = respond;

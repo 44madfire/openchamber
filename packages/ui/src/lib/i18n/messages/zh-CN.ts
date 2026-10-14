@@ -3583,6 +3583,7 @@ export const dict: Record<I18nKey, string> = {
   'chat.formCard.submitFailed': '无法提交答案',
   'chat.formCard.cancelFailed': '无法取消请求',
   'chat.formCard.tryAgain': '请重试。',
+  'chat.blockingRequest.expired': '此请求已过期',
   'chat.formDock.progress': '第 {current} / {total}',
   'chat.formDock.waiting': '还有 {count} 个等待中',
   'chat.formDock.back': '上一步',

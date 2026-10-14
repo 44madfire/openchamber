@@ -3582,6 +3582,7 @@ export const dict: Record<I18nKey, string> = {
   'chat.formCard.submitFailed': '回答を送信できませんでした',
   'chat.formCard.cancelFailed': 'リクエストをキャンセルできませんでした',
   'chat.formCard.tryAgain': 'もう一度お試しください。',
+  'chat.blockingRequest.expired': 'このリクエストは有効期限切れです',
   'chat.formDock.progress': '{current} / {total}',
   'chat.formDock.waiting': 'あと {count} 件が待機中',
   'chat.formDock.back': '戻る',

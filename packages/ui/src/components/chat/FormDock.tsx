@@ -191,7 +191,14 @@ const FormDockPanel: React.FC<{ form: FormRequest; forms: FormRequest[] }> = ({ 
         try {
             await sessionActions.replyToForm(form.sessionID, form.id, buildFormAnswer(fields, values));
             formDrafts.delete(form.id);
-        } catch {
+        } catch (error) {
+            // The agent process is gone (API restart): the action already
+            // removed the card, so say it expired instead of failing.
+            if (error instanceof sessionActions.AcpBlockingRequestExpiredError) {
+                formDrafts.delete(form.id);
+                toast.info(t('chat.blockingRequest.expired'));
+                return;
+            }
             toast.error(t('chat.formCard.submitFailed'), { description: t('chat.formCard.tryAgain') });
         } finally {
             setIsResponding(false);
@@ -203,7 +210,12 @@ const FormDockPanel: React.FC<{ form: FormRequest; forms: FormRequest[] }> = ({ 
         try {
             await sessionActions.cancelForm(form.sessionID, form.id);
             formDrafts.delete(form.id);
-        } catch {
+        } catch (error) {
+            if (error instanceof sessionActions.AcpBlockingRequestExpiredError) {
+                formDrafts.delete(form.id);
+                toast.info(t('chat.blockingRequest.expired'));
+                return;
+            }
             toast.error(t('chat.formCard.cancelFailed'), { description: t('chat.formCard.tryAgain') });
         } finally {
             setIsResponding(false);

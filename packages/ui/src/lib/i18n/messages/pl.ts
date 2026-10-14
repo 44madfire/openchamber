@@ -3587,6 +3587,7 @@ export const dict: Record<I18nKey, string> = {
   'chat.formCard.submitFailed': 'Nie udało się wysłać odpowiedzi',
   'chat.formCard.cancelFailed': 'Nie udało się anulować żądania',
   'chat.formCard.tryAgain': 'Spróbuj ponownie.',
+  'chat.blockingRequest.expired': 'To żądanie wygasło',
   'chat.formDock.progress': '{current} z {total}',
   'chat.formDock.waiting': '{count} więcej czeka',
   'chat.formDock.back': 'Wstecz',
