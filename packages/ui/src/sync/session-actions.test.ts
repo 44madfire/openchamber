@@ -2792,6 +2792,42 @@ describe("ACP stale replies expire the card", () => {
     expect(thrown).toBe(permissionReplyError)
     expect(store.getState().permission["session-a"]).toBe(undefined)
   })
+
+  test("an uncoded ACP 404 keeps its original error and still clears the card", async () => {
+    const permission = buildPermission("perm_1", ACP_ID)
+    const store = createStore({ [ACP_ID]: [permission] }, { session: [sessionFixture(ACP_ID)] })
+    const childStores = createChildStores([["/test/project", store]])
+    // Missing route / intermediary 404: no code, so not an expiry.
+    permissionReplyError = Object.assign(new Error("acp.permissions.reply failed (404): not found"), { status: 404 })
+
+    const { AcpBlockingRequestExpiredError, setActionRefs, respondToPermission } = await import("./session-actions")
+    setActionRefs(childStores, () => "/test/project")
+
+    const thrown = await respondToPermission(ACP_ID, "perm_1", "once").catch((error) => error)
+
+    expect(thrown instanceof AcpBlockingRequestExpiredError).toBe(false)
+    expect(thrown).toBe(permissionReplyError)
+    expect(store.getState().permission[ACP_ID]).toBe(undefined)
+  })
+
+  test("an unrelated coded ACP 404 keeps its original error and still clears the card", async () => {
+    const form = buildForm("frm_1", ACP_ID)
+    const store = createStore({}, { session: [sessionFixture(ACP_ID)], form: { [ACP_ID]: [form] } })
+    const childStores = createChildStores([["/test/project", store]])
+    formReplyError = Object.assign(
+      new Error("acp.forms.reply failed (404): gone"),
+      { status: 404, code: "ACP_SESSION_UNKNOWN" },
+    )
+
+    const { AcpBlockingRequestExpiredError, setActionRefs, replyToForm } = await import("./session-actions")
+    setActionRefs(childStores, () => "/test/project")
+
+    const thrown = await replyToForm(ACP_ID, "frm_1", { choice: true }).catch((error) => error)
+
+    expect(thrown instanceof AcpBlockingRequestExpiredError).toBe(false)
+    expect(thrown).toBe(formReplyError)
+    expect(store.getState().form[ACP_ID]).toBe(undefined)
+  })
 })
 
 describe("replyToForm passes directory", () => {

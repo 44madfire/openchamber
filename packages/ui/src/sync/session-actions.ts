@@ -86,17 +86,17 @@ const ACP_UNKNOWN_REQUEST_CODES: Record<string, true> = {
 
 /**
  * True when the reply failed because the ACP request is gone server-side: a
- * 404 carrying `ACP_PERMISSION_UNKNOWN` / `ACP_FORM_UNKNOWN`. The session id
- * gates it, so an OpenCode 404 behind a misrouted ACP reply never mutes the
- * real failure. A bare 404 without a code still counts: the unknown codes
- * are the only 404s the ACP reply routes emit.
+ * 404 explicitly carrying `ACP_PERMISSION_UNKNOWN` / `ACP_FORM_UNKNOWN`. The
+ * session id gates it, so an OpenCode 404 behind a misrouted ACP reply never
+ * mutes the real failure. An uncoded 404 (missing route, intermediary) does
+ * not count: only the unknown-request codes mean "expired".
  */
 const isAcpBlockingRequestExpiredError = (sessionId: string, error: unknown): boolean => {
   if (!isAcpSessionId(sessionId)) return false
   if (!error || typeof error !== "object") return false
   if (!("status" in error) || error.status !== 404) return false
-  if (!("code" in error) || error.code === undefined) return true
-  return typeof error.code === "string" && error.code in ACP_UNKNOWN_REQUEST_CODES
+  if (!("code" in error) || typeof error.code !== "string") return false
+  return error.code in ACP_UNKNOWN_REQUEST_CODES
 }
 
 const MESSAGE_REFETCH_LIMIT = 100
