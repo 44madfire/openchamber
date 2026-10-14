@@ -10,6 +10,7 @@ import { useDirectoryStore, useSessionStatus, useSessionStatusSnapshotReady } fr
 import { refetchSessionMessages } from '@/sync/session-actions';
 import { LongErrorText } from './LongErrorText';
 import { readLastMessageState, scheduleUnansweredRechecks, type LastMessageState } from './sessionErrorNoticeState';
+import { isAcpSessionId } from "@/lib/acp/session-key"
 
 interface SessionErrorNoticeProps {
   sessionId: string;
@@ -89,13 +90,41 @@ const useStoredFailure = (sessionId: string, directory?: string): StoredFailure 
 // renders its error inline, so the session-level notice must not repeat it.
 // v2 plumbing roles (synthetic prompts, skill/shell records, agent/model
 // switches) are transparent here — one of them arriving after an unanswered
-// prompt must not hide the "no reply" notice.
+// prompt must not hide the "no reply" notice. The one exception is a settled
+// manual (slash-command) compaction newer than an ACP session's prompt: it is
+// positive evidence that turn ran to an outcome (an ACP `/compact` turn ends
+// with the compaction record itself and no assistant message), so the turn
+// counts as answered. A failed compaction's own row already shows its error.
+// Automatic compactions never count — they can settle before the reply — so
+// OpenCode auto-compaction failure/no-reply behavior is unchanged.
+export const compactionAnswersPromptForNotice = (
+  conversation: Message | undefined,
+  messages: Message[] | undefined,
+  sessionId: string,
+): Message | undefined => {
+  if (conversation?.role !== 'user' || !isAcpSessionId(sessionId)) return conversation
+  for (let index = (messages?.length ?? 0) - 1; index >= 0; index -= 1) {
+    const candidate = messages?.[index]
+    if (candidate === conversation) break
+    if (
+      candidate?.role === 'compaction'
+      && (candidate.status === 'completed' || candidate.status === 'failed')
+      && candidate.reason === 'manual'
+    ) {
+      return candidate
+    }
+  }
+  return conversation
+}
+
 const useLastMessageState = (sessionId: string, directory?: string): LastMessageState => {
   const store = useDirectoryStore(directory);
   const cacheRef = React.useRef<LastMessageState>(null);
   const getSnapshot = React.useCallback((): LastMessageState => {
     if (!sessionId) return null;
-    const next = readLastMessageState(getLastConversationMessage(store.getState().message[sessionId]));
+    const conversation = getLastConversationMessage(store.getState().message[sessionId]);
+    const last = compactionAnswersPromptForNotice(conversation, store.getState().message[sessionId], sessionId);
+    const next = readLastMessageState(last);
     if (!next) {
       cacheRef.current = null;
       return null;

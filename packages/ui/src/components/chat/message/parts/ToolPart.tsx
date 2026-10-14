@@ -78,9 +78,11 @@ import { useStreamingTextThrottle } from '../../hooks/useStreamingTextThrottle';
 import { getStreamingOutputAppend, getToolOutput } from './toolOutput';
 import { toAbsoluteFilePath } from '@/lib/path-utils';
 import {
+    acpToolKind,
     executeOutputTruncation,
     executeScript,
     executeToolCalls,
+    isAcpTool,
     isEditTool,
     isExecuteTool,
     isFileChangeTool,
@@ -1328,7 +1330,11 @@ const ToolExpandedContent: React.FC<ToolExpandedContentProps> = React.memo(({
             );
         }
 
-        if (isFileChangeTool(part.tool) && (diffEntries.length > 0 || !!diagnosticSection)) {
+        // ACP generic tool (§3.4): typed diffs render like an edit's, so a
+        // think/switch_mode/other call that touched files still shows them.
+        // Text/terminal output falls through to the plain-text branch below.
+        const isAcpWithDiffs = isAcpTool(part.tool) && diffEntries.length > 0;
+        if ((isFileChangeTool(part.tool) || isAcpWithDiffs) && (diffEntries.length > 0 || !!diagnosticSection)) {
             return renderScrollableBlock(
                 <div className="space-y-3">
                     {diffEntries.map((entry) => (
@@ -1701,7 +1707,7 @@ const ToolPartContent: React.FC<ToolPartProps & { header?: ToolRowHeader; subage
     const shouldTreatAsFinalized = isFinalized;
 
     const diffStats = React.useMemo(() => {
-        return (isEditTool(normalizedPartTool) || isPatchTool(normalizedPartTool))
+        return (isEditTool(normalizedPartTool) || isPatchTool(normalizedPartTool) || isAcpTool(normalizedPartTool))
             ? parseDiffStats(metadata)
             : null;
     }, [metadata, normalizedPartTool]);
@@ -1719,6 +1725,10 @@ const ToolPartContent: React.FC<ToolPartProps & { header?: ToolRowHeader; subage
     );
     const description = guestHeader?.subtitle ?? builtInDescription;
     const displayName = guestHeader?.title ?? getToolMetadata(normalizedPartTool || part.tool).displayName;
+    // ACP generic tool (§3.4): the spec kind reads as a qualifier next to
+    // the title, e.g. "Agent Action · think", so unmapped calls stay
+    // identifiable without inventing a per-kind renderer.
+    const acpKindLabel = isAcpTool(normalizedPartTool) ? acpToolKind(metadata) : undefined;
     
     // Tool title/description — shown inline as context. A subtitle the
     // extension declared replaces it, since both land in the same slot.
@@ -1962,9 +1972,9 @@ const ToolPartContent: React.FC<ToolPartProps & { header?: ToolRowHeader; subage
                                     minDurationMs={300}
                                     className={cn(TOOL_ROW_TITLE_CLASS, 'flex-shrink-0')}
                                     style={titleStyle}
-                                    title={displayName}
+                                    title={acpKindLabel ? `${displayName} · ${acpKindLabel}` : displayName}
                                 >
-                                    {displayName}
+                                    {acpKindLabel ? `${displayName} · ${acpKindLabel}` : displayName}
                                 </MinDurationShineText>
                                 {quickOpenTarget ? (
                                     <button

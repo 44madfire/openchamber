@@ -14,6 +14,7 @@ import type { AcpSessionEntry, AcpSessionIndex } from '../core/session-index.js'
 import type { AcpSessionRecord, AcpSessionService } from '../core/sessions.js';
 import type { AcpSession, AcpSyncFrame } from '../http/routes.js';
  import type { AcpSpawnedAgent } from '../core/spawn.js';
+import type { AcpOneOffHooks, AcpOneOffResult, AcpOneOffService } from '../core/oneoff.js';
 
 export async function exerciseAcpDeclarations(
   manager: AcpBackendManager,
@@ -62,9 +63,18 @@ export async function exerciseAcpSessionDeclarations(
   void renamed.session.time.updated;
   const statuses = await service.status({ directory: 'C:\\work' });
   void statuses;
+  await service.replyPermission({ key: record.id, requestId: 'perm_1', reply: 'once' });
+  await service.getPermission({ key: record.id, requestId: 'perm_1' });
+  await service.listPendingPermissions({ directory: 'C:\\work' });
+  await service.replyForm({ key: record.id, formId: 'form_1', answer: { choice: 'a' } });
+  await service.cancelForm({ key: record.id, formId: 'form_1' });
+  await service.listPendingForms({ directory: 'C:\\work' });
+  await service.commands({ key: record.id });
+  await service.configCache({ backendId: 'fake' });
   const live = service.getLive(record.id);
   void live?.projector.busy;
-  service.dispose();
+  void projector.toolSource('toolu_1')?.messageID;
+  void projector.linkSubagentChild('toolu_1', 'ses_child');
   const entry: AcpSessionEntry = (await index.get(record.id)) ?? {
     key: 'k', backendId: 'b', nativeId: 'n', cwd: 'c', title: '', created: 0, updated: 0,
   };
@@ -84,4 +94,20 @@ export async function exerciseAcpSessionDeclarations(
     properties: { directory: 'C:\\work', events: [{ type: 'session.idle', properties: { sessionID: 's' } }] },
   };
   return { session, record, entry, frame };
+}
+
+export async function exerciseAcpOneOffDeclarations(
+  oneOff: AcpOneOffService,
+): Promise<{ result: AcpOneOffResult; hooks: AcpOneOffHooks }> {
+  const result: AcpOneOffResult = await oneOff.generate({
+    backendId: 'fake',
+    instruction: 'Write a commit message.',
+    input: 'fix typo',
+    maxChars: 200,
+  });
+  void result.sessionCleanup;
+  const hooks: AcpOneOffHooks = oneOff.hooksForOneOff('fake', { isKnownSession: () => false });
+  void hooks;
+  void oneOff.trimOneOffOutput('hi', 10);
+  return { result, hooks };
 }

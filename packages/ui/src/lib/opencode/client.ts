@@ -1682,6 +1682,10 @@ class OpencodeService {
     reply: PermissionReply,
     options?: { message?: string; directory?: string | null },
   ): Promise<boolean> {
+    if (isAcpSessionId(sessionID)) {
+      await call("acp.permissions.reply", () => acpClient.replyToPermission(sessionID, requestID, reply, options))
+      return true
+    }
     await call("permission.reply", () =>
       this.clientFor(options?.directory).permission.reply({
         sessionID,
@@ -1699,6 +1703,18 @@ class OpencodeService {
    * distinct so auto-accept fails closed while the request stays visible.
    */
   async fetchPermission(sessionID: string, requestID: string, directory?: string | null): Promise<FetchPermissionResult> {
+    if (isAcpSessionId(sessionID)) {
+      try {
+        const permission = await call("acp.permissions.get", () => acpClient.fetchPermission(sessionID, requestID, directory))
+        return { state: "ok", permission }
+      } catch (error) {
+        // Same contract as the OpenCode path: a 404 is the server confirming
+        // the request settled; anything else stays unknown so auto-accept
+        // fails closed while the request stays visible.
+        if (error instanceof AcpApiError && error.status === 404) return { state: "resolved" }
+        return { state: "unknown" }
+      }
+    }
     try {
       const permission = await call("permission.get", () => this.clientFor(directory).permission.get({ sessionID, requestID }))
       return { state: "ok", permission }
@@ -1723,7 +1739,15 @@ class OpencodeService {
         ),
       ),
     )
-    return dedupeById(lists)
+    // ACP pending requests live beside OpenCode's; merge them so bootstrap
+    // and resync see one list. A failed ACP read degrades to empty rather
+    // than failing the OpenCode list: the ACP projector may be cold.
+    const acpLists = await Promise.all(
+      directories.map((directory) =>
+        call("acp.permissions.list", () => acpClient.listPendingPermissions(directory)).catch(() => [] as PermissionRequest[]),
+      ),
+    )
+    return dedupeById([...lists, ...acpLists])
   }
 
   // -------------------------------------------------------------------------
@@ -1731,11 +1755,19 @@ class OpencodeService {
   // -------------------------------------------------------------------------
 
   async replyToForm(sessionID: string, formID: string, answer: FormAnswer, directory?: string | null): Promise<boolean> {
+    if (isAcpSessionId(sessionID)) {
+      await call("acp.forms.reply", () => acpClient.replyToForm(sessionID, formID, answer, directory))
+      return true
+    }
     await call("session.form.reply", () => this.clientFor(directory).session.form.reply({ sessionID, formID, answer }))
     return true
   }
 
   async cancelForm(sessionID: string, formID: string, directory?: string | null): Promise<boolean> {
+    if (isAcpSessionId(sessionID)) {
+      await call("acp.forms.cancel", () => acpClient.cancelForm(sessionID, formID, directory))
+      return true
+    }
     await call("session.form.cancel", () => this.clientFor(directory).session.form.cancel({ sessionID, formID }))
     return true
   }
@@ -1750,7 +1782,12 @@ class OpencodeService {
         ),
       ),
     )
-    return dedupeById(lists)
+    const acpLists = await Promise.all(
+      directories.map((directory) =>
+        call("acp.forms.list", () => acpClient.listPendingForms(directory)).catch(() => [] as FormInfo[]),
+      ),
+    )
+    return dedupeById([...lists, ...acpLists])
   }
 
   // -------------------------------------------------------------------------

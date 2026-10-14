@@ -37,6 +37,7 @@ export declare function sessionTagFor(key: string): string;
 
 export interface AcpProjectorSession {
   id: string;
+  parentID?: string;
   projectID: string;
   directory: string;
   title: string;
@@ -69,6 +70,10 @@ export interface AcpProjector {
   beginReplay(): void;
   rollbackReplay(): void;
   endReplay(): AcpSyncEvent[];
+  /** Transcript home of a tool call (`{ messageID, partID }`), or null. */
+  toolSource(toolCallId: string): { messageID: string; partID: string } | null;
+  /** Merge a child session id into a subagent tool part's metadata. */
+  linkSubagentChild(toolCallId: string, childKey: string): AcpSyncEvent[];
   page(options?: { limit?: number; before?: string }): {
     items: Array<{ info: Record<string, unknown>; parts: Array<Record<string, unknown>> }>;
     cursor: { previous?: string; next?: string };
@@ -80,6 +85,6 @@ export declare function createSessionProjector(options: {
   key: string;
   backendId: string;
   directory: string;
-  index?: { title?: string; userTitle?: string; messageIds?: string[] } | null;
+  index?: { title?: string; userTitle?: string; messageIds?: string[]; parentKey?: string } | null;
   now?: () => number;
 }): AcpProjector;

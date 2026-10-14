@@ -202,7 +202,7 @@ export const sessionTagFor = (key) => {
  * @param {string} options.key session key (UI id)
  * @param {string} options.backendId backend that owns the session
  * @param {string} options.directory normalized cwd
- * @param {object} [options.index] `{ title, userTitle }` read at build time
+ * @param {object} [options.index] `{ title, userTitle, parentKey }` read at build time
  * @param {() => number} [options.now]
  */
 export const createSessionProjector = ({ key, backendId, directory, index = null, now = () => Date.now() }) => {
@@ -214,6 +214,7 @@ export const createSessionProjector = ({ key, backendId, directory, index = null
   const state = {
     info: {
       id: key,
+      ...(index?.parentKey ? { parentID: index.parentKey } : {}),
       projectID: `acp:${backendId}`,
       directory,
       title: index?.userTitle ?? index?.title ?? '',
@@ -258,6 +259,11 @@ export const createSessionProjector = ({ key, backendId, directory, index = null
     // The settled turn's assistant: trailing updates after the result land
     // here without reopening the turn or minting orphan messages.
     completedAssistantId: null,
+    // Compaction tracking: agent compaction id → projector message id of the
+    // running compaction record. Standard updates key by `compactionId`; the
+    // `_meta["opencode/compaction"]` fallback by its `messageId` (or a
+    // session-scoped fallback id when the agent sends none).
+    compactions: new Map(),
   };
 
   const touch = () => { state.info.time.updated = now(); };
@@ -499,6 +505,11 @@ export const createSessionProjector = ({ key, backendId, directory, index = null
     }
     if (status === 'completed' || status === 'failed') {
       const metadata = metadataFromContent(update?.content, asRecord(update?._meta), update?.rawOutput);
+      // A linked child session survives the settle: the agent's own metadata
+      // never names it (typed content only), so keep ours.
+      const linked = part.state && typeof part.state === 'object' && part.state.metadata
+        && typeof part.state.metadata === 'object' ? part.state.metadata.sessionID : undefined;
+      if (typeof linked === 'string' && linked && metadata.sessionID === undefined) metadata.sessionID = linked;
       const output = metadata.output ?? '';
       const transition = status === 'completed'
         ? {
@@ -542,6 +553,10 @@ export const createSessionProjector = ({ key, backendId, directory, index = null
     }
     if (part.state.status === 'running') {
       const metadata = metadataFromContent(update?.content, asRecord(update?._meta), update?.rawOutput);
+      const linked = part.state.metadata && typeof part.state.metadata === 'object'
+        ? part.state.metadata.sessionID
+        : undefined;
+      if (typeof linked === 'string' && linked && metadata.sessionID === undefined) metadata.sessionID = linked;
       if (Object.keys(metadata).length > 0) {
         events.push({
           type: 'message.tool.transition',
@@ -753,15 +768,39 @@ export const createSessionProjector = ({ key, backendId, directory, index = null
     const modeId = update?.currentModeId;
     if (typeof modeId !== 'string' || !modeId) return;
     const modes = state.info.metadata.acp.modes ?? [];
-    const previous = modes.find((mode) => mode.current)?.id;
-    state.info.metadata.acp.modes = modes.map((mode) => ({ ...mode, current: mode.id === modeId }));
+    const previousEntry = modes.find((mode) => mode.current);
+    // Adopt names/descriptions the agent volunteers (some agents describe
+    // their modes only in updates, not in the new/load response).
+    const available = Array.isArray(update?.availableModes) ? update.availableModes : null;
+    let merged = modes;
+    if (available) {
+      merged = available.map((mode) => ({
+        id: String(mode?.id ?? ''),
+        ...(typeof mode?.name === 'string' ? { name: mode.name } : {}),
+        ...(typeof mode?.description === 'string' ? { description: mode.description } : {}),
+      }));
+      for (const mode of modes) {
+        if (!merged.some((entry) => entry.id === mode.id)) merged.push({ ...mode });
+        else if (mode.name && !merged.find((entry) => entry.id === mode.id).name) {
+          merged.find((entry) => entry.id === mode.id).name = mode.name;
+        }
+      }
+    }
+    // Track unknown mode ids too: the current mode is facts, not catalog.
+    if (!merged.some((mode) => mode.id === modeId)) merged = [...merged, { id: modeId }];
+    state.info.metadata.acp.modes = merged.map((mode) => ({ ...mode, current: mode.id === modeId }));
     touch();
     events.push({
       type: 'session.patched',
       properties: { sessionID: key, patch: { metadata: JSON.parse(JSON.stringify(state.info.metadata)) } },
     });
-    if (previous !== modeId) {
-      announce(events, 'agent-switched', { agent: modeId, ...(previous ? { previous } : {}) });
+    if (previousEntry?.id !== modeId) {
+      const current = merged.find((mode) => mode.id === modeId) ?? {};
+      announce(events, 'agent-switched', {
+        agent: current.name ?? modeId,
+        agentID: modeId,
+        ...(previousEntry ? { previous: previousEntry.name ?? previousEntry.id } : {}),
+      });
     }
   };
 
@@ -792,6 +831,153 @@ export const createSessionProjector = ({ key, backendId, directory, index = null
       touch();
     }
   };
+  // -- compaction (standard updates + `_meta["opencode/compaction"]`) --------
+  //
+  // A compaction is a timeline record: `message.updated` with `role:
+  // 'compaction'`, `status: 'running'` and an empty summary, then
+  // `message.compaction.delta` per summary chunk, then a settled
+  // `message.updated` (`completed`/`failed`). The reducer replaces the running
+  // record in place (it carries no input id, like OpenCode's own ended
+  // event). One record per agent compaction id; when the fallback meta
+  // names no message id, the session-scoped fallback id keeps id-less
+  // start/complete pairs on one record.
+
+  const COMPACTION_FALLBACK_ID = 'fallback';
+
+  const compactionIdOf = (update) =>
+    (typeof update?.compactionId === 'string' && update.compactionId) ? update.compactionId : null;
+
+  const ensureCompaction = (events, compactionKey, reason) => {
+    const known = state.compactions.get(compactionKey);
+    if (known) {
+      const existing = messageById(known);
+      if (existing && existing.role === 'compaction') return existing;
+      state.compactions.delete(compactionKey);
+    }
+    const { id, at } = allocate();
+    const message = {
+      id,
+      sessionID: key,
+      role: 'compaction',
+      time: { created: at },
+      status: 'running',
+      reason,
+      summary: '',
+    };
+    recordMessage(message);
+    state.compactions.set(compactionKey, id);
+    touch();
+    events.push({ type: 'message.updated', properties: { info: { ...message, time: { ...message.time } } } });
+    return message;
+  };
+
+  const settleCompaction = (events, compactionKey, status, summary, error) => {
+    const message = state.replaying
+      ? ensureCompaction(events, compactionKey, 'manual')
+      : (messageById(state.compactions.get(compactionKey)) ?? ensureCompaction(events, compactionKey, 'manual'));
+    message.status = status;
+    // Patch semantics: omission leaves the value, `null`/`[]` clears it, a
+    // concrete value replaces it. The mapping is RETAINED for the transcript
+    // lifetime: later updates/chunks for the same id patch this record in
+    // place, never mint a second one.
+    if (summary !== undefined) message.summary = summary === null ? '' : cappedText(summary);
+    if (error !== undefined) {
+      if (error === null) delete message.error;
+      else message.error = error;
+    }
+    touch();
+    // The settled record keeps the running one's identity (the reducer
+    // replaces by role/status, but pages and `endReplay` diffs need the id
+    // stable too).
+    events.push({ type: 'message.updated', properties: { info: JSON.parse(JSON.stringify(message)) } });
+  };
+
+  const appendCompactionDelta = (events, compactionKey, delta) => {
+    if (typeof delta !== 'string' || !delta) return;
+    const message = ensureCompaction(events, compactionKey, 'manual');
+    message.summary = cappedText(message.summary + delta);
+    touch();
+    events.push({ type: 'message.compaction.delta', properties: { sessionID: key, delta } });
+    if (message.status !== 'running') {
+      // The reducer only streams deltas into running records; a late chunk
+      // for a settled id also refreshes the record so pages and the UI agree.
+      events.push({ type: 'message.updated', properties: { info: JSON.parse(JSON.stringify(message)) } });
+    }
+  };
+
+  // `undefined` = omitted (leave), `null` = clear, string = replace. `[]`
+  // also clears per the RFD.
+  const summaryTextOf = (summary) => {
+    if (summary === undefined) return undefined;
+    if (summary === null) return null;
+    if (typeof summary === 'string') return summary;
+    if (!Array.isArray(summary)) return undefined;
+    if (summary.length === 0) return null;
+    const texts = [];
+    for (const block of summary) {
+      if (block?.type === 'text' && typeof block.text === 'string') texts.push(block.text);
+    }
+    return texts.length > 0 ? texts.join('') : null;
+  };
+
+  const applyCompactionUpdate = (events, update) => {
+    const compactionKey = compactionIdOf(update);
+    if (!compactionKey) return;
+    const status = update?.status;
+    if (status === 'completed' || status === 'failed' || status === 'cancelled') {
+      settleCompaction(
+        events,
+        compactionKey,
+        status === 'completed' ? 'completed' : 'failed',
+        summaryTextOf(update?.summary),
+        update?.error === undefined
+          ? undefined
+          : (typeof update.error === 'string' && update.error ? { type: 'acp_error', message: update.error } : null),
+      );
+      return;
+    }
+    const message = ensureCompaction(events, compactionKey, 'manual');
+    const summary = summaryTextOf(update?.summary);
+    if (summary !== undefined) {
+      message.summary = summary === null ? '' : cappedText(summary);
+      touch();
+      events.push({ type: 'message.updated', properties: { info: JSON.parse(JSON.stringify(message)) } });
+    }
+    if (update?.error !== undefined) {
+      if (update.error === null) delete message.error;
+      else if (typeof update.error === 'string' && update.error) message.error = { type: 'acp_error', message: update.error };
+      touch();
+      events.push({ type: 'message.updated', properties: { info: JSON.parse(JSON.stringify(message)) } });
+    }
+  };
+
+  const applyCompactionChunk = (events, update) => {
+    const compactionKey = compactionIdOf(update);
+    if (!compactionKey) return;
+    appendCompactionDelta(events, compactionKey, textOf(update?.content));
+  };
+
+  const applyMetaCompaction = (events, meta) => {
+    if (!meta || typeof meta !== 'object') return;
+    const compactionKey = (typeof meta.messageId === 'string' && meta.messageId)
+      ? `meta:${meta.messageId}`
+      : `meta:${COMPACTION_FALLBACK_ID}`;
+    const status = meta.status;
+    if (status === 'started' || status === 'in_progress') {
+      ensureCompaction(events, compactionKey, meta.reason === 'auto' ? 'auto' : 'manual');
+      return;
+    }
+    if (status === 'completed' || status === 'failed' || status === 'cancelled') {
+      settleCompaction(
+        events,
+        compactionKey,
+        status === 'completed' ? 'completed' : 'failed',
+        typeof meta.summary === 'string' ? meta.summary : undefined,
+        typeof meta.error === 'string' && meta.error ? { type: 'acp_error', message: meta.error } : undefined,
+      );
+    }
+  };
+
 
   const applyUsage = (events, update) => {
     const used = typeof update?.used === 'number' ? update.used : null;
@@ -980,7 +1166,7 @@ export const createSessionProjector = ({ key, backendId, directory, index = null
     },
 
     get commands() {
-      return state.commands.map((command) => ({ ...command }));
+      return (state.commands ?? []).map((command) => ({ ...command }));
     },
 
     session() {
@@ -1020,6 +1206,48 @@ export const createSessionProjector = ({ key, backendId, directory, index = null
         touch();
       }
     },
+    /**
+     * The transcript home of a tool call, for permission `source` links:
+     * `{ messageID, partID }` when a tool part with this call id exists (any
+     * message, newest first), else null.
+     */
+    toolSource(toolCallId) {
+      if (typeof toolCallId !== 'string' || !toolCallId) return null;
+      for (let index = state.messages.length - 1; index >= 0; index -= 1) {
+        const messageId = state.messages[index].id;
+        const parts = state.parts.get(messageId) ?? [];
+        const part = parts.find((entry) => entry.type === 'tool' && entry.callID === toolCallId);
+        if (part) return { messageID: messageId, partID: part.id };
+      }
+      return null;
+    },
+
+    /**
+     * Link a `subagent` tool part to its child session: merges `sessionID`
+     * into the part's metadata and emits a `message.part.updated` so pages
+     * and the UI row model agree. No-op (no events) when the part is
+     * unknown or already linked.
+     */
+    linkSubagentChild(toolCallId, childKey) {
+      if (typeof toolCallId !== 'string' || !toolCallId) return [];
+      if (typeof childKey !== 'string' || !childKey) return [];
+      for (let index = state.messages.length - 1; index >= 0; index -= 1) {
+        const messageId = state.messages[index].id;
+        const parts = state.parts.get(messageId) ?? [];
+        const part = parts.find((entry) => entry.type === 'tool' && entry.callID === toolCallId);
+        if (!part) continue;
+        const metadata = part.state && typeof part.state === 'object' ? part.state.metadata : null;
+        if (metadata && typeof metadata === 'object' && metadata.sessionID === childKey) return [];
+        part.state = {
+          ...part.state,
+          metadata: { ...(metadata && typeof metadata === 'object' ? metadata : {}), sessionID: childKey },
+        };
+        touch();
+        return [{ type: 'message.part.updated', properties: { sessionID: key, part: structuredClone(part) } }];
+      }
+      return [];
+    },
+
 
     /**
      * Prompt accepted: echo the client's `messageId` as the user message,
@@ -1113,13 +1341,20 @@ export const createSessionProjector = ({ key, backendId, directory, index = null
           break;
         case 'session_info_update':
           applySessionInfo(events, update);
+          applyMetaCompaction(events, asRecord(update?._meta)['opencode/compaction']);
           break;
         case 'usage_update':
           applyUsage(events, update);
           break;
+        case 'compaction_update':
+          applyCompactionUpdate(events, update);
+          break;
+        case 'compaction_summary_chunk':
+          applyCompactionChunk(events, update);
+          break;
         default:
-          // Unknown updates (compaction, notices, future kinds) are ignored
-          // in M1; later phases project them. Never throw on agent traffic.
+          // Unknown updates (notices, future kinds) are ignored; later
+          // phases project them. Never throw on agent traffic.
           break;
       }
       return events;
@@ -1179,12 +1414,14 @@ export const createSessionProjector = ({ key, backendId, directory, index = null
         busy: state.busy,
         status: { ...state.status },
         completedAssistantId: state.completedAssistantId,
+        compactions: new Map(state.compactions),
       };
       state.messages = [];
       state.parts = new Map();
       state.busy = false;
       state.turn = null;
       state.completedAssistantId = null;
+      state.compactions = new Map();
       state.status = { type: 'idle' };
       state.replaying = true;
       state.replayTurn = 0;
@@ -1210,6 +1447,7 @@ export const createSessionProjector = ({ key, backendId, directory, index = null
       state.busy = snapshot.busy;
       state.status = snapshot.status;
       state.completedAssistantId = snapshot.completedAssistantId;
+      state.compactions = snapshot.compactions ?? new Map();
     },
 
     /**

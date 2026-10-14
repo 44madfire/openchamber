@@ -20,19 +20,38 @@
  *   watchdog (§4: cancel, load, replay-once, error).
  * - cancel → `session/cancel` notification + answer pending permission /
  *   elicitation requests with `cancelled`.
+ * - `permissions.reply` / `forms.reply` / `forms.cancel` → answer the parked
+ *   JSON-RPC request, then emit `permission.replied` / `form.settled`.
  * - config → `set_config_option`, or `set_mode` directly for
- *   modes-without-config agents (never `set_model`).
+ *   modes-without-config agents (never `set_model`); refreshes the registry
+ *   config cache (D9).
+ * - commands → the cached `available_commands` in `CommandInfo` shape.
+ * - Child sessions (`opencode/session/child_update`, `_meta`) get their own
+ *   live record + projector (`parentKey` in the index, `parentID` on the
+ *   session) and their traffic routes by native child id.
  * - delete → `delete` cap else `close` cap; drop the index entry.
  * - rename → index `userTitle` (wins over agent titles); agent titles
  *   persist to the index as they arrive.
  * - Backend crash → `session.error{acp_backend_exit}` on live sessions.
  * - Idle projections evict under an LRU policy (default: at most 20
  *   inactive, after 15 min idle); reopening rebuilds via load.
+ *   (Child records never evict while their parent is live.)
  */
 
 import { EventEmitter } from 'node:events';
 
 import { directoryKey, normalizeDirectory } from './directory-key.js';
+import {
+  choiceFormFor,
+  contentForAnswer,
+  elicitationFormFor,
+  formIdFor,
+  isChoicePrompt,
+  optionIdForReply,
+  permissionIdFor,
+  permissionRequestFor,
+  validateAnswerContent,
+} from './interaction.js';
 import { decode, encode } from './session-key.js';
 import { createSessionProjector } from './projector.js';
 
@@ -124,12 +143,18 @@ export const createAcpSessionService = ({
 
   // key -> { entry, projector, nativeId, backendId, directory, connection,
   // turn, opening, cancelled, declinedInTurn, watchdogTimer, pendingRequests,
-  // readOnly, lastActiveAt }
+  // pendingPermissions, pendingForms, readOnly, lastActiveAt, parentKey,
+  // childStatus }
   //
   // `turn` is null when idle, else `{ generation, messageId, parts, retried,
   // deferred }` where `deferred.promise` resolves when the turn settles, is
   // abandoned by the watchdog, or finishes its post-cancel settle — every
   // waiter (cancel, delete, a second prompt's 409 path) observes it.
+  // `pendingPermissions` maps request id → parked permission (projected
+  // request + resolver + options); `pendingForms` maps form id → parked form
+  // (projected form + resolver + either an elicitation schema or a parked
+  // permission for choice prompts). `pendingRequests` stays as the legacy
+  // cascade list (every parked entry is also listed there).
   const live = new Map();
   // Cold opens in flight, shared by concurrent open/messages/prompt/config.
   const opening = new Map();
@@ -154,6 +179,14 @@ export const createAcpSessionService = ({
     // A dropped record must never leave waiters hanging.
     record.turn?.deferred?.resolve({ status: 'dropped' });
     record.turn = null;
+    // ...nor parked agent requests: answer them so the agent's turn can
+    // finish, and settle the cards. Idempotent (splice-once), so prior
+    // explicit cascades make this a no-op.
+    try {
+      emitSync(record.directory, answerPending(record));
+    } catch {
+      // Teardown never throws.
+    }
     byNative.delete(`${record.backendId}\0${record.nativeId}`);
     live.delete(key);
   };
@@ -173,35 +206,47 @@ export const createAcpSessionService = ({
   /**
    * Evict idle projections: non-busy, non-opening records older than
    * `idleEvictMs`, plus an LRU cap on the inactive set. `exceptKey` (the
-   * record just tracked) never evicts itself. Eviction drops only the
-   * projection; the sidecar entry stays and reopening rebuilds via load.
+   * record just tracked) never evicts itself. Children whose parent is live
+   * never evict (the parent's transcript links to them). Eviction drops
+   * only the projection; the sidecar entry stays and reopening rebuilds via
+   * load. Evicted records settle their parked prompts first.
    */
   const pruneIdle = (exceptKey = null) => {
+    const evictable = (record) => {
+      if (!record.projector || record.readOnly) return false;
+      if (record.turn || opening.has(record.key) || record.settling) return false;
+      if (record.parentKey && live.has(record.parentKey)) return false;
+      return true;
+    };
+    const evict = (record) => {
+      // Parked prompts die with the projection: answer them so the agent's
+      // turn can finish, and settle the cards.
+      emitSync(record.directory, answerPending(record));
+      persistTranscriptIds(record);
+      dropLive(record.key);
+    };
     const candidates = [];
     for (const [key, record] of live) {
       if (key === exceptKey) continue;
-      if (!record.projector || record.readOnly) continue;
-      if (record.turn || opening.has(key) || record.settling) continue;
+      if (!evictable(record)) continue;
       candidates.push(record);
     }
     for (const record of candidates) {
       if (now() - (record.lastActiveAt ?? 0) >= idleEvictMs) {
-        persistTranscriptIds(record);
-        dropLive(record.key);
+        evict(record);
       }
     }
     if (maxInactiveProjections >= 0) {
       // The cap counts the whole inactive set including the record just
       // tracked; victims are the oldest others, never the new record.
       const inactive = [...live.values()]
-        .filter((record) => !record.turn && !opening.has(record.key) && !record.settling)
+        .filter((record) => evictable(record))
         .sort((a, b) => (a.lastActiveAt ?? 0) - (b.lastActiveAt ?? 0));
       while (inactive.length > maxInactiveProjections) {
         const victim = inactive.find((record) => record.key !== exceptKey);
         if (!victim) break;
         inactive.splice(inactive.indexOf(victim), 1);
-        persistTranscriptIds(victim);
-        dropLive(victim.key);
+        evict(victim);
       }
     }
   };
@@ -259,14 +304,162 @@ export const createAcpSessionService = ({
     index.upsert(record.key, { messageIds, updated: now() }).catch(() => {});
   };
 
+  // -- Phase 1.4: permissions, elicitation, children, config cache ------------
+
+  let pendingNonce = 0;
+  const nextNonce = () => {
+    pendingNonce += 1;
+    return pendingNonce;
+  };
+
+  const ensurePendingMaps = (record) => {
+    if (!record.pendingPermissions) record.pendingPermissions = new Map();
+    if (!record.pendingForms) record.pendingForms = new Map();
+    if (!record.pendingRequests) record.pendingRequests = [];
+    return record;
+  };
+
+  /**
+   * Persist last-seen config options into the backend registry entry `cache`
+   * (D9 pre-session picker). Best-effort: the turn never waits on it, and a
+   * failed write only means the picker shows older options. The patch runs
+   * inside the registry's mutation queue, so a concurrent backend PUT can
+   * neither be overwritten nor wipe the cache.
+   */
+  const refreshConfigCache = (backendId, configOptions) => {
+    if (!registry || typeof registry.patchCache !== 'function') return;
+    if (!Array.isArray(configOptions)) return;
+    registry.patchCache(
+      backendId,
+      configOptions.map((option) => ({ ...(option && typeof option === 'object' ? option : {}) })),
+      new Date(now()).toISOString(),
+    ).catch(() => {});
+  };
+
+  const currentConfigOptions = (record) =>
+    record?.projector?.session()?.metadata?.acp?.configOptions ?? null;
+
+  /**
+   * Park a `session/request_permission`: project it, emit `permission.asked`
+   * (or `form.created` for choice prompts), and return a promise the reply
+   * route settles. Unanswerable requests (stale, cancelled) resolve
+   * `cancelled` immediately.
+   */
+  const parkPermission = (record, params) => {
+    ensurePendingMaps(record);
+    const nonce = nextNonce();
+    const toolCallId = typeof params?.toolCall?.toolCallId === 'string' && params.toolCall.toolCallId
+      ? params.toolCall.toolCallId
+      : `unknown-${nonce}`;
+    return new Promise((resolve) => {
+      if (isChoicePrompt(params)) {
+        const formId = formIdFor(record.key, nonce);
+        const form = choiceFormFor(formId, record.key, params);
+        const cascade = { kind: 'form-choice', resolve, id: formId };
+        record.pendingRequests.push(cascade);
+        record.pendingForms.set(formId, {
+          form,
+          resolve,
+          cascade,
+          choice: { options: Array.isArray(params?.options) ? params.options : [] },
+          settled: false,
+        });
+        emitSync(record.directory, [{ type: 'form.created', properties: { form } }]);
+        return;
+      }
+      const requestId = permissionIdFor(record.key, toolCallId, nonce);
+      const home = record.projector.toolSource(toolCallId);
+      const source = home ? { type: 'tool', messageID: home.messageID, id: home.partID } : null;
+      const request = permissionRequestFor(requestId, record.key, params, source);
+      const cascade = { kind: 'permission', resolve, id: requestId };
+      record.pendingRequests.push(cascade);
+      record.pendingPermissions.set(requestId, {
+        request,
+        resolve,
+        cascade,
+        options: Array.isArray(params?.options) ? params.options : [],
+        settled: false,
+      });
+      emitSync(record.directory, [{ type: 'permission.asked', properties: request }]);
+    });
+  };
+
+  /**
+   * Park an `elicitation/create`. Form mode projects to `form.created`;
+   * URL mode (never advertised) and untranslatable schemas resolve `decline`
+   * immediately so the agent can fall back.
+   */
+  const parkElicitation = (record, params) => {
+    ensurePendingMaps(record);
+    const mode = params?.mode;
+    if (mode === 'url') return { action: 'decline' };
+    if (mode !== undefined && mode !== 'form' && !(mode && typeof mode === 'string' && mode.startsWith('_'))) {
+      return { action: 'decline' };
+    }
+    if (typeof mode === 'string' && mode.startsWith('_')) return { action: 'decline' };
+    const nonce = nextNonce();
+    const formId = formIdFor(record.key, nonce);
+    const form = elicitationFormFor(formId, record.key, params);
+    if (!form) return { action: 'decline' };
+    return new Promise((resolve) => {
+      const cascade = { kind: 'elicitation', resolve, id: formId };
+      record.pendingRequests.push(cascade);
+      record.pendingForms.set(formId, {
+        form,
+        resolve,
+        cascade,
+        elicitation: { requestedSchema: params?.requestedSchema ?? {} },
+        settled: false,
+      });
+      emitSync(record.directory, [{ type: 'form.created', properties: { form } }]);
+    });
+  };
+
+  /** Unpark one entry after its resolver settled (reply, cancel, cascade). */
+  const unpark = (record, cascade) => {
+    if (!record || !cascade) return;
+    const at = record.pendingRequests?.indexOf(cascade);
+    if (at !== undefined && at >= 0) record.pendingRequests.splice(at, 1);
+    if (cascade.kind === 'permission') record.pendingPermissions?.delete(cascade.id);
+    else record.pendingForms?.delete(cascade.id);
+  };
+
+  /**
+   * True when any live ancestor's turn was cancelled. Children hold no turns
+   * of their own; their requests belong to the ancestor turn flow. A dropped
+   * ancestor carries no turn state, so the walk ends there.
+   */
+  const cancelledByAncestor = (record) => {
+    const seenKeys = new Set([record.key]);
+    let parentKey = record.parentKey;
+    while (typeof parentKey === 'string' && !seenKeys.has(parentKey)) {
+      seenKeys.add(parentKey);
+      const parent = live.get(parentKey);
+      if (!parent) return false;
+      if (parent.cancelled === true) return true;
+      parentKey = parent.parentKey;
+    }
+    return false;
+  };
+
+
   const hooksForBackend = (backendId, generation) => ({
     onSessionUpdate: (params) => {
+      const childMeta = params?.update?._meta?.['opencode/child-session'];
+      if (childMeta && typeof childMeta === 'object') {
+        routeChildTraffic(backendId, generation, params, childMeta);
+        return;
+      }
       const record = recordForBoundUpdate(backendId, generation, params?.sessionId);
       if (!record) return;
       const syncEvents = record.projector.applyUpdate(params, { replay: record.replaying === true });
       record.lastUpdateAt = now();
       touch(record);
       persistAgentTitle(record);
+      // Config updates refresh the D9 cache; the picker reads it pre-session.
+      if (params?.update?.sessionUpdate === 'config_option_update') {
+        refreshConfigCache(backendId, currentConfigOptions(record));
+      }
       // Announcements add transcript messages outside any turn.
       if (syncEvents.some((event) => event.type === 'message.updated'
         && (event.properties.info?.role === 'model-switched' || event.properties.info?.role === 'agent-switched'))) {
@@ -284,37 +477,418 @@ export const createAcpSessionService = ({
       const record = recordForBoundUpdate(backendId, generation, params?.sessionId);
       if (!record) return { outcome: { outcome: 'cancelled' } };
       touch(record);
-      // Phase 1.4 projects the request; until then a cancelled turn answers
-      // `cancelled` per the cancel cascade, and anything else parks until the
-      // turn settles (Phase 1.4 replies through `permissions.reply`).
-      if (record.cancelled) return { outcome: { outcome: 'cancelled' } };
-      return new Promise((resolve) => {
-        record.pendingRequests.push({ kind: 'permission', resolve });
-      });
+      // A cancelled ancestor turn cancels descendants too: a late child
+      // request that parked here would hang the agent's cancelled prompt
+      // behind a user reply that can never come. Scoped to the turn:
+      // `cancelled` clears when the next turn starts.
+      if (record.cancelled || cancelledByAncestor(record)) return { outcome: { outcome: 'cancelled' } };
+      return parkPermission(record, params);
     },
     onElicitation: (params) => {
       const sessionId = params?.sessionId ?? params?._meta?.sessionId;
       const record = recordForBoundUpdate(backendId, generation, sessionId);
       if (!record) return { action: 'cancel' };
       touch(record);
-      if (record.cancelled) return { action: 'cancel' };
-      return new Promise((resolve) => {
-        record.pendingRequests.push({ kind: 'elicitation', resolve });
-      });
+      if (record.cancelled || cancelledByAncestor(record)) return { action: 'cancel' };
+      return parkElicitation(record, params);
+    },
+    onUnknownNotification: (method, params) => {
+      if (method === 'opencode/session/child_update') {
+        routeChildNotification(backendId, generation, params);
+      }
+      // Every other extension notification stays ignored per the spec's
+      // extensibility rules — never throw on agent traffic.
     },
   });
 
-  const answerPending = (record) => {
+  /**
+   * Answer every parked permission/elicitation for a session with
+   * `cancelled` and settle its card: cancel, turn end, backend exit and
+   * eviction all funnel here. Emits the `permission.replied`/`form.settled`
+   * events so the UI drops the cards. Returns the emitted events.
+   */
+  const answerPending = (record, { markDeclined = false } = {}) => {
+    if (!record) return [];
+    ensurePendingMaps(record);
     const pending = record.pendingRequests.splice(0);
+    const syncEvents = [];
     for (const request of pending) {
       try {
-        if (request.kind === 'permission') request.resolve({ outcome: { outcome: 'cancelled' } });
-        else request.resolve({ action: 'cancel' });
+        if (request.kind === 'permission') {
+          request.resolve({ outcome: { outcome: 'cancelled' } });
+          record.pendingPermissions.delete(request.id);
+          syncEvents.push({ type: 'permission.replied', properties: { sessionID: record.key, requestID: request.id } });
+        } else {
+          request.resolve(request.kind === 'form-choice'
+            ? { outcome: { outcome: 'cancelled' } }
+            : { action: 'cancel' });
+          record.pendingForms.delete(request.id);
+          syncEvents.push({ type: 'form.settled', properties: { sessionID: record.key, formID: request.id } });
+        }
       } catch {
         // A settled handler must never wedge the turn teardown.
       }
     }
+    if (markDeclined && pending.length > 0) record.declinedInTurn = true;
+    return syncEvents;
   };
+
+  /** Live descendants of a record, transitively (children, grandchildren). */
+  const liveDescendants = (parentKey) => {
+    const out = [];
+    const queue = [parentKey];
+    const seenKeys = new Set([parentKey]);
+    while (queue.length > 0) {
+      const current = queue.shift();
+      for (const record of live.values()) {
+        if (record.parentKey !== current || seenKeys.has(record.key)) continue;
+        seenKeys.add(record.key);
+        out.push(record);
+        queue.push(record.key);
+      }
+    }
+    return out;
+  };
+
+  /**
+   * Answer a record's parked requests plus every live descendant's, each to
+   * its own directory. Exactly once per entry (splice-once). Used by cancel
+   * and terminal turn teardown: children never hold turns of their own, but
+   * their parked prompts belong to the parent's turn flow.
+   */
+  const answerPendingTree = (record, options = {}) => {
+    if (!record) return;
+    emitSync(record.directory, answerPending(record, options));
+    for (const descendant of liveDescendants(record.key)) {
+      if (live.get(descendant.key) !== descendant) continue;
+      emitSync(descendant.directory, answerPending(descendant, options));
+    }
+  };
+
+  // -- coordinated descendant replay (parent rebuilds) ------------------------
+  //
+  // A parent `load` rebuilds the whole tree: every live descendant snapshots
+  // and resets alongside the parent, child traffic routes with replay
+  // semantics into per-record buffers, and each record publishes its own
+  // replacement batch after the load succeeds (or rolls back on failure).
+  // Records created mid-replay start in replay mode and are dropped if the
+  // load fails — they have no pre-rebuild state to restore.
+
+  const beginReplayTree = (record) => {
+    record.projector.beginReplay();
+    record.replaying = true;
+    record.replayBuffer = [];
+    for (const descendant of liveDescendants(record.key)) {
+      if (live.get(descendant.key) !== descendant || !descendant.projector) continue;
+      descendant.projector.beginReplay();
+      descendant.replaying = true;
+      descendant.replayBuffer = [];
+    }
+  };
+
+  const rollbackReplayTree = (record) => {
+    record.projector.rollbackReplay();
+    record.replaying = false;
+    record.replayBuffer = null;
+    for (const descendant of liveDescendants(record.key)) {
+      if (live.get(descendant.key) !== descendant) continue;
+      if (descendant.createdDuringReplay) {
+        dropLive(descendant.key, { onlyRecord: descendant });
+        continue;
+      }
+      if (!descendant.projector) continue;
+      descendant.projector.rollbackReplay();
+      descendant.replaying = false;
+      descendant.replayBuffer = null;
+    }
+  };
+
+  const endReplayTree = (record) => {
+    const parentReplacement = record.projector.endReplay();
+    const parentBuffered = record.replayBuffer ?? [];
+    record.replaying = false;
+    record.replayBuffer = null;
+    for (const descendant of liveDescendants(record.key)) {
+      if (live.get(descendant.key) !== descendant || !descendant.projector) continue;
+      descendant.replaying = false;
+      const buffered = descendant.replayBuffer ?? [];
+      descendant.replayBuffer = null;
+      descendant.createdDuringReplay = false;
+      const replacement = descendant.projector.endReplay();
+      persistTranscriptIds(descendant);
+      touch(descendant);
+      emitSync(descendant.directory, [...replacement, ...buffered]);
+    }
+    return { parentReplacement, parentBuffered };
+  };
+
+  // -- child sessions (opencode extension: `opencode/session/child_update` +
+  // `_meta["opencode/child-session"]` chunks) --------------------------------
+  //
+  // A child gets its own live record + projector (`parentKey` in the index,
+  // `parentID` on the session) and its traffic routes by native child id.
+  // The parent `subagent` tool part links to the child key in its metadata.
+  // Extension data is consumed wherever it appears, never by agent name (D8).
+
+  const CHILD_STATUS_TO_SESSION = {
+    created: 'idle',
+    running: 'busy',
+    completed: 'idle',
+    failed: 'idle',
+    interrupted: 'idle',
+  };
+
+  const childOutcomeFor = (status) => {
+    if (status === 'completed') return 'succeeded';
+    if (status === 'failed' || status === 'interrupted') return status === 'failed' ? 'failed' : 'interrupted';
+    return undefined;
+  };
+
+  /**
++   * The live child record for a native child id, creating it (projector +
++   * index entry + `session.created`) on first sight. `parent` is the live
++   * parent record; `info` carries `{ title, toolCallId }` when known.
++   */
+  const ensureChildRecord = (parent, nativeChildId, info = {}) => {
+    const backendId = parent.backendId;
+    const at = byNative.get(`${backendId}\0${nativeChildId}`);
+    const known = at ? live.get(at) : null;
+    if (known?.projector && known.backendId === backendId) {
+      // A record from an older connection generation must adopt the parent's
+      // current connection before its traffic routes: otherwise bound
+      // updates, permissions and elicitations fail the generation check.
+      // Stale parked requests settle — the old connection is dead.
+      if (known.generation !== parent.generation || known.connected !== parent.connected) {
+        emitSync(known.directory, answerPending(known));
+        adoptConnection(known, parent.connected);
+      }
+      return { record: known, created: false };
+    }
+    let key;
+    try {
+      key = encode(backendId, nativeChildId);
+    } catch {
+      return { record: null, created: false };
+    }
+    const created = now();
+    index.upsert(key, {
+      backendId,
+      nativeId: nativeChildId,
+      cwd: parent.directory,
+      title: typeof info.title === 'string' ? info.title : '',
+      parentKey: parent.key,
+      created,
+      updated: created,
+    }).catch(() => {});
+    const entry = {
+      key,
+      backendId,
+      nativeId: nativeChildId,
+      cwd: parent.directory,
+      title: typeof info.title === 'string' ? info.title : '',
+      parentKey: parent.key,
+      created,
+      updated: created,
+    };
+    const projector = createProjector({ key, backendId, directory: parent.directory, index: entry, now });
+    const record = {
+      key,
+      entry,
+      projector,
+      nativeId: nativeChildId,
+      backendId,
+      directory: parent.directory,
+      connected: parent.connected,
+      generation: parent.generation,
+      turn: null,
+      turnGeneration: 0,
+      cancelled: false,
+      declinedInTurn: false,
+      settling: false,
+      recovering: false,
+      replaying: false,
+      watchdogTimer: null,
+      pendingRequests: [],
+      pendingPermissions: new Map(),
+      pendingForms: new Map(),
+      readOnly: false,
+      parentKey: parent.key,
+      childStatus: 'running',
+      lastUpdateAt: created,
+      lastActiveAt: created,
+    };
+    trackLive(record);
+    // Adopt the parent's connection generation so bound routing reaches the
+    // child without a restart round-trip.
+    adoptConnection(record, parent.connected);
+    const session = projector.session();
+    const syncEvents = [{ type: 'session.created', properties: { info: session } }];
+    if (parent.replaying) {
+      // Discovered mid-rebuild: join the replay tree (canonical ids,
+      // buffered events) and drop on load failure.
+      record.projector.beginReplay();
+      record.replaying = true;
+      record.replayBuffer = [syncEvents[0]];
+      record.createdDuringReplay = true;
+    } else {
+      emitSync(parent.directory, syncEvents);
+    }
+    if (info.title) persistAgentTitle(record);
+    return { record, created: true };
+  };
+
+  const childKeyOf = (backendId, nativeChildId) => byNative.get(`${backendId}\0${nativeChildId}`) ?? null;
+
+  /** Link the parent `subagent` tool part to the child session key. Returns the events; the caller emits or buffers them. */
+  const linkParentSubagent = (parent, childKey, toolCallId) => {
+    if (!parent?.projector || typeof childKey !== 'string') return [];
+    let callId = typeof toolCallId === 'string' && toolCallId ? toolCallId : null;
+    if (!callId) {
+      // Without a tool call id, link the newest running `subagent` part —
+      // the child belongs to the call that is still open.
+      callId = newestOpenSubagentCall(parent);
+    }
+    if (!callId) return [];
+    return parent.projector.linkSubagentChild(callId, childKey);
+  };
+
+  const emitParentLink = (parent, childKey, toolCallId) => {
+    const linkEvents = linkParentSubagent(parent, childKey, toolCallId);
+    if (parent.replaying && parent.replayBuffer) parent.replayBuffer.push(...linkEvents);
+    else emitSync(parent.directory, linkEvents);
+  };
+
+  const newestOpenSubagentCall = (parent) => {
+    // Pages are newest-first; the first open `subagent` part wins.
+    let before;
+    for (let page = 0; page < 10; page += 1) {
+      const records = parent.projector.page({ limit: 100, ...(before ? { before } : {}) });
+      for (const item of records.items) {
+        for (const part of item.parts ?? []) {
+          if (part?.type === 'tool' && part.tool === 'subagent'
+            && (part.state?.status === 'pending' || part.state?.status === 'running')
+            && !(part.state?.metadata && typeof part.state.metadata === 'object' && part.state.metadata.sessionID)) {
+            return part.callID;
+          }
+        }
+      }
+      if (!records.cursor.next) return null;
+      before = records.cursor.next;
+    }
+    return null;
+  };
+
+  const sinkFor = (record) => (record.replaying && record.replayBuffer
+    ? { emit: (syncEvents) => { record.replayBuffer.push(...syncEvents); } }
+    : { emit: (syncEvents) => emitSync(record.directory, syncEvents) });
+
+  const applyChildStatus = (parent, child, status, title) => {
+    if (!child?.projector) return;
+    const known = typeof status === 'string' ? status : 'running';
+    child.childStatus = known;
+    if (typeof title === 'string' && title) {
+      child.entry = { ...child.entry, title };
+      index.upsert(child.key, { title, updated: now() }).catch(() => {});
+    }
+    const patch = { time: { updated: now() } };
+    if (typeof title === 'string' && title) patch.title = title;
+    const outcome = childOutcomeFor(known);
+    if (outcome) patch.outcome = outcome;
+    const sink = sinkFor(child);
+    sink.emit([{
+      type: 'session.patched',
+      properties: { sessionID: child.key, patch },
+    }]);
+    const mapped = CHILD_STATUS_TO_SESSION[known] ?? 'idle';
+    sink.emit([{
+      type: 'session.status',
+      properties: { sessionID: child.key, status: { type: mapped } },
+    }]);
+    if (outcome) {
+      touch(child);
+      persistTranscriptIds(child);
+    }
+  };
+
+  /**
++   * Route a `session/update` carrying `_meta["opencode/child-session"]` to
++   * the child's projector. The parent record is resolved from the
++   * notification's own session id (bound+generation checked); unknown
++   * parents drop the chunk.
++   */
+  const routeChildTraffic = (backendId, generation, params, childMeta) => {
+    const nativeChildId = typeof childMeta.id === 'string' && childMeta.id ? childMeta.id : null;
+    if (!nativeChildId) return;
+    // Nested children name their direct parent in the meta; the
+    // notification's own session id is the fallback (top-level children).
+    const parentNative = typeof childMeta.parentID === 'string' && childMeta.parentID
+      ? childMeta.parentID
+      : params?.sessionId;
+    const parent = recordForBoundUpdate(backendId, generation, parentNative)
+      ?? recordForBoundUpdate(backendId, generation, params?.sessionId);
+    if (!parent) return;
+    // The child's own view of the update: same content, addressed to the
+    // child session. Strip the child meta so the projector treats it as
+    // ordinary traffic.
+    const update = params?.update && typeof params.update === 'object' ? { ...params.update } : null;
+    if (!update || typeof update.sessionUpdate !== 'string') return;
+    if (update._meta && typeof update._meta === 'object') {
+      const meta = { ...update._meta };
+      delete meta['opencode/child-session'];
+      if (Object.keys(meta).length > 0) update._meta = meta;
+      else delete update._meta;
+    }
+    const { record: child } = ensureChildRecord(parent, nativeChildId, { title: childMeta.title });
+    if (!child) return;
+    emitParentLink(parent, child.key, childMeta.toolCallId);
+    const syncEvents = child.projector.applyUpdate({ sessionId: nativeChildId, update }, { replay: child.replaying === true });
+    child.lastUpdateAt = now();
+    touch(child);
+    sinkFor(child).emit(syncEvents);
+  };
+
+  /**
++   * Route an `opencode/session/child_update` extension notification. Status
++   * notifications create/update the child record; `update` notifications
++   * feed the child's projector.
++   */
+  const routeChildNotification = (backendId, generation, params) => {
+    const nativeChildId = typeof params?.childSessionId === 'string' && params.childSessionId ? params.childSessionId : null;
+    if (!nativeChildId) return;
+    const parentNative = typeof params?.parentSessionId === 'string' ? params.parentSessionId
+      : (typeof params?.rootSessionId === 'string' ? params.rootSessionId : null);
+    const parent = parentNative ? recordForBoundUpdate(backendId, generation, parentNative) : null;
+    if (!parent) {
+      // No live parent: adopt an existing child record if one is already
+      // tracked (a restarted parent replays without the child context), else
+      // drop — there is no directory to fan out to.
+      const key = childKeyOf(backendId, nativeChildId);
+      const child = key ? live.get(key) : null;
+      if (!child?.projector || child.backendId !== backendId || child.generation !== generation) return;
+      if (params?.type === 'update' && params?.update && typeof params.update === 'object') {
+        const syncEvents = child.projector.applyUpdate({ sessionId: nativeChildId, update: params.update }, { replay: child.replaying === true });
+        touch(child);
+        sinkFor(child).emit(syncEvents);
+      } else if (params?.type === 'status') {
+        applyChildStatus(null, child, params?.status, params?.title);
+      }
+      return;
+    }
+    const { record: child } = ensureChildRecord(parent, nativeChildId, { title: params?.title });
+    if (!child) return;
+    emitParentLink(parent, child.key, params?.toolCallId);
+    if (params?.type === 'update' && params?.update && typeof params.update === 'object') {
+      const syncEvents = child.projector.applyUpdate({ sessionId: nativeChildId, update: params.update }, { replay: child.replaying === true });
+      child.lastUpdateAt = now();
+      touch(child);
+      sinkFor(child).emit(syncEvents);
+    } else if (params?.type === 'status' || typeof params?.status === 'string') {
+      applyChildStatus(parent, child, params?.status, params?.title);
+    } else if (typeof params?.title === 'string' && params.title) {
+      applyChildStatus(parent, child, child.childStatus ?? 'running', params.title);
+    }
+  };
+
 
   // -- crash handling --------------------------------------------------------
 
@@ -322,9 +896,9 @@ export const createAcpSessionService = ({
     for (const record of [...live.values()]) {
       if (record.backendId !== backendId || !record.projector) continue;
       const syncEvents = record.projector.applyBackendExit(exit ?? null);
-      answerPending(record);
+      const settled = answerPending(record);
       dropLive(record.key, { onlyRecord: record });
-      emitSync(record.directory, syncEvents);
+      emitSync(record.directory, [...syncEvents, ...settled]);
     }
   };
 
@@ -357,7 +931,7 @@ export const createAcpSessionService = ({
         } catch {
           // The projector is gone; nothing left to report.
         }
-        answerPending(record);
+        answerPendingTree(record);
         record.turn?.deferred?.resolve({ status: 'error', error });
         dropLive(record.key, { onlyRecord: record });
       });
@@ -402,7 +976,7 @@ export const createAcpSessionService = ({
       if (!stillOurs()) return;
       const syncEvents = record.projector.applyTerminalError({ message, code });
       emitSync(record.directory, syncEvents);
-      answerPending(record);
+      answerPendingTree(record);
       recovery.deferred.resolve({ status: 'error' });
       dropLive(record.key, { onlyRecord: record });
     };
@@ -433,9 +1007,7 @@ export const createAcpSessionService = ({
         // Best-effort; the load below is the real recovery.
       }
       if (!stillOurs()) return;
-      record.replaying = true;
-      record.replayBuffer = [];
-      record.projector.beginReplay();
+      beginReplayTree(record);
       try {
         await withBound(record.connected.connection.loadSession({
           sessionId: record.nativeId,
@@ -443,18 +1015,16 @@ export const createAcpSessionService = ({
           mcpServers: [],
         }), 'watchdog load');
       } catch (error) {
-        record.projector.rollbackReplay();
-        record.replaying = false;
-        record.replayBuffer = null;
+        rollbackReplayTree(record);
         failRecovery(`watchdog reload failed: ${error?.message ?? error}`, 'acp_watchdog_reload');
         return;
       }
-      record.replaying = false;
-      if (!stillOurs()) return;
-      const replacement = record.projector.endReplay();
-      const buffered = record.replayBuffer ?? [];
-      record.replayBuffer = null;
-      emitSync(record.directory, [...replacement, ...buffered]);
+      if (!stillOurs()) {
+        rollbackReplayTree(record);
+        return;
+      }
+      const { parentReplacement, parentBuffered } = endReplayTree(record);
+      emitSync(record.directory, [...parentReplacement, ...parentBuffered]);
       // Replay the prompt once, on the recovery generation.
       const blocks = toPromptBlocks(turn.parts);
       let acceptEvents;
@@ -486,6 +1056,7 @@ export const createAcpSessionService = ({
           });
           index.upsert(record.key, { updated: now() }).catch(() => {});
           emitSync(record.directory, done);
+          answerPendingTree(record);
           retry.deferred.resolve({ status: 'settled', events: done });
           if (record.turn === retry) record.turn = null;
         },
@@ -505,6 +1076,7 @@ export const createAcpSessionService = ({
             : promptErrorDetails(error);
           const done = record.projector.applyPromptError(unwrapped);
           emitSync(record.directory, done);
+          answerPendingTree(record);
           retry.deferred.resolve({ status: 'error', events: done, error });
           if (record.turn === retry) record.turn = null;
         },
@@ -530,8 +1102,12 @@ export const createAcpSessionService = ({
           cancelledByUs: record.cancelled,
           declinedInTurn: record.declinedInTurn,
         });
+        // A result with parked requests still open: the agent moved on
+        // without them (or answered around them) — settle the cards so the
+        // UI never shows a prompt for a finished turn.
         persistTranscriptIds(record);
         emitSync(record.directory, syncEvents);
+        answerPendingTree(record);
         captured.deferred.resolve({ status: 'settled', events: syncEvents });
         if (record.turn === captured) record.turn = null;
       },
@@ -552,6 +1128,7 @@ export const createAcpSessionService = ({
         const syncEvents = record.projector.applyPromptError(unwrapped);
         persistTranscriptIds(record);
         emitSync(record.directory, syncEvents);
+        answerPendingTree(record);
         captured.deferred.resolve({ status: 'error', events: syncEvents, error });
         if (record.turn === captured) record.turn = null;
       },
@@ -632,11 +1209,14 @@ export const createAcpSessionService = ({
       replaying: false,
       watchdogTimer: null,
       pendingRequests: [],
+      pendingPermissions: new Map(),
+      pendingForms: new Map(),
       readOnly: false,
       lastUpdateAt: created,
       lastActiveAt: created,
     };
     trackLive(record);
+    refreshConfigCache(backendId, currentConfigOptions(record));
     const session = projector.session();
     const syncEvents = [{ type: 'session.created', properties: { info: session } }];
     emitSync(cwd, syncEvents);
@@ -658,6 +1238,7 @@ export const createAcpSessionService = ({
       } else {
         sessions.set(row.key, {
           id: row.key,
+          ...(row.parentKey ? { parentID: row.parentKey } : {}),
           projectID: `acp:${row.backendId}`,
           directory: row.cwd,
           title: row.userTitle ?? row.title ?? '',
@@ -771,6 +1352,14 @@ export const createAcpSessionService = ({
       }
       const caps = sessionCaps(capsOf(connected));
       adoptConnection(existing, connected);
+      // The parent's connection moved on: every live descendant adopts it
+      // too, or its bound traffic fails the generation check. Stale parked
+      // requests settle — the old connection is dead.
+      for (const descendant of liveDescendants(key)) {
+        if (live.get(descendant.key) !== descendant) continue;
+        emitSync(descendant.directory, answerPending(descendant));
+        adoptConnection(descendant, connected);
+      }
       touch(existing);
       if (hasCap(caps, 'resume')) {
         const response = await connected.connection.resumeSession({
@@ -810,7 +1399,10 @@ export const createAcpSessionService = ({
       replaying: false,
       watchdogTimer: null,
       pendingRequests: [],
+      pendingPermissions: new Map(),
+      pendingForms: new Map(),
       readOnly: !hasCap(caps, 'loadSession'),
+      ...(entry.parentKey ? { parentKey: entry.parentKey } : {}),
       lastUpdateAt: now(),
       lastActiveAt: now(),
     };
@@ -828,31 +1420,34 @@ export const createAcpSessionService = ({
     // responds (replay arrives as notifications during the call). Traffic
     // buffers until the load completes; the service then publishes the
     // replacement (removed prefix + canonical events) as one ordered batch.
+    // Descendants rebuild alongside the parent (same lifecycle, own batches).
     projector.beginReplay();
+    for (const descendant of liveDescendants(key)) {
+      if (live.get(descendant.key) !== descendant || !descendant.projector) continue;
+      descendant.projector.beginReplay();
+      descendant.replaying = true;
+      descendant.replayBuffer = [];
+    }
     let response;
     try {
       response = await connected.connection.loadSession({ sessionId: entry.nativeId, cwd, mcpServers: [] });
     } catch (error) {
-      projector.rollbackReplay();
+      rollbackReplayTree(record);
       dropLive(key, { onlyRecord: record });
       throw new AcpSessionError(`ACP session failed to load: ${error?.message ?? error}`, {
         code: error?.code ?? 'ACP_LOAD_FAILED',
         cause: error,
       });
-    } finally {
-      record.replaying = false;
     }
     projector.seed(response, caps);
-    const replacement = projector.endReplay();
-    const buffered = record.replayBuffer ?? [];
-    record.replayBuffer = null;
+    const { parentReplacement, parentBuffered } = endReplayTree(record);
     record.entry = { ...record.entry, messageIds: record.projector.transcriptIds().slice(-5000) };
     if (projector.session().title && projector.session().title !== entry.title && !entry.userTitle) {
       await index.upsert(key, { title: projector.session().title, messageIds: record.entry.messageIds, updated: now() }).catch(() => {});
     } else {
       await index.upsert(key, { messageIds: record.entry.messageIds, updated: now() }).catch(() => {});
     }
-    const events = [...replacement, ...buffered];
+    const events = [...parentReplacement, ...parentBuffered];
     emitSync(cwd, events);
     return { session: projector.session(), events };
   };
@@ -937,8 +1532,8 @@ export const createAcpSessionService = ({
       // A cancel that fails to send still cascades locally below.
     }
     // Cancel cascade (§6): answer every pending permission/elicitation with
-    // `cancelled` now that the cancel is out.
-    answerPending(record);
+    // `cancelled` now that the cancel is out — including descendants'.
+    answerPendingTree(record);
     // Post-cancel settle: hold the session lock through the cancelled result
     // plus 250 ms so trailing updates land on the completed turn and no
     // other client can prompt before settlement completes.
@@ -1024,6 +1619,7 @@ export const createAcpSessionService = ({
         update: { sessionUpdate: 'config_option_update', configOptions: response.configOptions },
       });
       emitSync(record.directory, syncEvents);
+      refreshConfigCache(record.backendId, currentConfigOptions(record));
     }
     await index.upsert(key, {
       updated: now(),
@@ -1031,6 +1627,181 @@ export const createAcpSessionService = ({
     }).catch(() => {});
     touch(record);
   };
+
+  // -- Phase 1.4 operations: permissions, forms, commands, config cache -----
+
+  const liveRecordFor = (key) => {
+    const decoded = decode(key);
+    if (!decoded) throw unknownError(key);
+    const record = live.get(key);
+    if (!record?.projector) throw unknownError(key);
+    return record;
+  };
+
+  /**
+   * Answer one parked permission (§3.2 `permissions.reply`): resolve the
+   * parked JSON-RPC request with the selected option (or `cancelled`), then
+   * emit `permission.replied`. A reject marks `declinedInTurn` (T2).
+   */
+  const replyPermission = async ({ key, requestId, reply }) => {
+    if (reply !== 'once' && reply !== 'always' && reply !== 'reject') {
+      throw new AcpSessionError('ACP permission reply must be once, always or reject', { code: 'ACP_INVALID_REQUEST' });
+    }
+    const record = liveRecordFor(key);
+    ensurePendingMaps(record);
+    const parked = record.pendingPermissions.get(requestId);
+    if (!parked || parked.settled) {
+      throw new AcpSessionError(`Unknown ACP permission: ${requestId}`, { code: 'ACP_PERMISSION_UNKNOWN' });
+    }
+    parked.settled = true;
+    const optionId = optionIdForReply(parked.options, reply);
+    if (reply === 'reject' || !optionId) record.declinedInTurn = true;
+    try {
+      parked.resolve(optionId
+        ? { outcome: { outcome: 'selected', optionId } }
+        : { outcome: { outcome: 'cancelled' } });
+    } finally {
+      unpark(record, parked.cascade);
+    }
+    const syncEvents = [{ type: 'permission.replied', properties: { sessionID: key, requestID: requestId } }];
+    emitSync(record.directory, syncEvents);
+    touch(record);
+    return { events: syncEvents };
+  };
+
+  const getPermission = async ({ key, requestId }) => {
+    const record = liveRecordFor(key);
+    const parked = record.pendingPermissions?.get(requestId);
+    if (!parked || parked.settled) {
+      throw new AcpSessionError(`Unknown ACP permission: ${requestId}`, { code: 'ACP_PERMISSION_UNKNOWN' });
+    }
+    return { permission: parked.request };
+  };
+
+  const listPendingPermissions = async ({ directory }) => {
+    const cwd = normalizeDirectory(directory);
+    const wanted = directoryKey(cwd);
+    const out = [];
+    for (const record of live.values()) {
+      if (directoryKey(record.directory) !== wanted) continue;
+      for (const parked of record.pendingPermissions?.values() ?? []) {
+        if (!parked.settled) out.push(parked.request);
+      }
+    }
+    return out;
+  };
+
+  /**
+   * Answer one parked form (§3.2 `forms.reply`): elicitation forms resolve
+   * `{action:'accept',content}`; choice prompts resolve the parked
+   * permission with the selected `optionId`. Then `form.settled`.
+   */
+  const replyForm = async ({ key, formId, answer }) => {
+    const record = liveRecordFor(key);
+    ensurePendingMaps(record);
+    const parked = record.pendingForms.get(formId);
+    if (!parked || parked.settled) {
+      throw new AcpSessionError(`Unknown ACP form: ${formId}`, { code: 'ACP_FORM_UNKNOWN' });
+    }
+    // Validation runs BEFORE settling: a rejected answer keeps the form
+    // parked so the user can correct it.
+    let content = null;
+    let selected = null;
+    if (parked.choice) {
+      const choice = answer && typeof answer === 'object' ? answer.choice : undefined;
+      const options = parked.choice.options ?? [];
+      selected = options.find((option) => String(option?.optionId) === String(choice)) ?? null;
+      if (!selected) {
+        throw new AcpSessionError(`Unknown choice for form: ${choice}`, { code: 'ACP_INVALID_REQUEST' });
+      }
+    } else {
+      content = contentForAnswer(parked.elicitation?.requestedSchema, answer);
+      const invalid = validateAnswerContent(parked.elicitation?.requestedSchema, content);
+      if (invalid) {
+        throw new AcpSessionError(`Invalid form answer: ${invalid}`, { code: 'ACP_INVALID_REQUEST' });
+      }
+    }
+    parked.settled = true;
+    try {
+      if (parked.choice) {
+        // An explicit reject option is a decline (T2), like `reject` and
+        // dismiss: the turn ends by user choice, not interruption.
+        if (selected.kind === 'reject_once' || selected.kind === 'reject_always') record.declinedInTurn = true;
+        parked.resolve({ outcome: { outcome: 'selected', optionId: selected.optionId } });
+      } else {
+        parked.resolve({ action: 'accept', content });
+      }
+    } finally {
+      unpark(record, parked.cascade);
+    }
+    const syncEvents = [{ type: 'form.settled', properties: { sessionID: key, formID: formId } }];
+    emitSync(record.directory, syncEvents);
+    touch(record);
+    return { events: syncEvents };
+  };
+
+  /**
+   * Dismiss one parked form: elicitation resolves `{action:'cancel'}`;
+   * choice prompts answer the parked permission with `cancelled`. Marks
+   * `declinedInTurn` (T2 covers dismissed questions too).
+   */
+  const cancelForm = async ({ key, formId }) => {
+    const record = liveRecordFor(key);
+    ensurePendingMaps(record);
+    const parked = record.pendingForms.get(formId);
+    if (!parked || parked.settled) {
+      throw new AcpSessionError(`Unknown ACP form: ${formId}`, { code: 'ACP_FORM_UNKNOWN' });
+    }
+    parked.settled = true;
+    record.declinedInTurn = true;
+    try {
+      parked.resolve(parked.choice ? { outcome: { outcome: 'cancelled' } } : { action: 'cancel' });
+    } finally {
+      unpark(record, parked.cascade);
+    }
+    const syncEvents = [{ type: 'form.settled', properties: { sessionID: key, formID: formId } }];
+    emitSync(record.directory, syncEvents);
+    touch(record);
+    return { events: syncEvents };
+  };
+
+  const listPendingForms = async ({ directory }) => {
+    const cwd = normalizeDirectory(directory);
+    const wanted = directoryKey(cwd);
+    const out = [];
+    for (const record of live.values()) {
+      if (directoryKey(record.directory) !== wanted) continue;
+      for (const parked of record.pendingForms?.values() ?? []) {
+        if (!parked.settled) out.push(parked.form);
+      }
+    }
+    return out;
+  };
+
+  /** Cached `available_commands` of one session, `CommandInfo`-compatible. */
+  const commands = async ({ key }) => {
+    await open({ key });
+    const record = live.get(key);
+    if (!record?.projector) throw unknownError(key);
+    touch(record);
+    return (record.projector.commands ?? []).map((command) => ({
+      name: command.name,
+      ...(command.description ? { description: command.description } : {}),
+    }));
+  };
+
+  /** Last-seen config options of one backend (D9 pre-session picker). */
+  const configCache = async ({ backendId }) => {
+    if (!registry || typeof registry.list !== 'function') return [];
+    const entries = await registry.list().catch(() => []);
+    const entry = (Array.isArray(entries) ? entries : []).find((row) => row?.id === backendId);
+    if (!entry) {
+      throw new AcpSessionError(`Unknown ACP backend: ${backendId}`, { code: 'ACP_BACKEND_UNKNOWN' });
+    }
+    const cached = entry?.cache?.configOptions;
+    return Array.isArray(cached) ? cached : [];
+  };
+
 
   const remove = async ({ key }) => {
     const decoded = decode(key);
@@ -1045,6 +1816,10 @@ export const createAcpSessionService = ({
     if (record?.turn) {
       await cancel({ key }).catch(() => {});
     }
+    // A deleted parent orphans its descendants' parked prompts (their agent
+    // context is gone with the session): settle them so no card or agent
+    // turn hangs. Descendant records/transcripts stay live and viewable.
+    if (record) answerPendingTree(record);
     const connected = record?.connected ?? await connectionOf(entry.backendId).catch(() => null);
     const caps = sessionCaps(capsOf(connected));
     if (connected && hasCap(caps, 'delete')) {
@@ -1122,6 +1897,14 @@ export const createAcpSessionService = ({
     delete: remove,
     rename,
     status,
+    replyPermission,
+    getPermission,
+    listPendingPermissions,
+    replyForm,
+    cancelForm,
+    listPendingForms,
+    commands,
+    configCache,
     /** Test seam: the live record for a key (projector, connection). */
     getLive: (key) => live.get(key) ?? null,
     /** Host shutdown: persist transcripts, stop crash listeners, clear timers. */

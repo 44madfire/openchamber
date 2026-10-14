@@ -72,6 +72,8 @@ interface ComposerAutocompletePopupsProps {
     onSnippetSelect: (snippet: unknown, trigger: string) => void;
     onFileSelect: (file: { name: string; path: string; relativePath?: string }) => void;
     onAgentSelect: (agentName: string) => void;
+    /** ACP sessions route no `@agent` mentions; hides the picker's agent section. */
+    hideAgents?: boolean;
     onClose: () => void;
 }
 
@@ -136,6 +138,7 @@ function AutocompletePopup(props: ComposerAutocompletePopupsProps & { open: Auto
                     onAgentSelect={props.onAgentSelect}
                     onClose={onClose}
                     style={style}
+                    hideAgents={props.hideAgents}
                 />
             );
     }

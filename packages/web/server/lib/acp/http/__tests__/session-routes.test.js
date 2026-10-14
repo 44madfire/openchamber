@@ -295,3 +295,237 @@ describe('acp session http routes', () => {
     }
   });
 });
+
+describe('acp interaction http routes (Phase 1.4)', () => {
+  it('replies to permissions, 404 once settled', async () => {
+    const { shutdown, call, service } = await setup({
+      entry: {
+        env: {
+          FAKE_ACP_PROMPT_SCRIPT: JSON.stringify([{
+            permission: {
+              toolCall: { toolCallId: 'toolu_1', name: 'shell', title: 'echo hi', kind: 'execute', rawInput: { command: 'echo hi' } },
+              options: [
+                { optionId: 'once', kind: 'allow_once', name: 'Allow once' },
+                { optionId: 'reject', kind: 'reject_once', name: 'Reject' },
+              ],
+            },
+          }]),
+        },
+      },
+    });
+    try {
+      const created = await call('POST', '/api/acp/sessions', { body: { backendId: 'fake', directory: 'C:\\work' } });
+      const key = created.payload.session.id;
+      await call('POST', '/api/acp/sessions/:key/prompt', {
+        params: { key }, body: { messageId: 'msg_1', parts: [{ type: 'text', text: 'x' }] },
+      });
+      const pending = await until(async () => {
+        const res = await call('GET', '/api/acp/permissions', { query: { directory: 'C:\\work' } });
+        return res.payload.permissions.length > 0 ? res : null;
+      });
+      const request = pending.payload.permissions[0];
+      expect(request).toMatchObject({ sessionID: key, action: 'shell' });
+      const fetched = await call('GET', '/api/acp/sessions/:key/permissions/:requestId', {
+        params: { key, requestId: request.id },
+      });
+      expect(fetched.statusCode).toBe(200);
+      expect(fetched.payload.permission.id).toBe(request.id);
+      const bad = await call('POST', '/api/acp/sessions/:key/permissions/:requestId/reply', {
+        params: { key, requestId: request.id }, body: { reply: 'sometimes' },
+      });
+      expect(bad.statusCode).toBe(400);
+      const replied = await call('POST', '/api/acp/sessions/:key/permissions/:requestId/reply', {
+        params: { key, requestId: request.id }, body: { reply: 'once' },
+      });
+      expect(replied.statusCode).toBe(200);
+      const gone = await call('POST', '/api/acp/sessions/:key/permissions/:requestId/reply', {
+        params: { key, requestId: request.id }, body: { reply: 'once' },
+      });
+      expect(gone.statusCode).toBe(404);
+      expect(gone.payload.code).toBe('ACP_PERMISSION_UNKNOWN');
+      const empty = await call('GET', '/api/acp/permissions', { query: { directory: 'C:\\work' } });
+      expect(empty.payload).toEqual({ permissions: [] });
+      void service;
+    } finally {
+      await shutdown();
+    }
+  });
+
+  it('replies to and cancels forms, 404 once settled', async () => {
+    const { shutdown, call } = await setup({
+      entry: {
+        env: {
+          FAKE_ACP_PROMPT_SCRIPT: JSON.stringify([
+            {
+              elicitation: {
+                mode: 'form',
+                message: 'Q',
+                requestedSchema: { type: 'object', properties: { a: { type: 'string' } } },
+              },
+            },
+            { holdForCancel: 10 },
+          ]),
+        },
+      },
+    });
+    try {
+      const created = await call('POST', '/api/acp/sessions', { body: { backendId: 'fake', directory: 'C:\\work' } });
+      const key = created.payload.session.id;
+      await call('POST', '/api/acp/sessions/:key/prompt', {
+        params: { key }, body: { messageId: 'msg_1', parts: [{ type: 'text', text: 'x' }] },
+      });
+      const pending = await until(async () => {
+        const res = await call('GET', '/api/acp/forms', { query: { directory: 'C:\\work' } });
+        return res.payload.forms.length > 0 ? res : null;
+      });
+      const formId = pending.payload.forms[0].id;
+      const bad = await call('POST', '/api/acp/sessions/:key/forms/:formId/reply', {
+        params: { key, formId }, body: { answer: 'nope' },
+      });
+      expect(bad.statusCode).toBe(400);
+      const replied = await call('POST', '/api/acp/sessions/:key/forms/:formId/reply', {
+        params: { key, formId }, body: { answer: { a: 'yes' } },
+      });
+      expect(replied.statusCode).toBe(200);
+      const gone = await call('POST', '/api/acp/sessions/:key/forms/:formId/cancel', {
+        params: { key, formId },
+      });
+      expect(gone.statusCode).toBe(404);
+      expect(gone.payload.code).toBe('ACP_FORM_UNKNOWN');
+    } finally {
+      await shutdown();
+    }
+  });
+
+  it('serves cached commands and the backend config cache', async () => {
+    const { shutdown, call } = await setup({
+      entry: {
+        env: {
+          FAKE_ACP_CONFIG_OPTIONS: JSON.stringify([{ id: 'model', name: 'Model', currentValue: 'm1' }]),
+          FAKE_ACP_PROMPT_SCRIPT: JSON.stringify([
+            { update: { sessionUpdate: 'available_commands_update', availableCommands: [{ name: 'compact', description: 'Compact the session' }] } },
+          ]),
+        },
+      },
+    });
+    try {
+      const created = await call('POST', '/api/acp/sessions', { body: { backendId: 'fake', directory: 'C:\\work' } });
+      const key = created.payload.session.id;
+      const before = await call('GET', '/api/acp/sessions/:key/commands', { params: { key } });
+      expect(before.payload).toEqual({ commands: [] });
+      await call('POST', '/api/acp/sessions/:key/prompt', {
+        params: { key }, body: { messageId: 'msg_1', parts: [{ type: 'text', text: 'x' }] },
+      });
+      const after = await until(async () => {
+        const res = await call('GET', '/api/acp/sessions/:key/commands', { params: { key } });
+        return res.payload.commands.length > 0 ? res : null;
+      });
+      expect(after.payload).toEqual({ commands: [{ name: 'compact', description: 'Compact the session' }] });
+      const cache = await until(async () => {
+        const res = await call('GET', '/api/acp/backends/:id/config-cache', { params: { id: 'fake' } });
+        return res.payload.configOptions.length > 0 ? res : null;
+      });
+      expect(cache.payload.configOptions).toEqual([expect.objectContaining({ id: 'model' })]);
+      const missing = await call('GET', '/api/acp/backends/:id/config-cache', { params: { id: 'nope' } });
+      expect(missing.statusCode).toBe(404);
+      expect(missing.payload.code).toBe('ACP_BACKEND_UNKNOWN');
+    } finally {
+      await shutdown();
+    }
+  });
+});
+
+describe('acp interaction validation (review)', () => {
+  it('rejects schema-violating answers with 400 and retains the form', async () => {
+    const { shutdown, call } = await setup({
+      entry: {
+        env: {
+          FAKE_ACP_PROMPT_SCRIPT: JSON.stringify([
+            {
+              elicitation: {
+                mode: 'form',
+                message: 'Q',
+                requestedSchema: {
+                  type: 'object',
+                  properties: { color: { type: 'string', enum: ['red'] } },
+                  required: ['color'],
+                },
+              },
+            },
+            { holdForCancel: 10 },
+          ]),
+        },
+      },
+    });
+    try {
+      const created = await call('POST', '/api/acp/sessions', { body: { backendId: 'fake', directory: 'C:\\work' } });
+      const key = created.payload.session.id;
+      await call('POST', '/api/acp/sessions/:key/prompt', {
+        params: { key }, body: { messageId: 'msg_1', parts: [{ type: 'text', text: 'x' }] },
+      });
+      const pending = await until(async () => {
+        const res = await call('GET', '/api/acp/forms', { query: { directory: 'C:\\work' } });
+        return res.payload.forms.length > 0 ? res : null;
+      });
+      const formId = pending.payload.forms[0].id;
+      const invalid = await call('POST', '/api/acp/sessions/:key/forms/:formId/reply', {
+        params: { key, formId }, body: { answer: { color: 'blue' } },
+      });
+      expect(invalid.statusCode).toBe(400);
+      expect(invalid.payload.code).toBe('ACP_INVALID_REQUEST');
+      // Retained: still pending, still answerable.
+      const again = await call('GET', '/api/acp/forms', { query: { directory: 'C:\\work' } });
+      expect(again.payload.forms).toHaveLength(1);
+      const replied = await call('POST', '/api/acp/sessions/:key/forms/:formId/reply', {
+        params: { key, formId }, body: { answer: { color: 'red' } },
+      });
+      expect(replied.statusCode).toBe(200);
+    } finally {
+      await shutdown();
+    }
+  });
+
+  it('rejects unknown choice values with 400 and retains the form', async () => {
+    const { shutdown, call } = await setup({
+      entry: {
+        env: {
+          FAKE_ACP_PROMPT_SCRIPT: JSON.stringify([
+            {
+              permission: {
+                toolCall: { toolCallId: 'toolu_choice', title: 'Pick' },
+                options: [
+                  { optionId: 'a', kind: 'allow_once', name: 'A' },
+                  { optionId: 'b', kind: 'allow_once', name: 'B' },
+                ],
+              },
+            },
+            { holdForCancel: 10 },
+          ]),
+        },
+      },
+    });
+    try {
+      const created = await call('POST', '/api/acp/sessions', { body: { backendId: 'fake', directory: 'C:\\work' } });
+      const key = created.payload.session.id;
+      await call('POST', '/api/acp/sessions/:key/prompt', {
+        params: { key }, body: { messageId: 'msg_1', parts: [{ type: 'text', text: 'x' }] },
+      });
+      const pending = await until(async () => {
+        const res = await call('GET', '/api/acp/forms', { query: { directory: 'C:\\work' } });
+        return res.payload.forms.length > 0 ? res : null;
+      });
+      const formId = pending.payload.forms[0].id;
+      const invalid = await call('POST', '/api/acp/sessions/:key/forms/:formId/reply', {
+        params: { key, formId }, body: { answer: { choice: 'zzz' } },
+      });
+      expect(invalid.statusCode).toBe(400);
+      expect(invalid.payload.code).toBe('ACP_INVALID_REQUEST');
+      const replied = await call('POST', '/api/acp/sessions/:key/forms/:formId/reply', {
+        params: { key, formId }, body: { answer: { choice: 'a' } },
+      });
+      expect(replied.statusCode).toBe(200);
+    } finally {
+      await shutdown();
+    }
+  });
+});

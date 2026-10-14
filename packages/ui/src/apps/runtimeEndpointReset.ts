@@ -28,6 +28,7 @@ import { useQuotaStore } from '@/stores/useQuotaStore';
 import { useMcpStore } from '@/stores/useMcpStore';
 import { useSkillsStore } from '@/stores/useSkillsStore';
 import { useCommandsStore } from '@/stores/useCommandsStore';
+import { useAcpCommandsStore } from '@/stores/useAcpCommandsStore';
 import { useAgentsStore } from '@/stores/useAgentsStore';
 import { useAgentMemoryStore } from '@/stores/useAgentMemoryStore';
 import { useUIStore } from '@/stores/useUIStore';
@@ -89,6 +90,7 @@ export const resetAppForRuntimeEndpointChange = (detail: RuntimeEndpointChangedD
   useMultiRunStore.getState().resetForRuntimeSwitch();
   useSessionMultiSelectStore.getState().disable();
   useCommandsStore.getState().resetForRuntimeSwitch();
+  useAcpCommandsStore.getState().resetForRuntimeSwitch();
   useAgentsStore.getState().resetForRuntimeSwitch();
   replaceGlobalSessionStatusById(new Map());
   resetGlobalBlockingRequests();

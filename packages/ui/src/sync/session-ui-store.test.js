@@ -5,6 +5,8 @@ import { useProjectsStore } from '@/stores/useProjectsStore';
 import { useDirectoryStore } from '@/stores/useDirectoryStore';
 import { useSessionWorktreeStore } from './session-worktree-store';
 import { expandSlashCommandGoalObjective, routeMessage, useSessionUIStore } from './session-ui-store';
+import { reconcileDraftAcpConfig, shouldReconcileDraftAcpConfig } from './session-ui-store';
+import { acpClient } from '@/lib/acp/client';
 import { setActionRefs, setOptimisticRefs } from './session-actions';
 import { useSkillsStore } from '@/stores/useSkillsStore';
 import { useCommandsStore } from '@/stores/useCommandsStore';
@@ -1724,6 +1726,33 @@ describe('routeMessage skill invocation', () => {
     expect(sendCommandCalls).toHaveLength(0);
     expect(sendMessageCalls).toHaveLength(0);
   });
+
+  test('sends ACP slash commands as prompt text without any OpenCode lookup', async () => {
+    // Even a name the OpenCode registries know resolves to nothing for ACP:
+    // the agent runs `/name args` as prompt text, and the lookup (which
+    // would start MCP servers) is skipped entirely.
+    useCommandsStore.setState({
+      commandsByDirectory: { '/acp/project': [{ name: 'deploy', template: 'Deploy $ARGUMENTS' }] },
+    });
+    useSkillsStore.setState({
+      skillsByDirectory: { '/acp/project': [{ name: 'deploy', path: '/skills/deploy/SKILL.md', scope: 'project', source: 'opencode' }] },
+    });
+
+    const route = await routeMessage({
+      sessionId: 'ses_acp-omp_r1',
+      directory: '/acp/project',
+      content: '/deploy staging',
+      providerID: 'provider-a',
+      modelID: 'model-a',
+    });
+
+    expect(route).toBe('prompt');
+    expect(liveLookupCalls).toEqual([]);
+    expect(sendCommandCalls).toHaveLength(0);
+    expect(sendMessageCalls).toHaveLength(1);
+    expect(sendMessageCalls[0]).toMatchObject({ text: '/deploy staging' });
+    expect(sendMessageCalls[0].skills).toBeUndefined();
+  });
 });
 
 describe('goal objective directory scoping', () => {
@@ -2169,5 +2198,79 @@ describe('send does not wait for session knowledge before showing the message', 
       await new Promise((resolve) => setTimeout(resolve, 0));
     }
     expect(delivered).toEqual([{ directory: '/repo', sessionId: 'session-knowledge', signature: 'sig-1' }]);
+  });
+});
+
+
+describe('reconcileDraftAcpConfig', () => {
+  let originalSetSessionConfig;
+
+  const acpSession = (overrides = {}) => ({
+    id: 'ses_acp-omp_reconcile',
+    directory: '/repo',
+    metadata: {
+      acp: {
+        backendId: 'omp',
+        capabilities: {},
+        configOptions: [
+          { id: 'model', options: [{ id: 'm1' }, { id: 'm2' }] },
+          { id: 'thinking', options: [{ id: 'low' }, { id: 'high' }] },
+        ],
+        modes: [],
+      },
+    },
+    ...overrides,
+  });
+
+  beforeEach(() => {
+    originalSetSessionConfig = acpClient.setSessionConfig;
+  });
+
+  afterEach(() => {
+    acpClient.setSessionConfig = originalSetSessionConfig;
+  });
+
+  test('awaits every offered write before resolving (first prompt applies staged values)', async () => {
+    const order = [];
+    acpClient.setSessionConfig = async (key, configId, value, directory) => {
+      order.push(`start:${configId}`);
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      order.push(`done:${configId}:${value}@${directory}`);
+    };
+    await reconcileDraftAcpConfig(acpSession(), { model: 'm2', thinking: 'low' });
+    expect(order).toEqual([
+      'start:model',
+      'done:model:m2@/repo',
+      'start:thinking',
+      'done:thinking:low@/repo',
+    ]);
+  });
+
+  test('skips stale and unadvertised values without failing the session', async () => {
+    const writes = [];
+    acpClient.setSessionConfig = async (key, configId, value) => {
+      writes.push([configId, value]);
+    };
+    await reconcileDraftAcpConfig(acpSession(), { model: 'm2', unknown: 'x', thinking: 'gone' });
+    expect(writes).toEqual([['model', 'm2']]);
+    await reconcileDraftAcpConfig(acpSession({ id: 'plain-session' }), { model: 'm2' });
+    expect(writes).toEqual([['model', 'm2']]);
+  });
+
+  test('one rejected option does not block the others or lose the session', async () => {
+    const writes = [];
+    acpClient.setSessionConfig = async (key, configId, value) => {
+      if (configId === 'model') throw new Error('agent says no');
+      writes.push([configId, value]);
+    };
+    await expect(reconcileDraftAcpConfig(acpSession(), { model: 'm1', thinking: 'high' })).resolves.toBeUndefined();
+    expect(writes).toEqual([['thinking', 'high']]);
+  });
+
+  test('shouldReconcileDraftAcpConfig gates on the draft backend only', () => {
+    expect(shouldReconcileDraftAcpConfig('omp')).toBe(true);
+    expect(shouldReconcileDraftAcpConfig(null)).toBe(false);
+    expect(shouldReconcileDraftAcpConfig(undefined)).toBe(false);
+    expect(shouldReconcileDraftAcpConfig('')).toBe(false);
   });
 });

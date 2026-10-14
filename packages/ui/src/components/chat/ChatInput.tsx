@@ -59,6 +59,8 @@ import type { SkillAutocompleteHandle } from './SkillAutocomplete';
 import type { SnippetAutocompleteHandle } from './SnippetAutocomplete';
 import { cn } from "@/lib/utils";
 import { ModelControls } from './ModelControls';
+import { AcpSessionControls } from './acp/AcpSessionControls';
+import { isAcpSessionId } from '@/lib/acp/session-key';
 import { parseAgentMentions } from '@/lib/messages/agentMentions';
 import { CONTEXT_METADATA_KEY, draftFromContextPayload } from '@/lib/messages/contextParts';
 import { shouldSubmitEnter } from './composer/keyboardPolicy';
@@ -112,6 +114,7 @@ import { useGitStore } from '@/stores/useGitStore';
 import { useDirectoryStore } from '@/stores/useDirectoryStore';
 import { selectSkillsForDirectory, useSkillsStore } from '@/stores/useSkillsStore';
 import { selectCommandsForDirectory, useCommandsStore } from '@/stores/useCommandsStore';
+import { useAcpCommandsStore } from '@/stores/useAcpCommandsStore';
 import { useRuntimeAPIs } from '@/hooks/useRuntimeAPIs';
 import { useEffectiveDirectory } from '@/hooks/useEffectiveDirectory';
 import { usePermissionStore } from '@/stores/permissionStore';
@@ -217,7 +220,7 @@ import { runSpaceAction } from '@/lib/spaces/space-repair';
 import { useSpacesStore } from '@/lib/spaces/spaces-store';
 import { isDraftSendWaiting, subscribeDraftSendWaiting } from '@/lib/worktrees/pendingDraftWorktree';
 import { ComposerAutocompletePopups } from './composer/ui/ComposerAutocompletePopups';
-import { ComposerFooter } from './composer/ui/ComposerFooter';
+import { ComposerFooter, shouldShowAcpSessionControls } from './composer/ui/ComposerFooter';
 import { MobilePillComposer } from './composer/ui/MobilePillComposer';
 import { ComposerContextChips } from './composer/ui/ComposerContextChips';
 import { LinkedReferenceRow } from './composer/ui/LinkedReferenceRow';
@@ -1384,7 +1387,8 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({
             toast.error(t('chat.chatInput.toast.attachNamedFailed', { name: documentMentions.filename }));
             return;
         }
-        const { sanitizedText, mention } = parseAgentMentions(messageToQueue, agents);
+        const isAcpTarget = currentSessionId !== null && isAcpSessionId(currentSessionId);
+        const { sanitizedText, mention } = isAcpTarget ? { sanitizedText: messageToQueue, mention: undefined } : parseAgentMentions(messageToQueue, agents);
         const { attachments: extractedMentionAttachments } = extractInlineFileMentions(sanitizedText, documentMentions.prepared);
         // #3898: a queued message is delivered later without the composer, so
         // a phantom mention (`@masha.conner`) must be dropped now or the
@@ -1794,6 +1798,27 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({
         // Action commands change session or UI state and send nothing. The
         // command text goes; the queue and whatever the composer had attached
         // stay exactly where they are.
+        if (commandPlan?.kind === 'action' && currentSessionId && isAcpSessionId(currentSessionId)) {
+            // ACP sessions run the agent's own commands as prompt text: when
+            // the agent offers this name (e.g. opencode's /compact), the local
+            // action stands down and the text goes out as a prompt. A name the
+            // agent definitively does not offer keeps the local handling
+            // (usually the unsupported toast below). When the command list is
+            // unknown (fetch failed), fall through: some agents report
+            // commands late or not at all, and blocking on a toast for a
+            // command the agent might honor is worse than the agent answering
+            // "unknown command".
+            const actionName = commandPlan.command.name;
+            const store = useAcpCommandsStore.getState();
+            const commands = await store.loadCommands(currentSessionId, currentSessionDirectoryForSync ?? currentDirectory);
+            // A fetched non-empty list decides by membership; an empty or
+            // failed fetch falls through optimistically (agents report
+            // commands late, or only on some sessions).
+            const known = (store.commandsBySession[currentSessionId] ?? []).length > 0;
+            if (!known || commands.some((command) => command.name.toLowerCase() === actionName.toLowerCase())) {
+                commandPlan = null;
+            }
+        }
         if (commandPlan?.kind === 'action' && currentSessionId) {
             const actionName = commandPlan.command.name;
             setMessage('');
@@ -1990,7 +2015,9 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({
             references: isBtwActive ? [] : linkedReferences.map(toContextReference),
         }, {
             parseAgentMention: (text) => {
-                if (isBtwActive) return { text };
+                // ACP sessions have no agents to route to; `@name` stays text
+                // (file mentions still resolve below).
+                if (isBtwActive || (currentSessionId && isAcpSessionId(currentSessionId))) return { text };
                 const { sanitizedText, mention } = parseAgentMentions(text, agents);
                 return { text: sanitizedText, agentName: mention?.name };
             },
@@ -2624,12 +2651,14 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({
         const trigger = resolveAutocompleteTrigger(value, cursorPosition, {
             inputMode,
             mentionsEnabled: !isBtwActive,
+            // ACP sessions attach no skills; the `$` picker stays closed.
+            skillsEnabled: !(currentSessionId && isAcpSessionId(currentSessionId)),
             inputSource,
             insertedText,
         });
         setOpenAutocomplete(trigger?.kind ?? null);
         setAutocompleteQuery(trigger?.query ?? '');
-    }, [inputMode, isBtwActive]);
+    }, [currentSessionId, inputMode, isBtwActive]);
 
     const insertTextAtSelection = React.useCallback((
         text: string,
@@ -3952,12 +3981,18 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({
         // and mic icons above them; the buttons drop their own padding so the
         // row alone owns the inset.
         <div className="flex items-center justify-between gap-x-2 px-3.5 pb-2 pt-0.5">
-            <MemoMobileModelButton onOpenModel={() => handleOpenMobilePanel('model')} className="min-w-0 px-0" />
-            <MemoMobileAgentButton
-                onOpenAgentPanel={handleOpenAgentPanel}
-                onCycleAgent={handleCycleAgent}
-                className="flex-shrink-0 px-0"
-            />
+            {shouldShowAcpSessionControls(currentSessionId ?? null, newSessionDraftOpen, newSessionDraft?.acpBackendId) ? (
+                <AcpSessionControls variant="mobile" className="min-w-0 flex-1 px-0" sessionId={currentSessionId} directory={currentSessionDirectoryForSync ?? currentDirectory} />
+            ) : (
+                <>
+                    <MemoMobileModelButton onOpenModel={() => handleOpenMobilePanel('model')} className="min-w-0 px-0" />
+                    <MemoMobileAgentButton
+                        onOpenAgentPanel={handleOpenAgentPanel}
+                        onCycleAgent={handleCycleAgent}
+                        className="flex-shrink-0 px-0"
+                    />
+                </>
+            )}
         </div>
     ) : null;
 
@@ -4236,6 +4271,7 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({
                         onSnippetSelect={handleSnippetSelect}
                         onFileSelect={handleFileSelect}
                         onAgentSelect={handleAgentSelect}
+                        hideAgents={Boolean(currentSessionId && isAcpSessionId(currentSessionId))}
                         onClose={closeAutocomplete}
                     />
                 {/* The lift shadow lives on this wrapper, away from the glass

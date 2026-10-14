@@ -14,6 +14,7 @@
 import type { CatalogKind } from "@/lib/opencode/events";
 import { getConfigDirectory, invalidateAgentsLoadCache, useAgentsStore } from "@/stores/useAgentsStore";
 import { invalidateCommandsLoadCache, useCommandsStore } from "@/stores/useCommandsStore";
+import { invalidateAcpCommands } from "@/stores/useAcpCommandsStore";
 import { invalidateSkillsLoadCache, useSkillsStore } from "@/stores/useSkillsStore";
 import { useSkillsCatalogStore } from "@/stores/useSkillsCatalogStore";
 import { invalidateConfigAgentsLoad, useConfigStore } from "@/stores/useConfigStore";
@@ -50,6 +51,9 @@ const refreshAgents = async (eventDirectories: readonly string[] = []): Promise<
 
 const refreshCommands = async (): Promise<void> => {
   invalidateCommandsLoadCache();
+  // ACP sessions cache commands per session; the projector announces changes
+  // with the same `catalog.updated{kind:'command'}` event.
+  invalidateAcpCommands();
   await useCommandsStore.getState().loadCommands();
 };
 

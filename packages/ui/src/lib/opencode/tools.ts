@@ -183,6 +183,10 @@ const metadataSchema = z
     toolCalls: z.array(executeToolCallSchema.nullable().catch(null)).optional().catch(undefined),
     truncated: z.boolean().optional().catch(undefined),
     outputPath: optionalText,
+    // ACP generic tool (§3.4): the projector carries the call's `title` and
+    // `kind` through here; see `acpToolTitle`/`acpToolKind`.
+    acpTitle: optionalText,
+    acpKind: optionalText,
   })
   .catch({})
 
@@ -289,6 +293,19 @@ export function subagentDescription(input: ToolInput | undefined): string | unde
 export function subagentSessionId(metadata: Metadata | undefined): string | undefined {
   const parsed = metadataSchema.parse(metadata ?? {})
   return parsed.sessionID ?? parsed.sessionId
+}
+
+/** Whether the call is the ACP generic tool (§3.4: unmapped kinds). */
+export const isAcpTool = (toolName: ToolName): boolean => normalizeToolName(toolName) === "acp"
+
+/** The ACP call's agent-supplied title (`metadata.acpTitle`), if any. */
+export function acpToolTitle(metadata: Metadata | undefined): string | undefined {
+  return metadataSchema.parse(metadata ?? {}).acpTitle
+}
+
+/** The ACP call's spec kind (`metadata.acpKind`: think/switch_mode/other/...), if any. */
+export function acpToolKind(metadata: Metadata | undefined): string | undefined {
+  return metadataSchema.parse(metadata ?? {}).acpKind
 }
 
 // ---------------------------------------------------------------------------
@@ -489,6 +506,15 @@ export function toolDescription(
     case OPENCODE_TOOLS.question: {
       const count = parsed.questions?.length ?? 0
       return count > 0 ? { kind: "questions", count } : null
+    }
+
+    // ACP generic tool (§3.4): the agent's title is the description; the
+    // display name stays the "Agent Action" fallback. Without a title the
+    // row falls back to the generic description/path handling below.
+    case "acp": {
+      const titled = text(acpToolTitle(metadata))
+      if (titled) return titled
+      return text(parsed.description) ?? asPath(parsed.path ?? parsed.filePath ?? parsed.file_path)
     }
 
     // MCP and plugin tools: anything they call a description, then a path.

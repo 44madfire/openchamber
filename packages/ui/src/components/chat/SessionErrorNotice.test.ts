@@ -1,6 +1,7 @@
 import { describe, expect, test } from 'bun:test';
 import type { Message } from '@/lib/opencode/model';
 import { readLastMessageState, scheduleUnansweredRechecks } from './sessionErrorNoticeState';
+import { compactionAnswersPromptForNotice } from './SessionErrorNotice';
 
 // A user message never finishes a turn, so a stray `completed` on one — older
 // optimistic sends stamped `completed: 0` — must be ignored.
@@ -111,5 +112,74 @@ describe('scheduleUnansweredRechecks', () => {
     await Promise.resolve();
     await Promise.resolve();
     expect(settled).toBe(0);
+  });
+});
+
+describe('compactionAnswersPromptForNotice', () => {
+  const ACP_SESSION = 'ses_acp-omp_rnotice';
+  const OPENCODE_SESSION = 'ses_opencode_notice';
+
+  const userPrompt = (sessionID: string): Message => ({
+    id: 'msg_user',
+    sessionID,
+    role: 'user',
+    time: { created: 1_000 },
+  } as Message);
+
+  const compaction = (
+    sessionID: string,
+    overrides: { status?: 'running' | 'completed' | 'failed'; reason?: 'auto' | 'manual' } = {},
+  ): Message => ({
+    id: 'msg_compact',
+    sessionID,
+    role: 'compaction',
+    time: { created: 2_000 },
+    status: 'completed',
+    reason: 'manual',
+    summary: 'Summarised.',
+    ...overrides,
+  } as Message);
+
+  test('a settled manual compaction answers an ACP compact-only turn', () => {
+    for (const status of ['completed', 'failed'] as const) {
+      const prompt = userPrompt(ACP_SESSION);
+      const record = compaction(ACP_SESSION, { status });
+      expect(compactionAnswersPromptForNotice(prompt, [prompt, record], ACP_SESSION)).toBe(record);
+    }
+  });
+
+  test('automatic and running compactions never answer the turn', () => {
+    const prompt = userPrompt(ACP_SESSION);
+    expect(compactionAnswersPromptForNotice(
+      prompt,
+      [prompt, compaction(ACP_SESSION, { reason: 'auto' })],
+      ACP_SESSION,
+    )).toBe(prompt);
+    expect(compactionAnswersPromptForNotice(
+      prompt,
+      [prompt, compaction(ACP_SESSION, { status: 'running' })],
+      ACP_SESSION,
+    )).toBe(prompt);
+  });
+
+  test('OpenCode sessions keep failure/no-reply behavior after any compaction', () => {
+    const prompt = userPrompt(OPENCODE_SESSION);
+    expect(compactionAnswersPromptForNotice(
+      prompt,
+      [prompt, compaction(OPENCODE_SESSION)],
+      OPENCODE_SESSION,
+    )).toBe(prompt);
+    expect(compactionAnswersPromptForNotice(
+      prompt,
+      [prompt, compaction(OPENCODE_SESSION, { reason: 'auto' })],
+      OPENCODE_SESSION,
+    )).toBe(prompt);
+  });
+
+  test('a newer unanswered prompt stays the last conversation message', () => {
+    const first = userPrompt(ACP_SESSION);
+    const settled = compaction(ACP_SESSION);
+    const second = { ...userPrompt(ACP_SESSION), id: 'msg_user_2', time: { created: 3_000 } };
+    expect(compactionAnswersPromptForNotice(second, [first, settled, second], ACP_SESSION)).toBe(second);
   });
 });

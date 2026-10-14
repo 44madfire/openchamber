@@ -19,6 +19,8 @@ import type { AttachedFile, SessionWorktreeAttachment } from "@/stores/types/ses
 import type { PermissionMode } from "@/stores/utils/permissionAutoAccept"
 import type { WorktreeMetadata } from "@/types/worktree"
 import { opencodeClient, type SkillMentions } from "@/lib/opencode/client"
+import { acpClient, readAcpSessionMeta } from "@/lib/acp/client"
+import { isAcpSessionId } from "@/lib/acp/session-key"
 import { buildSkillMentionInstruction } from "@/lib/skillMentionInstruction"
 import { runtimeFetch } from "@/lib/runtime-fetch"
 import { useConfigStore } from "@/stores/useConfigStore"
@@ -151,6 +153,12 @@ export function resolveSendSelection(
   directory: string | undefined,
   desired: { providerID: string; modelID: string; variant?: string; agent?: string },
 ): { model?: ModelRef; agent?: string } {
+  // ACP sessions own their config: AcpSessionControls (and the draft
+  // reconcile) are the only writers. The composer's OpenCode model/agent
+  // must never leak in here — the OpenCode pickers are hidden for ACP
+  // sessions, so these are ambient defaults that would stomp the user's
+  // explicit ACP choice on every send.
+  if (isAcpSessionId(sessionId)) return {}
   const sessions = getDirectoryState(directory)?.session ?? getAllSyncSessions()
   const session = sessions.find((candidate) => candidate.id === sessionId)
   const model: ModelRef = { providerID: desired.providerID, id: desired.modelID, variant: desired.variant }
@@ -228,78 +236,85 @@ export async function routeMessage(params: {
     const [head, ...tail] = params.content.split(" ")
     const cmdName = head.slice(1)
 
-    // Commands and skills are resolved for the session's own directory. A
-    // project root and one of its worktrees can define different commands
-    // under the same name. OpenCode 2.x lists skills separately and accepts
-    // them as prompt attachments rather than commands.
-    let matchedCommand = selectCommandsForDirectory(useCommandsStore.getState(), requestDirectory)
-      .find((c) => c.name === cmdName)
-    let matchedSkill = selectSkillsForDirectory(useSkillsStore.getState(), requestDirectory)
-      .find((s) => s.name === cmdName)
+    // ACP sessions run every slash command as prompt text (`sendCommand`
+    // folds to `sendAcpMessage`), so there is nothing to resolve: no OpenCode
+    // command/skill lookup (which would start MCP servers for nothing), no
+    // optimistic insert (the prompt path below handles it). The ACP command
+    // list only feeds the autocomplete.
+    if (!isAcpSessionId(params.sessionId)) {
+      // Commands and skills are resolved for the session's own directory. A
+      // project root and one of its worktrees can define different commands
+      // under the same name. OpenCode 2.x lists skills separately and accepts
+      // them as prompt attachments rather than commands.
+      let matchedCommand = selectCommandsForDirectory(useCommandsStore.getState(), requestDirectory)
+        .find((c) => c.name === cmdName)
+      let matchedSkill = selectSkillsForDirectory(useSkillsStore.getState(), requestDirectory)
+        .find((s) => s.name === cmdName)
 
-    // The command list is no longer pre-warmed at bootstrap (listing it
-    // initializes the directory's whole MCP fleet), so a name known to neither
-    // store gets one live, directory-scoped lookup. That lookup decides the
-    // route: a successful no-match is a plain prompt, while a failed lookup is
-    // a send failure, because treating it as a prompt would silently send the
-    // raw "/name" text instead of running the command.
-    // The skills list is loaded per directory on demand too, so a skill of a
-    // directory the store has not loaded yet gets the same live lookup. A
-    // failed skills load is a send failure for the same reason. Commands keep
-    // precedence when both lookups match.
-    if (!matchedCommand && !matchedSkill) {
-      const [liveCommands, skillsLoaded] = await Promise.all([
-        opencodeClient.listCommands(requestDirectory),
-        useSkillsStore.getState().loadSkills(requestDirectory),
-      ])
-      matchedCommand = liveCommands.find((c) => c.name === cmdName)
-      if (!matchedCommand) {
-        if (!skillsLoaded) {
-          throw new Error(`Could not load skills to resolve /${cmdName}`)
+      // The command list is no longer pre-warmed at bootstrap (listing it
+      // initializes the directory's whole MCP fleet), so a name known to neither
+      // store gets one live, directory-scoped lookup. That lookup decides the
+      // route: a successful no-match is a plain prompt, while a failed lookup is
+      // a send failure, because treating it as a prompt would silently send the
+      // raw "/name" text instead of running the command.
+      // The skills list is loaded per directory on demand too, so a skill of a
+      // directory the store has not loaded yet gets the same live lookup. A
+      // failed skills load is a send failure for the same reason. Commands keep
+      // precedence when both lookups match.
+      if (!matchedCommand && !matchedSkill) {
+        const [liveCommands, skillsLoaded] = await Promise.all([
+          opencodeClient.listCommands(requestDirectory),
+          useSkillsStore.getState().loadSkills(requestDirectory),
+        ])
+        matchedCommand = liveCommands.find((c) => c.name === cmdName)
+        if (!matchedCommand) {
+          if (!skillsLoaded) {
+            throw new Error(`Could not load skills to resolve /${cmdName}`)
+          }
+          matchedSkill = selectSkillsForDirectory(useSkillsStore.getState(), requestDirectory)
+            .find((s) => s.name === cmdName)
         }
-        matchedSkill = selectSkillsForDirectory(useSkillsStore.getState(), requestDirectory)
-          .find((s) => s.name === cmdName)
       }
-    }
 
-    if (matchedCommand) {
-      // The command route takes files only, so attached context (a quoted
-      // selection, pinned knowledge, prepared conflict instructions) is
-      // admitted ahead of it as synthetic messages. Sending "/name args" as
-      // a prompt instead would skip the command's template entirely: OpenCode
-      // 2.x expands it only on the command route.
-      //
-      // `session.command` assigns the message id itself, so there is no id to
-      // hang an optimistic user message on. The command's message arrives
-      // through the stream instead.
-      params.appendSubmissions?.()
-      const knowledgeText = await params.sessionKnowledge
-      const commandContext = [
-        ...(knowledgeText ? [{ text: knowledgeText }] : []),
-        ...contextItems,
-        ...skillInstructionContext(),
-      ]
-      await opencodeClient.sendCommand({
-        runtimeKey: params.runtimeKey,
-        id: params.sessionId,
-        model: selection.model,
-        agent: selection.agent,
-        command: cmdName,
-        arguments: tail.join(" "),
-        files: sendFiles,
-        context: commandContext.length > 0 ? commandContext : undefined,
-        delivery: params.delivery,
-        directory: requestDirectory,
-      })
-      return 'command'
-    }
+      if (matchedCommand) {
+        // The command route takes files only, so attached context (a quoted
+        // selection, pinned knowledge, prepared conflict instructions) is
+        // admitted ahead of it as synthetic messages. Sending "/name args" as
+        // a prompt instead would skip the command's template entirely: OpenCode
+        // 2.x expands it only on the command route.
+        //
+        // `session.command` assigns the message id itself, so there is no id to
+        // hang an optimistic user message on. The command's message arrives
+        // through the stream instead.
+        params.appendSubmissions?.()
+        const knowledgeText = await params.sessionKnowledge
+        const commandContext = [
+          ...(knowledgeText ? [{ text: knowledgeText }] : []),
+          ...contextItems,
+          ...skillInstructionContext(),
+        ]
+        await opencodeClient.sendCommand({
+          runtimeKey: params.runtimeKey,
+          id: params.sessionId,
+          model: selection.model,
+          agent: selection.agent,
+          command: cmdName,
+          arguments: tail.join(" "),
+          files: sendFiles,
+          context: commandContext.length > 0 ? commandContext : undefined,
+          delivery: params.delivery,
+          directory: requestDirectory,
+        })
+        return 'command'
+      }
 
-    if (matchedSkill) {
-      skills = {
-        names: [...new Set([matchedSkill.name, ...(params.skills?.names ?? [])])],
-        // Callers without a composer (multi-run) pass no builder; the skill
-        // still has to be named when it cannot be attached.
-        instructionFor: params.skills?.instructionFor ?? buildSkillMentionInstruction,
+      if (matchedSkill) {
+        skills = {
+          names: [...new Set([matchedSkill.name, ...(params.skills?.names ?? [])])],
+          // Callers without a composer (multi-run) pass no builder; the skill
+          // still has to be named when it cannot be attached.
+          instructionFor: params.skills?.instructionFor ?? buildSkillMentionInstruction,
+        }
       }
     }
   }
@@ -403,6 +418,8 @@ export type NewSessionDraftState = {
   permissionMode?: PermissionMode
   /** ACP backend the new session runs on; absent/null means the default OpenCode agent. */
   acpBackendId?: string | null
+  /** Pre-session ACP config values from the backend cache picker; reconciled onto the session after create. */
+  acpConfig?: Record<string, string | number | boolean> | null
   pendingWorktreeRequestId?: string | null
   bootstrapPendingDirectory?: string | null
   preserveDirectoryOverride?: boolean
@@ -456,6 +473,7 @@ export type SessionUIState = {
   setDraftPreserveDirectoryOverride: (value: boolean) => void
   setDraftPermissionMode: (mode: PermissionMode) => void
   setDraftAcpBackendId: (backendId: string | null) => void
+  setDraftAcpConfig: (configId: string, value: string | number | boolean | null) => void
   setDraftProjectContextPin: (kind: "note" | "plan", id: string, pinned: boolean) => void
   acknowledgeSessionAbort: (sessionId: string) => void
   clearAbortPrompt: () => void
@@ -631,6 +649,15 @@ export const getRememberedSessionDirectory = (sessionId: string): {
  * a guess, not a selection.
  */
 let guessedSelectionSessionId: string | null = null
+
+/**
+ * True when the materialization path would try to reconcile draft ACP config
+ * onto a created session. Exported for tests: creation of an ACP session
+ * implies materialization awaited the reconcile (which itself resolves even
+ * when individual option writes fail).
+ */
+export const shouldReconcileDraftAcpConfig = (draftAcpBackendId: string | null | undefined): boolean =>
+  !!draftAcpBackendId
 
 const collectSessionDirectorySources = (
   sessionId: string,
@@ -999,6 +1026,32 @@ const resolveVariantToRecord = (
   return describesThisSend ? config.currentVariantSelection.override : sentVariant
 }
 
+// ACP pre-session values (D9) reconcile onto a created session: each draft
+// value is written only when the agent actually offers that option and value
+// — the cache may be stale, and a value the agent never offered must not fail
+// the create. Failures are isolated per option: one rejected write leaves the
+// other selections and the session itself intact.
+export async function reconcileDraftAcpConfig(
+  created: Pick<Session, "id" | "directory" | "metadata">,
+  draftAcpConfig: Record<string, string | number | boolean> | null | undefined,
+): Promise<void> {
+  if (!draftAcpConfig || Object.keys(draftAcpConfig).length === 0) return
+  if (!isAcpSessionId(created.id)) return
+  const directory = normalizePath(created.directory ?? null)
+  const meta = readAcpSessionMeta(created)
+  for (const [configId, value] of Object.entries(draftAcpConfig)) {
+    const option = meta?.configOptions.find((candidate) => candidate.id === configId)
+    if (!option) continue
+    if (option.options && !option.options.some((offered) => offered.id === String(value))) continue
+    try {
+      await acpClient.setSessionConfig(created.id, configId, value, directory)
+    } catch {
+      // The session keeps the agent's default for this option; the controls
+      // reconcile from `metadata.acp` when the session record arrives.
+    }
+  }
+}
+
 export async function materializeOpenDraftSession(selection: {
   providerID: string
   modelID: string
@@ -1063,6 +1116,14 @@ export async function materializeOpenDraftSession(selection: {
       await deleteChatDirectory(draftDirectoryOverride).catch(() => undefined)
     }
     throw new Error("Failed to create session")
+  }
+
+  // ACP pre-session values (D9) reconcile onto the new session before the
+  // first prompt runs, so a staged model/effort applies to turn one. This
+  // never throws: stale values are skipped, per-option failures isolated
+  // (see reconcileDraftAcpConfig / shouldReconcileDraftAcpConfig tests).
+  if (shouldReconcileDraftAcpConfig(draft.acpBackendId)) {
+    await reconcileDraftAcpConfig(created, draft.acpConfig)
   }
 
   // The server response is authoritative. It may canonicalize a requested
@@ -1630,7 +1691,18 @@ export const useSessionUIStore = create<SessionUIState>()((set, get) => ({
   setDraftAcpBackendId: (backendId) =>
     set((s) => {
       if (!s.newSessionDraft?.open) return s
-      return { newSessionDraft: { ...s.newSessionDraft, acpBackendId: backendId } }
+      // A different backend invalidates cached pre-session values.
+      const acpConfig = backendId === s.newSessionDraft.acpBackendId ? s.newSessionDraft.acpConfig : null
+      return { newSessionDraft: { ...s.newSessionDraft, acpBackendId: backendId, acpConfig } }
+    }),
+
+  setDraftAcpConfig: (configId, value) =>
+    set((s) => {
+      if (!s.newSessionDraft?.open) return s
+      const next = { ...(s.newSessionDraft.acpConfig ?? {}) }
+      if (value === null) delete next[configId]
+      else next[configId] = value
+      return { newSessionDraft: { ...s.newSessionDraft, acpConfig: next } }
     }),
 
   setDraftProjectContextPin: (kind, id, pinned) =>

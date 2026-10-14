@@ -167,6 +167,68 @@ describe("acpClient", () => {
     expect(requests[0].url.pathname).toBe("/api/acp/backends")
   })
 
+  test("replyToPermission posts the reply and optional message", async () => {
+    responses.push(new Response(null, { status: 200 }))
+    await acpClient.replyToPermission("ses_acp-omp_r1", "per_1", "once", { message: "ok", directory: "/repo" })
+    expect(requests[0].url.pathname).toBe("/api/acp/sessions/ses_acp-omp_r1/permissions/per_1/reply")
+    expect(requests[0].method).toBe("POST")
+    expect(requests[0].body).toEqual({ reply: "once", message: "ok" })
+  })
+
+  test("replyToPermission surfaces a settled 404 with its code", async () => {
+    responses.push(json({ error: "settled", code: "ACP_PERMISSION_UNKNOWN" }, 404))
+    const error = await acpClient.replyToPermission("ses_acp-omp_r1", "per_1", "reject").catch((e) => e)
+    expect(error).toBeInstanceOf(AcpApiError)
+    expect(error.status).toBe(404)
+    expect(error.code).toBe("ACP_PERMISSION_UNKNOWN")
+  })
+
+  test("fetchPermission returns the pending request", async () => {
+    const permission = { id: "per_1", sessionID: "ses_acp-omp_r1", action: "shell", resources: ["ls"] }
+    responses.push(json({ permission }))
+    expect(await acpClient.fetchPermission("ses_acp-omp_r1", "per_1", "/repo")).toEqual(permission)
+    expect(requests[0].url.pathname).toBe("/api/acp/sessions/ses_acp-omp_r1/permissions/per_1")
+  })
+
+  test("listPendingPermissions scopes by directory", async () => {
+    const permission = { id: "per_1", sessionID: "ses_acp-omp_r1", action: "shell", resources: [] }
+    responses.push(json({ permissions: [permission] }))
+    expect(await acpClient.listPendingPermissions("/repo")).toEqual([permission])
+    expect(requests[0].url.pathname).toBe("/api/acp/permissions")
+    expect(requests[0].url.searchParams.get("directory")).toBe("/repo")
+  })
+
+  test("replyToForm posts the answer; cancelForm posts to cancel", async () => {
+    responses.push(new Response(null, { status: 200 }))
+    await acpClient.replyToForm("ses_acp-omp_r1", "frm_1", { choice: "a" }, "/repo")
+    expect(requests[0].url.pathname).toBe("/api/acp/sessions/ses_acp-omp_r1/forms/frm_1/reply")
+    expect(requests[0].body).toEqual({ answer: { choice: "a" } })
+    responses.push(new Response(null, { status: 200 }))
+    await acpClient.cancelForm("ses_acp-omp_r1", "frm_1", "/repo")
+    expect(requests[1].url.pathname).toBe("/api/acp/sessions/ses_acp-omp_r1/forms/frm_1/cancel")
+  })
+
+  test("listPendingForms scopes by directory", async () => {
+    const form = { id: "frm_1", sessionID: "ses_acp-omp_r1", title: "Q", fields: [] }
+    responses.push(json({ forms: [form] }))
+    expect(await acpClient.listPendingForms("/repo")).toEqual([form])
+    expect(requests[0].url.pathname).toBe("/api/acp/forms")
+  })
+
+  test("getSessionCommands returns the cached commands", async () => {
+    const commands = [{ name: "compact", description: "Compact" }]
+    responses.push(json({ commands }))
+    expect(await acpClient.getSessionCommands("ses_acp-omp_r1", "/repo")).toEqual(commands)
+    expect(requests[0].url.pathname).toBe("/api/acp/sessions/ses_acp-omp_r1/commands")
+  })
+
+  test("getBackendConfigCache returns the last-seen options", async () => {
+    const configOptions = [{ id: "model", current: "m" }]
+    responses.push(json({ configOptions }))
+    expect(await acpClient.getBackendConfigCache("omp")).toEqual(configOptions)
+    expect(requests[0].url.pathname).toBe("/api/acp/backends/omp/config-cache")
+  })
+
   test("a missing envelope field throws AcpApiError", async () => {
     responses.push(json({ sessions: [] }))
     const error = await acpClient.getSession("ses_acp-omp_r1").catch((e) => e)
@@ -201,6 +263,31 @@ describe("readAcpSessionMeta", () => {
       modes: [{ id: "build" }],
       contextSize: 1000,
     })
+  })
+
+  test("reads the plan block with entries", () => {
+    const meta = readAcpSessionMeta({
+      metadata: {
+        acp: {
+          backendId: "omp",
+          plan: {
+            entries: [
+              { content: "Write code", priority: "high", status: "in_progress" },
+              { content: "Test it", priority: "medium", status: "pending" },
+            ],
+            updatedAt: 42,
+          },
+        },
+      },
+    })
+    expect(meta?.plan).toEqual({
+      entries: [
+        { content: "Write code", priority: "high", status: "in_progress" },
+        { content: "Test it", priority: "medium", status: "pending" },
+      ],
+      updatedAt: 42,
+    })
+    expect(readAcpSessionMeta({ metadata: { acp: { backendId: "omp" } } })).not.toHaveProperty("plan")
   })
 
   test("defaults missing collections and returns null without a backend id", () => {

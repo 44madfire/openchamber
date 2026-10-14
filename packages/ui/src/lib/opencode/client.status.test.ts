@@ -26,10 +26,13 @@ describe("v2 status and cancellation HTTP boundary", () => {
       expect(await opencodeClient.listPendingForms(options)).toEqual([])
       expect(await opencodeClient.listPendingPermissions(options)).toEqual([])
       // Never a list without a directory: v2 answers it for its own working
-      // directory and starts that location, MCP servers included.
+      // directory and starts that location, MCP servers included. Each list
+      // spends one OpenCode request plus one ACP merge request.
       expect(requests).toEqual([
         { path: "/api/form", directory: encodeURIComponent("C:/Tree with spaces") },
+        { path: "/api/acp/forms", directory: encodeURIComponent("C:/Tree with spaces") },
         { path: "/api/permission/request", directory: encodeURIComponent("C:/Tree with spaces") },
+        { path: "/api/acp/permissions", directory: encodeURIComponent("C:/Tree with spaces") },
       ])
     } finally {
       fetch.mockRestore()

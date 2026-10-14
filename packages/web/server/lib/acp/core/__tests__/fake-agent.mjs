@@ -25,10 +25,15 @@
  *   `session/request_permission` with that body and records the outcome on
  *   stderr as `PERMISSION:<json>`; `{ elicitation }` sends
  *   `elicitation/create` and records `ELICITATION:<json>`; `{ notify: { method,
- *   params } }` sends a raw notification (extension traffic); `{ holdForCancel:
- *   ms }` waits up to `ms` for a `session/cancel` and then finishes with
- *   `cancelled` (records `CANCELLED:<sessionId>`); `{ error: { code, message }
- *   }` throws a JSON-RPC error out of the prompt.
+ *   params } }` sends a raw notification (extension traffic); `{ childUpdate:
+ *   params }` sends `opencode/session/child_update` with those params (child
+ *   sessions); `{ holdForCancel: ms }` waits up to `ms` for a `session/cancel`
+ *   and then finishes with `cancelled` (records `CANCELLED:<sessionId>`);
+ *   `{ awaitCancelThenPermission: { permission, timeoutMs } }` waits for a
+ *   cancel, then sends that permission and finishes `cancelled` (the result
+ *   is gated on the answer); past the timeout with no cancel it sends the
+ *   permission anyway and continues the script.
+ *   `{ error: { code, message } }` throws a JSON-RPC error out of the prompt.
  *   `{ stopReason }` as the last step overrides the prompt result.
  * - `FAKE_ACP_SESSIONS` — JSON array of `{ sessionId, cwd, title?, updatedAt?
  *   }` pre-seeded for `session/list` (filtering by `cwd` when given).
@@ -142,11 +147,32 @@ const runPromptScript = async (agent, sessionId, prompt) => {
     if (step.notify) {
       await agent.notify(step.notify.method, { sessionId, ...(step.notify.params ?? {}) });
     }
+    if (step.childUpdate) {
+      await agent.notify('opencode/session/child_update', { ...(step.childUpdate ?? {}) });
+    }
     if (typeof step.holdForCancel === 'number') {
       const deadline = Date.now() + step.holdForCancel;
       while (!cancelledSessions.has(sessionId) && Date.now() < deadline) {
         await sleep(10);
       }
+      if (cancelledSessions.has(sessionId)) {
+        process.stderr.write(`CANCELLED:${sessionId}\n`);
+        return { stopReason: 'cancelled' };
+      }
+    }
+    if (step.awaitCancelThenPermission) {
+      // Wait for a cancel, then send one permission and finish cancelled —
+      // the prompt result is gated on the permission answer. Without
+      // transitive cancellation the client parks it and the cancel hangs.
+      // Past `timeoutMs` with no cancel, send it anyway and continue (the
+      // client parks it like any in-turn request).
+      const { permission, timeoutMs = 5000 } = step.awaitCancelThenPermission;
+      const deadline = Date.now() + timeoutMs;
+      while (!cancelledSessions.has(sessionId) && Date.now() < deadline) {
+        await sleep(10);
+      }
+      const outcome = await agent.requestPermission({ sessionId, ...permission });
+      process.stderr.write(`PERMISSION:${JSON.stringify(outcome)}\n`);
       if (cancelledSessions.has(sessionId)) {
         process.stderr.write(`CANCELLED:${sessionId}\n`);
         return { stopReason: 'cancelled' };

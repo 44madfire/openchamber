@@ -110,3 +110,56 @@ describe('registry persistence', () => {
     await expect(registry.list()).rejects.toMatchObject({ code: 'ACP_REGISTRY_CORRUPT' });
   });
 });
+
+describe('registry cache patch', () => {
+  const tempDir = () => mkdtemp(join(tmpdir(), 'acp-reg-cache-'));
+
+  it('patches one backend cache without disturbing concurrent PUT edits', async () => {
+    const dataDir = await tempDir();
+    const registry = createAcpBackendRegistry({ dataDir, resolveCommand: () => null });
+    await registry.save([validEntry(), validEntry({ id: 'second', label: 'second', command: 'second' })]);
+    // Interleave a whole-registry PUT with a cache refresh: both must land.
+    const [saved, patched] = await Promise.all([
+      registry.save([
+        validEntry({ label: 'USER EDIT', command: 'edited.exe' }),
+        validEntry({ id: 'second', label: 'second', command: 'second' }),
+      ]),
+      registry.patchCache('omp', [{ id: 'model' }], new Date(1000).toISOString()),
+    ]);
+    expect(patched).toEqual({ id: 'omp', at: new Date(1000).toISOString() });
+    expect(saved).toHaveLength(2);
+    const entries = await registry.list();
+    expect(entries.find((entry) => entry.id === 'omp')).toMatchObject({
+      label: 'USER EDIT',
+      command: 'edited.exe',
+      cache: { configOptions: [{ id: 'model' }] },
+    });
+    expect(entries.find((entry) => entry.id === 'second').cache).toBeUndefined();
+  });
+
+  it('keeps a concurrent PUT when the backend was deleted mid-refresh', async () => {
+    const dataDir = await tempDir();
+    const registry = createAcpBackendRegistry({ dataDir, resolveCommand: () => null });
+    await registry.save([validEntry()]);
+    const [saved, patched] = await Promise.all([
+      registry.save([]),
+      registry.patchCache('omp', [{ id: 'model' }], new Date(0).toISOString()),
+    ]);
+    expect(saved).toEqual([]);
+    // The backend is gone: the patch is a no-op, never a resurrection.
+    expect(patched).toBeNull();
+    await expect(registry.list()).resolves.toEqual([]);
+  });
+
+  it('returns null for missing backends and corrupt files', async () => {
+    const { writeFile } = await import('node:fs/promises');
+    const dataDir = await tempDir();
+    const registry = createAcpBackendRegistry({ dataDir, resolveCommand: () => null });
+    await registry.save([validEntry()]);
+    await expect(registry.patchCache('missing', [], new Date(0).toISOString())).resolves.toBeNull();
+    await writeFile(join(dataDir, 'acp-backends.json'), '{not json');
+    await expect(registry.patchCache('omp', [], new Date(0).toISOString())).resolves.toBeNull();
+    // The corrupt file is untouched (no seeding over it).
+    await expect(registry.list()).rejects.toMatchObject({ code: 'ACP_REGISTRY_CORRUPT' });
+  });
+});

@@ -1,7 +1,10 @@
 import { describe, expect, test } from "bun:test"
 
 import {
+  acpToolKind,
+  acpToolTitle,
   patchInputFiles,
+  isAcpTool,
   isQuestionTool,
   carriesFileDiffs,
   executeOutputTruncation,
@@ -207,6 +210,19 @@ describe("tool row description", () => {
     expect(toolDescription("custom_tool", { path: "notes.md" }, undefined))
       .toEqual({ kind: "path", value: "notes.md" })
     expect(toolDescription("custom_tool", {}, undefined)).toBe(null)
+  })
+
+  test("the ACP generic tool describes itself with the agent title, then the generic fallback", () => {
+    expect(isAcpTool("acp")).toBe(true)
+    expect(isAcpTool("shell")).toBe(false)
+    expect(acpToolTitle({ acpTitle: "Thinking hard" })).toBe("Thinking hard")
+    expect(acpToolKind({ acpKind: "think" })).toBe("think")
+    expect(toolDescription("acp", {}, { acpTitle: "Thinking hard", acpKind: "think" }))
+      .toEqual({ kind: "text", value: "Thinking hard" })
+    expect(toolDescription("acp", { description: "Fallback" }, {}))
+      .toEqual({ kind: "text", value: "Fallback" })
+    expect(toolDescription("acp", { path: "notes.md" }, {})).toEqual({ kind: "path", value: "notes.md" })
+    expect(toolDescription("acp", {}, {})).toBe(null)
   })
 })
 

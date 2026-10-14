@@ -62,6 +62,11 @@ describe('skill picker', () => {
         expect(at('$a b $c|')).toEqual({ kind: 'skill', query: 'c' });
     });
 
+    test('skillsEnabled: false (ACP sessions) keeps the skill picker closed', () => {
+        expect(at('$rev|', { inputMode: 'normal', skillsEnabled: false })).toBeNull();
+        expect(at('/rev|', { inputMode: 'normal', skillsEnabled: false })).toEqual({ kind: 'command', query: 'rev' });
+    });
+
     test('works after a command invocation', () => {
         expect(at('/review $pl|')).toEqual({ kind: 'skill', query: 'pl' });
     });

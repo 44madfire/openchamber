@@ -12,4 +12,10 @@ describe("foldAcpPromptText", () => {
     expect(foldAcpPromptText("question", [])).toBe("question")
     expect(foldAcpPromptText("question", [{ text: "   " }])).toBe("question")
   })
+
+  test("keeps a leading slash command first so the agent recognizes it", () => {
+    expect(foldAcpPromptText("/compact", [{ text: "knowledge" }, { text: "context" }])).toBe(
+      "/compact\n\nknowledge\n\ncontext",
+    )
+  })
 })

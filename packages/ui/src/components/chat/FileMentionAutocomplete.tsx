@@ -46,6 +46,8 @@ interface FileMentionAutocompleteProps {
   onAgentSelect?: (agentName: string) => void;
   onClose: () => void;
   style?: React.CSSProperties;
+  /** ACP sessions route no `@agent` mentions; the agent section stays out. */
+  hideAgents?: boolean;
 }
 
 export const FileMentionAutocomplete = React.forwardRef<FileMentionHandle, FileMentionAutocompleteProps>(({
@@ -54,6 +56,7 @@ export const FileMentionAutocomplete = React.forwardRef<FileMentionHandle, FileM
   onAgentSelect,
   onClose,
   style,
+  hideAgents = false,
 }, ref) => {
   const { t } = useI18n();
   const currentDirectory = useChatSearchDirectory() ?? '';
@@ -98,8 +101,8 @@ export const FileMentionAutocomplete = React.forwardRef<FileMentionHandle, FileM
     }))
     .sort((a, b) => a.name.localeCompare(b.name)), [configAgents]);
   const agents = React.useMemo(
-    () => rankByQuery(subagents, searchQuery ?? '', (agent) => [agent.name, agent.displayName, agent.description]),
-    [searchQuery, subagents],
+    () => (hideAgents ? [] : rankByQuery(subagents, searchQuery ?? '', (agent) => [agent.name, agent.displayName, agent.description])),
+    [hideAgents, searchQuery, subagents],
   );
   const [loading, setLoading] = React.useState(false);
   const pendingSearchRef = React.useRef(0);

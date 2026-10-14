@@ -32,6 +32,8 @@ export interface TriggerContext {
     /** Shell mode (`!cmd`) disables every picker. */
     inputMode: 'normal' | 'shell';
     mentionsEnabled?: boolean;
+    /** ACP sessions have no skill attachments; the `$` picker stays closed. */
+    skillsEnabled?: boolean;
     /** Whether the change that moved the caret came from a paste. */
     inputSource?: FileMentionAutocompleteInputSource;
     /** The text that change inserted, when known. */
@@ -106,7 +108,7 @@ export function resolveAutocompleteTrigger(
     if (context.inputMode === 'shell') return null;
 
     return matchCommandPalette(value, cursorPosition)
-        ?? matchInlineToken(value, cursorPosition, '$', 'skill')
+        ?? (context.skillsEnabled === false ? null : matchInlineToken(value, cursorPosition, '$', 'skill'))
         ?? matchInlineToken(value, cursorPosition, '#', 'snippet')
         ?? matchMention(value, cursorPosition, context);
 }

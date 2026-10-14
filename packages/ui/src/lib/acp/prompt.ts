@@ -9,11 +9,19 @@
  * place when it arrives. Changing the join changes both sides together.
  */
 
-/** Blank items carry no record anywhere; they are dropped before folding. */
+/**
+ * Blank items carry no record anywhere; they are dropped before folding.
+ *
+ * A leading slash command stays first: ACP agents recognize `/name` textually
+ * at the start of the prompt, so context folded ahead of it would bury the
+ * command and the agent would answer in prose instead of running it.
+ */
 export const foldAcpPromptText = (text: string, contexts: ReadonlyArray<{ text: string }>): string => {
   const contextText = contexts
     .map((item) => item.text.trim())
     .filter((part) => part.length > 0)
     .join("\n\n")
-  return contextText ? `${contextText}\n\n${text}` : text
+  if (!contextText) return text
+  if (text.startsWith("/")) return `${text}\n\n${contextText}`
+  return `${contextText}\n\n${text}`
 }
