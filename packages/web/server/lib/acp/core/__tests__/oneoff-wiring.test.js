@@ -125,7 +125,13 @@ describe('acp one-off wiring', () => {
     service.events.on('sync', (frame) => frames.push(frame));
     const cwd = await tempDir('acp-ow-live-');
     const { session } = await service.create({ backendId: 'fixture', directory: cwd });
+    // The normal prompt must be DISPATCHED (agent turn in flight) before
+    // the one-off's creation window opens: otherwise the one-off's
+    // creation claim could swallow the normal session's own setup echo,
+    // and the normal chunk could land before the projector is busy.
     const normalPrompt = service.prompt({ key: session.id, messageId: 'msg-1', parts: [{ type: 'text', text: 'hi' }] });
+    await until(() => frames.some((frame) =>
+      frame.events.some((event) => event.type === 'session.status')));
     const generated = oneOff.generate({ backendId: 'fixture', instruction: 'Say hi.', input: 'x' });
     const [result] = await Promise.all([
       generated,

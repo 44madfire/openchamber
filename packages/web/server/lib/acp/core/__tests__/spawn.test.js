@@ -16,6 +16,29 @@ import {
 // is stubbed per call (the orphan-recovery suite covers the real registry
 // with an isolated dir).
 const noRegistry = { registerProcess: () => {}, unregisterProcess: () => {} };
+// Event-driven: resolves once the child's stderr pipe delivers `marker`
+// (or the tail already holds it). A fixed sleep assumed the pipe had
+// flushed by then; on a loaded runner it had not.
+export const untilStderr = async (spawned, marker, { timeout = 15_000 } = {}) => {
+  if (spawned.getStderrTail().includes(marker)) return spawned.getStderrTail();
+  return new Promise((resolve, reject) => {
+    let timer = null;
+    const onData = () => {
+      if (spawned.getStderrTail().includes(marker)) {
+        clearTimeout(timer);
+        spawned.child.stderr?.removeListener('data', onData);
+        resolve(spawned.getStderrTail());
+      }
+    };
+    timer = setTimeout(() => {
+      spawned.child.stderr?.removeListener('data', onData);
+      reject(new Error(`timed out waiting for stderr to contain ${JSON.stringify(marker)}`));
+    }, timeout);
+    timer.unref?.();
+    spawned.child.stderr?.on('data', onData);
+  });
+};
+
 
 const memoryFs = (files) => ({
   statSync: (candidate) => {
@@ -207,8 +230,7 @@ describe('spawnAcpAgent', () => {
     try {
       expect(spawned.resolvedPath).toBe(process.execPath);
       expect(Number.isInteger(spawned.pid)).toBe(true);
-      await new Promise((resolve) => setTimeout(resolve, 300));
-      expect(spawned.getStderrTail()).toContain('hello-stderr');
+      expect(await untilStderr(spawned, 'hello-stderr')).toContain('hello-stderr');
     } finally {
       await spawned.kill();
     }

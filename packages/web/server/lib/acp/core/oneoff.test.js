@@ -83,14 +83,18 @@ const stderrOf = async (manager, backendId = 'fixture') =>
   (await manager.status(backendId)).stderrTail;
 
 // The agent writes lifecycle markers to stderr; the pipe delivers them
-// asynchronously, so a marker asserted immediately after a fast timeout
-// may not have arrived yet. Poll briefly instead of asserting once.
-const stderrWith = async (manager, marker, backendId = 'fixture', timeoutMs = 5000) => {
+// asynchronously, so a marker asserted immediately after its RPC completed
+// may not have arrived yet. Poll until it lands — and REJECT when the cap
+// expires, so a missing marker fails loudly instead of asserting on a
+// silent partial tail.
+const stderrWith = async (manager, marker, backendId = 'fixture', timeoutMs = 15_000) => {
   const start = Date.now();
   for (;;) {
     const stderr = await stderrOf(manager, backendId);
     if (stderr.includes(marker)) return stderr;
-    if (Date.now() - start > timeoutMs) return stderr;
+    if (Date.now() - start > timeoutMs) {
+      throw new Error(`timed out waiting for stderr to contain ${JSON.stringify(marker)}`);
+    }
     await new Promise((resolve) => setTimeout(resolve, 10));
   }
 };
@@ -101,6 +105,20 @@ const stderrLines = async (manager, prefix, backendId = 'fixture') =>
 const configLines = async (manager, backendId = 'fixture') =>
   (await stderrLines(manager, 'CONFIG:', backendId))
     .map((line) => JSON.parse(line.slice('CONFIG:'.length)));
+
+// The CONFIG echoes land on the stderr pipe after generate resolves; wait
+// until `count` of them have arrived before reading the full ordered list.
+const configLinesWith = async (manager, count, backendId = 'fixture', timeoutMs = 15_000) => {
+  const start = Date.now();
+  for (;;) {
+    const lines = await configLines(manager, backendId);
+    if (lines.length >= count) return lines;
+    if (Date.now() - start > timeoutMs) {
+      throw new Error(`timed out waiting for ${count} CONFIG lines (saw ${lines.length})`);
+    }
+    await new Promise((resolve) => setTimeout(resolve, 10));
+  }
+};
 
 describe('acp one-off generation', () => {
   it('generates text through a throwaway session and deletes it', async () => {
@@ -113,9 +131,9 @@ describe('acp one-off generation', () => {
     });
     expect(result.text).toBe('fixture-reply');
     expect(result.sessionCleanup).toBe('deleted');
-    const stderr = await stderrOf(manager);
+    const stderr = await stderrWith(manager, 'DELETE:oneoff-session-1');
     expect(stderr).toContain('DELETE:oneoff-session-1');
-    expect(stderr).toMatch(/NEW:oneoff-session-1 cwd=.*acp-oneoff-/);
+    expect(await stderrWith(manager, 'NEW:oneoff-session-1')).toMatch(/NEW:oneoff-session-1 cwd=.*acp-oneoff-/);
     // The per-call temp dir is removed afterwards.
     expect(await readdir(tmpRoot)).toEqual([]);
   });
@@ -125,7 +143,7 @@ describe('acp one-off generation', () => {
       entry: { env: { ONEOFF_FIX_RECORD_PROMPTS: '1' } },
     });
     await oneOff.generate({ backendId: 'fixture', instruction: 'Summarize.', input: 'some diff' });
-    const stderr = await stderrOf(manager);
+    const stderr = await stderrWith(manager, 'PROMPT:');
     const line = stderr.split('\n').find((entry) => entry.startsWith('PROMPT:'));
     expect(line).toBeTruthy();
     const { prompt } = JSON.parse(line.slice('PROMPT:'.length));
@@ -150,7 +168,7 @@ describe('acp one-off generation', () => {
       },
     });
     const result = await oneOff.generate({ backendId: 'fixture', instruction: 'Hi.', input: 'x' });
-    const applied = await configLines(manager);
+    const applied = await configLinesWith(manager, 3);
     // Model before dependents: a later model switch must not reset them.
     expect(applied).toEqual([
       { sessionId: 'oneoff-session-1', configId: 'model', value: 'helper-model', type: null },
@@ -219,7 +237,7 @@ describe('acp one-off generation', () => {
     });
     const result = await oneOff.generate({ backendId: 'fixture', instruction: 'Hi.', input: 'x' });
     expect(result.text).toBe('fixture-reply');
-    expect(await configLines(manager)).toEqual([
+    expect(await configLinesWith(manager, 2)).toEqual([
       { sessionId: 'oneoff-session-1', configId: 'model', value: 'helper-model', type: null },
       { sessionId: 'oneoff-session-1', configId: 'thinking', value: 'minimal', type: null },
     ]);
@@ -404,9 +422,9 @@ describe('acp one-off generation', () => {
     // Nothing parked at the session router: both were declined inline.
     expect(pendingRequests).toEqual([]);
     drainRequests();
-    const stderr = await stderrOf(manager);
+    const stderr = await stderrWith(manager, 'PERMISSION:');
     expect(stderr).toContain('PERMISSION:{"outcome":{"outcome":"cancelled"}}');
-    expect(stderr).toContain('ELICITATION:{"action":"cancel"}');
+    expect(await stderrWith(manager, 'ELICITATION:')).toContain('ELICITATION:{"action":"cancel"}');
   });
 
   it('reports usage and cost from usage_update', async () => {
@@ -426,21 +444,33 @@ describe('acp one-off generation', () => {
   });
 
   it('cancels the turn on hard timeout and still cleans up', async () => {
+    // Fully deterministic: a controllable deadline timer replaces the
+    // wall-clock setTimeout, so startup speed cannot race the deadline.
+    // The rejection handler attaches immediately; the test fires the
+    // deadline only AFTER the explicit ENTERED acknowledgement proves
+    // the turn is parked at the agent mid-turn.
+    let fireDeadline = null;
+    const createDeadlineTimer = (callback) => {
+      if (fireDeadline) throw new Error('unexpected second deadline timer');
+      fireDeadline = callback;
+      return { unref() {} };
+    };
     const { oneOff, manager } = await setup({
       entry: {
         env: {
           ONEOFF_FIX_PROMPT_SCRIPT: JSON.stringify([{ holdForCancel: 30_000 }]),
         },
       },
-      oneOffOptions: { timeoutMs: 300 },
+      oneOffOptions: { timeoutMs: 2000, createDeadlineTimer },
     });
-    const started = Date.now();
-    await expect(oneOff.generate({ backendId: 'fixture', instruction: 'Hi.', input: 'x' }))
-      .rejects.toMatchObject({ code: 'ACP_ONEOFF_TIMEOUT' });
-    expect(Date.now() - started).toBeLessThan(10_000);
-    const stderr = await stderrOf(manager);
-    expect(stderr).toContain('CANCELLED:oneoff-session-1');
-    expect(stderr).toContain('DELETE:oneoff-session-1');
+    const pending = oneOff.generate({ backendId: 'fixture', instruction: 'Hi.', input: 'x' });
+    const rejected = expect(pending).rejects.toMatchObject({ code: 'ACP_ONEOFF_TIMEOUT' });
+    pending.catch(() => {});
+    await stderrWith(manager, 'ENTERED:oneoff-session-1');
+    fireDeadline();
+    await rejected;
+    expect(await stderrWith(manager, 'CANCELLED:oneoff-session-1')).toContain('CANCELLED:oneoff-session-1');
+    expect(await stderrWith(manager, 'DELETE:oneoff-session-1')).toContain('DELETE:oneoff-session-1');
   });
 
   it('times out a stuck session/new and lets the next call through', async () => {
@@ -511,7 +541,7 @@ describe('acp one-off generation', () => {
     });
     const closed = await closeOnly.oneOff.generate({ backendId: 'close-only', instruction: 'Hi.', input: 'x' });
     expect(closed.sessionCleanup).toBe('closed');
-    expect(await stderrOf(closeOnly.manager, 'close-only')).toContain('CLOSE:oneoff-session-1');
+    expect(await stderrWith(closeOnly.manager, 'CLOSE:oneoff-session-1', 'close-only')).toContain('CLOSE:oneoff-session-1');
 
     const neither = await setup({
       entries: [fixtureEntry({
@@ -527,27 +557,55 @@ describe('acp one-off generation', () => {
   });
 
   it('serializes calls per backend while different backends overlap', async () => {
-    const script = JSON.stringify([{ sleepMs: 400 }]);
-    const slow = fixtureEntry({
-      id: 'slow',
-      env: { ONEOFF_FIX_PROMPT_SCRIPT: script, ONEOFF_FIX_PROMPT_DELAY_MS: '100' },
-    });
-    const fast = fixtureEntry({
-      id: 'fast',
-      env: { ONEOFF_FIX_PROMPT_SCRIPT: JSON.stringify([]) },
-    });
-    const { oneOff } = await setup({ entries: [slow, fast] });
-    const started = Date.now();
-    const [first, second, other] = await Promise.all([
-      oneOff.generate({ backendId: 'slow', instruction: 'A.', input: 'a' }),
-      oneOff.generate({ backendId: 'slow', instruction: 'B.', input: 'b' }),
-      oneOff.generate({ backendId: 'fast', instruction: 'C.', input: 'c' }),
-    ]);
-    // Same-backend calls ran one after another (~1 s), not in parallel.
-    expect(Date.now() - started).toBeGreaterThanOrEqual(900);
-    expect(first.sessionCleanup).toBe('deleted');
-    expect(second.sessionCleanup).toBe('deleted');
+    // Admission recorded AT the boundary itself: the test wraps the
+    // manager's acquire so each lease grant pushes synchronously into
+    // the shared event stream — independent of the test's sequential
+    // awaits. The final assertion is a strict ordering over that
+    // stream: second admission follows first release, fast done
+    // precedes it. Fixture cleanup assertions stay on the real agent.
+    const hold = JSON.stringify([{ holdForCancel: 30_000 }]);
+    const slow = fixtureEntry({ id: 'slow', env: { ONEOFF_FIX_PROMPT_SCRIPT: hold } });
+    const fast = fixtureEntry({ id: 'fast', env: { ONEOFF_FIX_PROMPT_SCRIPT: JSON.stringify([]) } });
+    const events = [];
+    const note = (name) => events.push(name);
+    const handle = await setup({ entries: [slow, fast], oneOffOptions: { timeoutMs: 30_000 } });
+    const { oneOff, manager } = handle;
+    // Wrap AFTER oneOff construction: generateOne calls manager.acquire
+    // per attempt, so every admission — including a concurrent one a
+    // broken gate would allow — is recorded at grant time.
+    const realAcquire = manager.acquire.bind(manager);
+    let slowAdmissions = 0;
+    manager.acquire = async (backendId) => {
+      const lease = await realAcquire(backendId);
+      if (backendId === 'slow') {
+        slowAdmissions += 1;
+        note(slowAdmissions === 1 ? 'first-admitted' : 'second-admitted');
+        const realRelease = lease.release.bind(lease);
+        lease.release = () => { note(slowAdmissions === 1 ? 'first-released' : 'second-released'); realRelease(); };
+      }
+      return lease;
+    };
+    const cancelAt = (backendId, sessionId) =>
+      manager.ensureReady(backendId).then(({ connection }) => connection.cancel({ sessionId }));
+    const first = oneOff.generate({ backendId: 'slow', instruction: 'A.', input: 'a' });
+    first.catch(() => {});
+    // First turn parked at the agent (holding the per-backend slot).
+    await stderrWith(manager, 'ENTERED:oneoff-session-1', 'slow');
+    const second = oneOff.generate({ backendId: 'slow', instruction: 'B.', input: 'b' });
+    second.catch(() => {});
+    const other = await oneOff.generate({ backendId: 'fast', instruction: 'C.', input: 'c' });
     expect(other.text).toBe('');
+    note('fast-done');
+    // Release the parked first turn; the queued sibling is admitted only
+    // after the first RELEASES (slot release), then release it too.
+    await cancelAt('slow', 'oneoff-session-1');
+    const firstResult = await first;
+    expect(firstResult.sessionCleanup).toBe('deleted');
+    await stderrWith(manager, 'ENTERED:oneoff-session-2', 'slow');
+    await cancelAt('slow', 'oneoff-session-2');
+    const secondResult = await second;
+    expect(secondResult.sessionCleanup).toBe('deleted');
+    expect(events).toEqual(['first-admitted', 'fast-done', 'first-released', 'second-admitted', 'second-released']);
   });
 
   it('holds a lease so idle reap cannot kill the backend mid-turn', async () => {
@@ -657,10 +715,17 @@ describe('acp one-off generation', () => {
     const { oneOff, manager } = await setup();
     await oneOff.generate({ backendId: 'fixture', instruction: 'A.', input: 'a' });
     await oneOff.generate({ backendId: 'fixture', instruction: 'B.', input: 'b' });
-    const stderr = await stderrOf(manager);
-    const cwds = stderr.split('\n')
-      .filter((line) => line.startsWith('NEW:'))
-      .map((line) => line.split('cwd=')[1]);
+    // Both NEW echoes must have landed before counting them.
+    const start = Date.now();
+    let cwds = [];
+    for (;;) {
+      const stderr = await stderrOf(manager);
+      cwds = stderr.split('\n')
+        .filter((line) => line.startsWith('NEW:'))
+        .map((line) => line.split('cwd=')[1]);
+      if (cwds.length >= 2 || Date.now() - start > 15_000) break;
+      await new Promise((resolve) => setTimeout(resolve, 10));
+    }
     expect(cwds).toHaveLength(2);
     expect(cwds[0]).not.toBe(cwds[1]);
     for (const cwd of cwds) {

@@ -70,6 +70,23 @@ const until = async (predicate, { timeout = 5000 } = {}) => {
     await new Promise((resolve) => setTimeout(resolve, 10));
   }
 };
+// The agent writes lifecycle markers to stderr; the pipe delivers them
+// asynchronously, so a marker asserted immediately after its RPC completed
+// may not have arrived yet. Poll until it lands — and REJECT when the cap
+// expires, so a missing marker fails loudly instead of asserting on a
+// silent partial tail.
+const stderrWith = async (manager, marker, backendId = 'fake', timeoutMs = 15_000) => {
+  const start = Date.now();
+  for (;;) {
+    const stderr = (await manager.status(backendId)).stderrTail;
+    if (stderr.includes(marker)) return stderr;
+    if (Date.now() - start > timeoutMs) {
+      throw new Error(`timed out waiting for stderr to contain ${JSON.stringify(marker)}`);
+    }
+    await new Promise((resolve) => setTimeout(resolve, 10));
+  }
+};
+
 
 describe('acp session service', () => {
   it('creates a session via session/new and emits session.created', async () => {
@@ -354,7 +371,7 @@ describe('acp session service', () => {
     const { session } = await service.create({ backendId: 'fake', directory: 'C:\\work' });
     await service.config({ key: session.id, configId: 'model', value: 'm2' });
     // The RPC reached the agent with the right params.
-    const tail = (await manager.status('fake')).stderrTail;
+    const tail = await stderrWith(manager, 'CONFIG:');
     expect(tail).toMatch(/CONFIG:.*"configId":"model".*"value":"m2"/);
     // The session metadata refreshed and the index remembers the choice.
     expect(frames.some((frame) => frame.events.some((event) =>
@@ -505,7 +522,7 @@ describe('acp session service', () => {
     const page = await service.messages({ key: session.id, limit: 10 });
     expect(page.items).toHaveLength(2);
     expect(page.items[0].parts[0].text).toBe('kept');
-    const tail = (await manager.status('fake')).stderrTail;
+    const tail = await stderrWith(manager, 'RESUME:');
     expect(tail).toContain('RESUME:');
   });
 
@@ -522,16 +539,15 @@ describe('acp session service', () => {
       // Parked requests emit no updates; recovery must not fire mid-test.
       serviceOptions: { watchdogMs: 30_000 },
     });
+    const frames = syncEvents(service);
     const { session } = await service.create({ backendId: 'fake', directory: 'C:\\work' });
     await service.prompt({ key: session.id, messageId: 'msg_1', parts: [{ type: 'text', text: 'x' }] });
-    await until(async () => (await manager.status('fake')).stderrTail.includes('PERMISSION:') === false
-      && service.getLive(session.id) !== null
-      && (await service.messages({ key: session.id, limit: 1 }).catch(() => null), true));
-    // Give the agent a beat to park the permission request server-side.
-    await new Promise((resolve) => setTimeout(resolve, 300));
+    // Wait until the permission is actually parked server-side (the card
+    // projected), not a fixed beat that a loaded runner can miss.
+    await until(() => frames.flatMap((frame) => frame.events)
+      .some((event) => event.type === 'permission.asked'));
     expect(await service.cancel({ key: session.id })).toBe(true);
-    await until(async () => (await manager.status('fake')).stderrTail.includes('PERMISSION:'));
-    const tail = (await manager.status('fake')).stderrTail;
+    const tail = await stderrWith(manager, 'PERMISSION:');
     expect(tail).toMatch(/PERMISSION:.*"cancelled"/);
   });
 
@@ -566,7 +582,7 @@ describe('acp session service', () => {
     });
     const { session } = await service.create({ backendId: 'fake', directory: 'C:\\work' });
     await service.config({ key: session.id, configId: 'mode', value: 'plan' });
-    const tail = (await manager.status('fake')).stderrTail;
+    const tail = await stderrWith(manager, 'MODE:');
     expect(tail).toContain('MODE:');
     expect(tail).not.toContain('CONFIG:');
     expect(service.getLive(session.id).projector.session().metadata.acp.modes).toContainEqual(
@@ -769,7 +785,7 @@ describe('acp session interaction (Phase 1.4)', () => {
     await service.replyPermission({ key: session.id, requestId, reply: 'once' });
     await until(() => frames.flatMap((frame) => frame.events)
       .some((event) => event.type === 'session.idle'));
-    const tail = (await manager.status('fake')).stderrTail;
+    const tail = await stderrWith(manager, 'PERMISSION:');
     expect(tail).toMatch(/PERMISSION:.*"outcome":"selected".*"optionId":"once"/);
     expect(frames.flatMap((frame) => frame.events).some((event) =>
       event.type === 'permission.replied' && event.properties.requestID === requestId)).toBe(true);
@@ -806,7 +822,7 @@ describe('acp session interaction (Phase 1.4)', () => {
     await until(() => frames.flatMap((frame) => frame.events)
       .some((event) => event.type === 'permission.asked'));
     expect(await service.cancel({ key: session.id })).toBe(true);
-    const tail = (await manager.status('fake')).stderrTail;
+    const tail = await stderrWith(manager, 'PERMISSION:');
     expect(tail).toMatch(/PERMISSION:.*"outcome":"cancelled"/);
     expect(frames.flatMap((frame) => frame.events).some((event) => event.type === 'permission.replied')).toBe(true);
     await expect(service.listPendingPermissions({ directory: 'C:\\work' })).resolves.toHaveLength(0);
@@ -840,7 +856,7 @@ describe('acp session interaction (Phase 1.4)', () => {
     await service.replyForm({ key: session.id, formId: created.properties.form.id, answer: { choice: 'b' } });
     await until(() => frames.flatMap((frame) => frame.events)
       .some((event) => event.type === 'session.idle'));
-    const tail = (await manager.status('fake')).stderrTail;
+    const tail = await stderrWith(manager, 'PERMISSION:');
     expect(tail).toMatch(/PERMISSION:.*"outcome":"selected".*"optionId":"b"/);
   });
 
@@ -877,7 +893,7 @@ describe('acp session interaction (Phase 1.4)', () => {
     await service.replyForm({ key: session.id, formId, answer: { q0: 'Red', ok: true } });
     await until(() => frames.flatMap((frame) => frame.events)
       .some((event) => event.type === 'session.idle'));
-    const tail = (await manager.status('fake')).stderrTail;
+    const tail = await stderrWith(manager, 'ELICITATION:');
     expect(tail).toMatch(/ELICITATION:.*"action":"accept"/);
     expect(tail).toMatch(/"q0":"Red"/);
     expect(frames.flatMap((frame) => frame.events).some((event) =>
@@ -900,7 +916,7 @@ describe('acp session interaction (Phase 1.4)', () => {
     await service.prompt({ key: session.id, messageId: 'msg_1', parts: [{ type: 'text', text: 'go' }] });
     await until(() => frames.flatMap((frame) => frame.events)
       .some((event) => event.type === 'session.idle'));
-    const tail = (await manager.status('fake')).stderrTail;
+    const tail = await stderrWith(manager, 'ELICITATION:');
     expect(tail).toMatch(/ELICITATION:.*"action":"decline"/);
     expect(frames.flatMap((frame) => frame.events).some((event) => event.type === 'form.created')).toBe(false);
   });
@@ -1191,7 +1207,7 @@ describe('acp interaction review regressions', () => {
     await until(() => frames.flatMap((frame) => frame.events)
       .some((event) => event.type === 'permission.asked' && event.properties.sessionID === childKey));
     await service.delete({ key: childKey });
-    const tail = (await manager.status('fake')).stderrTail;
+    const tail = await stderrWith(manager, 'PERMISSION:');
     expect(tail).toMatch(/PERMISSION:.*"outcome":"cancelled"/);
     expect(frames.flatMap((frame) => frame.events).some((event) =>
       event.type === 'permission.replied' && event.properties.sessionID === childKey)).toBe(true);
@@ -1231,7 +1247,7 @@ describe('acp interaction review regressions', () => {
     await until(() => frames.flatMap((frame) => frame.events)
       .some((event) => event.type === 'form.created'));
     expect(await service.cancel({ key: session.id })).toBe(true);
-    const tail = (await manager.status('fake')).stderrTail;
+    const tail = await stderrWith(manager, 'PERMISSION:');
     expect(tail).toMatch(/PERMISSION:.*"outcome":"cancelled"/);
     await expect(elicitation).resolves.toEqual({ action: 'cancel' });
     await expect(service.listPendingPermissions({ directory: 'C:\\work' })).resolves.toHaveLength(0);
@@ -1267,9 +1283,8 @@ describe('acp interaction review regressions', () => {
     await until(() => frames.flatMap((frame) => frame.events)
       .some((event) => event.type === 'session.idle'));
     await expect(service.listPendingPermissions({ directory: 'C:\\work' })).resolves.toHaveLength(0);
-    const tail = (await manager.status('fake')).stderrTail;
+    const tail = await stderrWith(manager, 'PERMISSION:');
     expect(tail).toMatch(/PERMISSION:.*"outcome":"selected"/);
-    void manager;
   });
 
   it('adopts descendants to the new generation on parent reconnect', async () => {
@@ -1431,7 +1446,7 @@ describe('acp transitive cancellation (review round 2)', () => {
       new Promise((_, reject) => setTimeout(() => reject(new Error('cancel hung on a parked late request')), 15000)),
     ]);
     expect(cancelled).toBe(true);
-    const tail = (await manager.status('fake')).stderrTail;
+    const tail = await stderrWith(manager, 'PERMISSION:');
     expect(tail).toMatch(/PERMISSION:.*"outcome":"cancelled"/);
     // Never parked, never shown: no card for an already-cancelled turn.
     expect(frames.flatMap((frame) => frame.events)

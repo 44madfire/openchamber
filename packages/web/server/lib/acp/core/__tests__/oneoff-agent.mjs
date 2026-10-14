@@ -44,11 +44,11 @@
  *   the delete/close response (a huge value simulates a stuck cleanup).
  * - ONEOFF_FIX_HANG: comma list of methods that never respond:
  *   `new`, `config`, `delete`, `close`, `cancel`.
- *
  * Every lifecycle event is echoed to stderr so tests can assert on it:
- * `NEW:<sessionId> cwd=<cwd>`, `CONFIG:{...}`, `CANCELLED:<sessionId>`,
- * `DELETE:<sessionId>`, `CLOSE:<sessionId>`, `PERMISSION:{...}`,
- * `ELICITATION:{...}`.
+ * `NEW:<sessionId> cwd=<cwd>`, `CONFIG:{...}`, `ENTERED:<sessionId>` (the
+ * prompt handler started — the turn is parked at the agent, not merely
+ * created), `CANCELLED:<sessionId>`, `DELETE:<sessionId>`,
+ * `CLOSE:<sessionId>`, `PERMISSION:{...}`, `ELICITATION:{...}`.
  */
 
 import { Readable, Writable } from 'node:stream';
@@ -211,6 +211,7 @@ const agent = new AgentSideConnection((client) => ({
     if (RECORD_PROMPTS) {
       process.stderr.write(`PROMPT:${JSON.stringify({ sessionId: params?.sessionId, prompt: params?.prompt ?? null })}\n`);
     }
+    process.stderr.write(`ENTERED:${params?.sessionId ?? ''}\n`);
     if (PROMPT_DELAY_MS > 0) await sleep(PROMPT_DELAY_MS);
     let stopReason = 'end_turn';
     for (const step of PROMPT_SCRIPT) {

@@ -64,7 +64,12 @@ const setup = async ({ entry = {}, serviceOptions = {}, indexDir = null } = {}) 
   const checkpoints = createCheckpointStore({ dataDir, environment: isolatedEnv });
   if (typeof checkpoints.dispose === 'function') stores.push(checkpoints);
   const service = createAcpSessionService({
-    manager, index, registry, checkpoints, settleMs: 5, watchdogMs: 500, ...serviceOptions,
+    manager, index, registry, checkpoints, settleMs: 5, watchdogMs: 500,
+    // Real git snapshots (several subprocess spawns each) share the runner
+    // with parallel suites under load; the 1.5 s product budget is covered
+    // by the budget-behaviour tests below with scripted stores, so these
+    // integration tests use a generous cap and assert outcomes, not speed.
+    checkpointStartBudgetMs: 30_000, ...serviceOptions,
   });
   holder.current = service;
   services.push(service);
@@ -86,6 +91,23 @@ const until = async (predicate, { timeout = 15_000 } = {}) => {
     await new Promise((resolve) => setTimeout(resolve, 10));
   }
 };
+// The agent writes lifecycle markers to stderr; the pipe delivers them
+// asynchronously, so a marker asserted after its RPC completed may not
+// have arrived yet. Poll until it lands — and REJECT when the cap
+// expires, so a missing marker fails loudly instead of asserting on a
+// silent partial tail.
+const stderrWith = async (manager, marker, backendId = 'fake', timeoutMs = 15_000) => {
+  const start = Date.now();
+  for (;;) {
+    const stderr = (await manager.status(backendId)).stderrTail;
+    if (stderr.includes(marker)) return stderr;
+    if (Date.now() - start > timeoutMs) {
+      throw new Error(`timed out waiting for stderr to contain ${JSON.stringify(marker)}`);
+    }
+    await new Promise((resolve) => setTimeout(resolve, 10));
+  }
+};
+
 
 const untilIdle = (frames) => until(() => frames.some((frame) =>
   frame.events.some((event) => event.type === 'session.idle')));
@@ -326,11 +348,21 @@ describe('acp checkpoint wiring', () => {
     expect(patchEvents[0].properties.patch.metadata.acp.revertedFromTurn).toBe(2);
     expect(patchEvents[0].properties.patch.revert).toEqual({ messageID: 'msg-2' });
 
-    // The next prompt carries the note; the agent sees it first.
+    // The next prompt carries the note; the agent sees it first. Wait until
+    // THREE complete parseable PROMPT records have landed: the note prefixes
+    // the third prompt's text, so matching any PROMPT line (or the bare
+    // text) would return the already-delivered first two. Only
+    // newline-terminated records count: the pipe appends raw chunks, so
+    // the trailing fragment may be a torn JSON prefix that must not parse.
     await service.prompt({ key: session.id, messageId: 'msg-3', parts: [{ type: 'text', text: 'three' }] });
     await untilIdle(frames);
-    const stderr = (await manager.status('fake')).stderrTail;
-    const prompts = stderr.split('\n').filter((line) => line.startsWith('PROMPT:')).map((line) => JSON.parse(line.slice('PROMPT:'.length)));
+    const completePrompts = async () => (await manager.status('fake')).stderrTail
+      .split('\n').slice(0, -1).filter((line) => line.startsWith('PROMPT:'));
+    const prompts = await until(async () => {
+      const lines = await completePrompts();
+      return lines.length >= 3 ? lines.map((line) => JSON.parse(line.slice('PROMPT:'.length))) : null;
+    });
+    expect(prompts).toHaveLength(3);
     const last = prompts.at(-1);
     expect(last.prompt[0].text.startsWith('[Note: files were reverted to the state before turn 2; turns 2+ were undone]')).toBe(true);
     void index;
@@ -589,7 +621,8 @@ describe('acp checkpoint review findings', () => {
     await untilIdle(frames);
     await service.prompt({ key: forkKey, messageId: 'msg-f2', parts: [{ type: 'text', text: 'again' }] });
     await untilIdle(frames);
-    const stderr = (await manager.status('fake')).stderrTail;
+    // Both fork prompts echoed (the note rides the first): only then count.
+    const stderr = await stderrWith(manager, '"text":"again"');
     const notes = stderr.split('\n').filter((line) => line.includes('[Note: files were reverted'));
     expect(notes).toHaveLength(1);
     expect(await index.get(forkKey).then((e) => e.pendingRevertNote)).toBeUndefined();
@@ -657,8 +690,11 @@ describe('acp checkpoint review findings', () => {
     const { session } = await service.create({ backendId: 'fake', directory: cwd });
     const prompting = service.prompt({ key: session.id, messageId: 'msg-1', parts: [{ type: 'text', text: 'hi' }] });
     await until(() => service.getLive(session.id)?.turn?.dispatching === true, { timeout: 5000 });
-    expect(await service.cancel({ key: session.id })).toBe(true);
+    // Cancel waits for the turn teardown, which waits on the gate: run it
+    // alongside, then release — the dispatch still abandons as interrupted.
+    const cancelling = service.cancel({ key: session.id });
     releaseSnapshot();
+    expect(await cancelling).toBe(true);
     await prompting;
     await untilIdle(frames);
     const idle = frames.flatMap((frame) => frame.events).find((event) => event.type === 'session.idle');
@@ -681,12 +717,14 @@ describe('acp checkpoint review findings', () => {
     // The backend dies mid-turn; crash teardown applies the exit error.
     await until(() => frames.some((frame) => frame.events.some((event) => event.type === 'session.error')), { timeout: 15000 });
     // The crash teardown settled an end snapshot (best-effort, after drop).
-    await until(async () => (await index.get(session.id))?.checkpoints?.[0]?.end, { timeout: 30000 });
+    // Bounded well under the test timeout: crash (~2.5 s in) + the 15 s
+    // error wait above + this settle wait must fit together.
+    await until(async () => (await index.get(session.id))?.checkpoints?.[0]?.end, { timeout: 10000 });
     const entry = await index.get(session.id);
     expect(entry.checkpoints[0]).toMatchObject({ turn: 1, complete: true });
     expect(entry.checkpoints[0].end).toMatch(/^[0-9a-f]{40}$/);
     await manager.shutdown();
-  });
+  }, 60_000);
 });
 
 describe('acp checkpoint review findings, round 2', () => {
@@ -783,8 +821,10 @@ describe('acp checkpoint review findings, round 2', () => {
     const prompting = inner.service.prompt({ key: session.id, messageId: 'msg-2', parts: [{ type: 'text', text: 'cancel me' }] });
     await until(() => enteredGate, { timeout: 10000 });
     const cancelling = inner.service.cancel({ key: session.id });
-    // Let the cancel flag land while the note write is still gated.
-    await new Promise((resolve) => setTimeout(resolve, 200));
+    // Order deterministically: the cancel flag lands synchronously in the
+    // cancel path before its first await, so wait until the live record
+    // carries it — then release the gate. No fixed sleep.
+    await until(() => inner.service.getLive(session.id)?.cancelled === true, { timeout: 10000 });
     releaseNote();
     expect(await cancelling).toBe(true);
     await prompting;

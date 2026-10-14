@@ -279,6 +279,11 @@ export const createOneOff = ({
   timeoutMs = DEFAULT_ONEOFF_TIMEOUT_MS,
   cleanupTimeoutMs = ONEOFF_CLEANUP_TIMEOUT_MS,
   cancelSettleMs = ONEOFF_CANCEL_SETTLE_MS,
+  // Test seam: factory for the lifecycle deadline timer. Defaults to the
+  // real setTimeout; tests inject a controllable clock so the deadline
+  // fires only when the test advances it. Signature mirrors setTimeout
+  // (callback, ms) and must return a clearTimeout-able handle.
+  createDeadlineTimer = (callback, ms) => setTimeout(callback, ms),
 } = {}) => {
   if (!manager || typeof manager.ensureReady !== 'function') {
     throw new Error('createOneOff requires a backend manager');
@@ -465,7 +470,7 @@ export const createOneOff = ({
       };
     });
     timeoutPromise.catch(() => {});
-    const timer = setTimeout(fireTimeout, effectiveTimeout);
+    const timer = createDeadlineTimer(fireTimeout, effectiveTimeout);
     timer.unref?.();
     const bounded = (promise) => Promise.race([promise, timeoutPromise]);
 
