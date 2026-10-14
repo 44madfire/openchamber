@@ -2274,3 +2274,107 @@ describe('reconcileDraftAcpConfig', () => {
     expect(shouldReconcileDraftAcpConfig('')).toBe(false);
   });
 });
+
+describe('openNewSessionDraft backend default', () => {
+  const projectA = { id: 'proj-a', path: '/projects/alpha', label: 'Alpha' };
+  const projectB = { id: 'proj-b', path: '/projects/beta', label: 'Beta' };
+
+  const DRAFT_TARGET_KEY = 'oc.chatInput.lastDraftTarget';
+  const DRAFT_BACKEND_KEY = 'oc.draftBackend.v1';
+
+  beforeEach(() => {
+    getDeferredSafeStorage().removeItem(DRAFT_TARGET_KEY);
+    getDeferredSafeStorage().removeItem(DRAFT_BACKEND_KEY);
+    useSessionUIStore.setState({
+      currentSessionId: null,
+      currentSessionDirectory: null,
+      newSessionDraft: { open: false, directoryOverride: null, parentID: null },
+      availableWorktreesByProject: new Map(),
+    });
+    useProjectsStore.setState({
+      projects: [projectA, projectB],
+      activeProjectId: projectA.id,
+    });
+    useDirectoryStore.getState().setDirectory(projectB.path, { showOverlay: false });
+  });
+
+  afterEach(() => {
+    getDeferredSafeStorage().removeItem(DRAFT_TARGET_KEY);
+    getDeferredSafeStorage().removeItem(DRAFT_BACKEND_KEY);
+  });
+
+  test('defaults to OpenCode when nothing was ever picked', () => {
+    useSessionUIStore.getState().openNewSessionDraft({ selectedProjectId: projectA.id, directoryOverride: projectA.path });
+
+    expect(useSessionUIStore.getState().newSessionDraft.acpBackendId).toBeNull();
+  });
+
+  test('a picked agent is the next draft default in the same directory', () => {
+    useSessionUIStore.getState().openNewSessionDraft({ selectedProjectId: projectA.id, directoryOverride: projectA.path });
+    useSessionUIStore.getState().setDraftAcpBackendId('omp');
+    useSessionUIStore.getState().closeNewSessionDraft();
+
+    useSessionUIStore.getState().openNewSessionDraft({ selectedProjectId: projectA.id, directoryOverride: projectA.path });
+
+    expect(useSessionUIStore.getState().newSessionDraft.acpBackendId).toBe('omp');
+  });
+
+  test('each directory keeps its own agent; unseen directories take the last pick anywhere', () => {
+    useSessionUIStore.getState().openNewSessionDraft({ selectedProjectId: projectA.id, directoryOverride: projectA.path });
+    useSessionUIStore.getState().setDraftAcpBackendId('omp');
+    useSessionUIStore.getState().closeNewSessionDraft();
+    useSessionUIStore.getState().openNewSessionDraft({ selectedProjectId: projectB.id, directoryOverride: projectB.path });
+    useSessionUIStore.getState().setDraftAcpBackendId('pi-acp');
+    useSessionUIStore.getState().closeNewSessionDraft();
+
+    useProjectsStore.setState({ projects: [projectA, projectB, { id: 'proj-c', path: '/projects/gamma', label: 'Gamma' }] });
+    useSessionUIStore.getState().openNewSessionDraft({ selectedProjectId: 'proj-c', directoryOverride: '/projects/gamma' });
+    expect(useSessionUIStore.getState().newSessionDraft.acpBackendId).toBe('pi-acp');
+    useSessionUIStore.getState().closeNewSessionDraft();
+
+    useSessionUIStore.getState().openNewSessionDraft({ selectedProjectId: projectA.id, directoryOverride: projectA.path });
+    expect(useSessionUIStore.getState().newSessionDraft.acpBackendId).toBe('omp');
+    useSessionUIStore.getState().closeNewSessionDraft();
+
+    useSessionUIStore.getState().openNewSessionDraft({ selectedProjectId: projectB.id, directoryOverride: projectB.path });
+    expect(useSessionUIStore.getState().newSessionDraft.acpBackendId).toBe('pi-acp');
+  });
+
+  test('switching back to OpenCode clears the default for that directory', () => {
+    useSessionUIStore.getState().openNewSessionDraft({ selectedProjectId: projectA.id, directoryOverride: projectA.path });
+    useSessionUIStore.getState().setDraftAcpBackendId('omp');
+    useSessionUIStore.getState().setDraftAcpBackendId(null);
+    useSessionUIStore.getState().closeNewSessionDraft();
+
+    useSessionUIStore.getState().openNewSessionDraft({ selectedProjectId: projectA.id, directoryOverride: projectA.path });
+
+    expect(useSessionUIStore.getState().newSessionDraft.acpBackendId).toBeNull();
+  });
+
+  test('an automatic reset leaves the remembered agent for the next draft', () => {
+    useSessionUIStore.getState().openNewSessionDraft({ selectedProjectId: projectA.id, directoryOverride: projectA.path });
+    useSessionUIStore.getState().setDraftAcpBackendId('omp');
+    // The picker dropping an unlisted backend: this draft shows OpenCode,
+    // but the memory survives for a backend that comes back.
+    useSessionUIStore.getState().setDraftAcpBackendId(null, { remember: false });
+    expect(useSessionUIStore.getState().newSessionDraft.acpBackendId).toBeNull();
+    useSessionUIStore.getState().closeNewSessionDraft();
+
+    useSessionUIStore.getState().openNewSessionDraft({ selectedProjectId: projectA.id, directoryOverride: projectA.path });
+
+    expect(useSessionUIStore.getState().newSessionDraft.acpBackendId).toBe('omp');
+  });
+
+  test('an explicit backend option wins over the remembered one without erasing it', () => {
+    useSessionUIStore.getState().openNewSessionDraft({ selectedProjectId: projectA.id, directoryOverride: projectA.path });
+    useSessionUIStore.getState().setDraftAcpBackendId('omp');
+    useSessionUIStore.getState().closeNewSessionDraft();
+
+    useSessionUIStore.getState().openNewSessionDraft({ selectedProjectId: projectB.id, directoryOverride: projectB.path, acpBackendId: null });
+    expect(useSessionUIStore.getState().newSessionDraft.acpBackendId).toBeNull();
+    useSessionUIStore.getState().closeNewSessionDraft();
+
+    useSessionUIStore.getState().openNewSessionDraft({ selectedProjectId: projectB.id, directoryOverride: projectB.path });
+    expect(useSessionUIStore.getState().newSessionDraft.acpBackendId).toBe('omp');
+  });
+});

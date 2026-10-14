@@ -48,9 +48,11 @@ export function AcpBackendPicker() {
     }, [draftOpen]);
 
     React.useEffect(() => {
-        // A chosen backend that is no longer listed falls back to OpenCode.
+        // A chosen backend that is no longer listed falls back to OpenCode
+        // for this draft only — the memory stays, so a backend that comes
+        // back (reenabled, restarted) is remembered again.
         if (backends && acpBackendId && !backends.some((backend) => backend.id === acpBackendId)) {
-            setDraftAcpBackendId(null);
+            setDraftAcpBackendId(null, { remember: false });
         }
     }, [acpBackendId, backends, setDraftAcpBackendId]);
 
