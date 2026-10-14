@@ -2,11 +2,14 @@ import type { Message, Part, Session, SessionStatus } from "@/lib/opencode/model
 import { getLastConversationMessage, isIncompleteAssistantTurn } from "@/lib/opencode/model"
 import { getSessionMaterializationStatus } from "./materialization"
 
+type BlockingRequestRef = { id: string }
 type ReconnectMaterializationState = {
   session: Session[]
   session_status?: Record<string, SessionStatus>
   message?: Record<string, Message[]>
   part?: Record<string, Part[]>
+  permission?: Record<string, BlockingRequestRef[]>
+  form?: Record<string, BlockingRequestRef[]>
 }
 
 type ViewedSessionMaterializationTarget = {
@@ -117,6 +120,16 @@ export function getReconnectCandidateSessionIds(state: ReconnectMaterializationS
 
   for (const [sessionId, status] of Object.entries(state.session_status ?? {})) {
     if (status && status.type !== "idle") ids.add(sessionId)
+  }
+
+  // A pending permission or form is live work even when the session looks
+  // idle: after an API restart the turn is gone but the card stays, and only
+  // a resync against the server's pending lists can clear it. Without this,
+  // reconnect recovery skips the session and the stale card never prunes.
+  for (const requests of [state.permission, state.form]) {
+    for (const [sessionId, list] of Object.entries(requests ?? {})) {
+      if (Array.isArray(list) && list.length > 0) ids.add(sessionId)
+    }
   }
 
   for (const [sessionId, messages] of Object.entries(state.message ?? {})) {

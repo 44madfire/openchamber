@@ -232,6 +232,34 @@ describe("resyncBlockingRequestsForDirectory", () => {
     expect(store.getState().form["ses_a"]).toEqual(undefined)
   })
 
+  test("prunes stale ACP cards when the server no longer lists them, keeping OpenCode cards", async () => {
+    const acpId = "ses_acp-omp_r1"
+    const store = createDirectoryStore({
+      session: [
+        { id: acpId, title: acpId, time: { created: 1, updated: 1 } },
+        { id: "ses_oc", title: "ses_oc", time: { created: 1, updated: 1 } },
+      ] as State["session"],
+      permission: {
+        [acpId]: [buildPermission({ id: "perm_stale", sessionID: acpId })],
+        ses_oc: [buildPermission({ id: "perm_oc", sessionID: "ses_oc" })],
+      },
+      form: {
+        [acpId]: [buildForm({ id: "frm_stale", sessionID: acpId })],
+        ses_oc: [buildForm({ id: "frm_oc", sessionID: "ses_oc" })],
+      },
+    })
+    // After an API restart the server lists only the OpenCode requests; the
+    // ACP agent process (and its pending prompts) is gone with the process.
+    pendingFormsResponse = [buildForm({ id: "frm_oc", sessionID: "ses_oc" })]
+    pendingPermissionsResponse = [buildPermission({ id: "perm_oc", sessionID: "ses_oc" })]
+
+    await resyncBlockingRequestsForDirectory("/repo", store)
+
+    expect(store.getState().permission[acpId]).toEqual(undefined)
+    expect(store.getState().form[acpId]).toEqual(undefined)
+    expect(store.getState().permission["ses_oc"]?.map((entry) => entry.id)).toEqual(["perm_oc"])
+    expect(store.getState().form["ses_oc"]?.map((entry) => entry.id)).toEqual(["frm_oc"])
+  })
   test("ignores forms for sessions the directory does not know about", async () => {
     const store = createDirectoryStore({})
     pendingFormsResponse = [{ ...buildForm(), sessionID: "ses_unknown" }]

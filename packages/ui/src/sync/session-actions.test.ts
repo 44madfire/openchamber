@@ -2732,6 +2732,68 @@ describe("dismissPermission passes directory", () => {
   })
 })
 
+describe("ACP stale replies expire the card", () => {
+  const ACP_ID = "ses_acp-omp_r1"
+  beforeEach(() => {
+    replyCalls.length = 0
+    formReplyError = null
+    formCancelError = null
+    permissionReplyError = null
+  })
+
+  test("respondToPermission removes the card and throws expired on ACP_PERMISSION_UNKNOWN", async () => {
+    const permission = buildPermission("perm_1", ACP_ID)
+    const store = createStore({ [ACP_ID]: [permission] }, { session: [sessionFixture(ACP_ID)] })
+    const childStores = createChildStores([["/test/project", store]])
+    permissionReplyError = Object.assign(
+      new Error("acp.permissions.reply failed (404): settled"),
+      { status: 404, code: "ACP_PERMISSION_UNKNOWN" },
+    )
+
+    const { AcpBlockingRequestExpiredError, setActionRefs, respondToPermission } = await import("./session-actions")
+    setActionRefs(childStores, () => "/test/project")
+
+    const thrown = await respondToPermission(ACP_ID, "perm_1", "once").catch((error) => error)
+
+    expect(thrown).toBeInstanceOf(AcpBlockingRequestExpiredError)
+    expect(store.getState().permission[ACP_ID]).toBe(undefined)
+  })
+
+  test("replyToForm removes the card and throws expired on ACP_FORM_UNKNOWN", async () => {
+    const form = buildForm("frm_1", ACP_ID)
+    const store = createStore({}, { session: [sessionFixture(ACP_ID)], form: { [ACP_ID]: [form] } })
+    const childStores = createChildStores([["/test/project", store]])
+    formReplyError = Object.assign(
+      new Error("acp.forms.reply failed (404): settled"),
+      { status: 404, code: "ACP_FORM_UNKNOWN" },
+    )
+
+    const { AcpBlockingRequestExpiredError, setActionRefs, replyToForm } = await import("./session-actions")
+    setActionRefs(childStores, () => "/test/project")
+
+    const thrown = await replyToForm(ACP_ID, "frm_1", { choice: true }).catch((error) => error)
+
+    expect(thrown).toBeInstanceOf(AcpBlockingRequestExpiredError)
+    expect(store.getState().form[ACP_ID]).toBe(undefined)
+  })
+
+  test("an OpenCode 404 keeps its original error and still clears the card", async () => {
+    const permission = buildPermission("perm_1", "session-a")
+    const store = createStore({ "session-a": [permission] }, { session: [sessionFixture("session-a")] })
+    const childStores = createChildStores([["/test/project", store]])
+    permissionReplyError = Object.assign(new Error("permission.reply failed (404): gone"), { status: 404 })
+
+    const { AcpBlockingRequestExpiredError, setActionRefs, respondToPermission } = await import("./session-actions")
+    setActionRefs(childStores, () => "/test/project")
+
+    const thrown = await respondToPermission("session-a", "perm_1", "once").catch((error) => error)
+
+    expect(thrown instanceof AcpBlockingRequestExpiredError).toBe(false)
+    expect(thrown).toBe(permissionReplyError)
+    expect(store.getState().permission["session-a"]).toBe(undefined)
+  })
+})
+
 describe("replyToForm passes directory", () => {
   beforeEach(() => {
     replyCalls.length = 0
@@ -2895,6 +2957,7 @@ describe("blocking request reply routing and stale recovery (issue OPE-236)", ()
     replyCalls.length = 0
     formReplyError = null
     formCancelError = null
+    permissionReplyError = null
     materializationCalls.length = 0
   })
 

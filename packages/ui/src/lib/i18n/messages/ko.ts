@@ -3582,6 +3582,7 @@ export const dict: Record<I18nKey, string> = {
   'chat.formCard.submitFailed': '답변을 제출할 수 없습니다',
   'chat.formCard.cancelFailed': '요청을 취소할 수 없습니다',
   'chat.formCard.tryAgain': '다시 시도하세요.',
+  'chat.blockingRequest.expired': '이 요청이 만료되었습니다',
   'chat.formDock.progress': '{total} 중 {current}',
   'chat.formDock.waiting': '{count}개 더 대기 중',
   'chat.formDock.back': '뒤로',

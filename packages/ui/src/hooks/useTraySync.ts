@@ -13,7 +13,7 @@ import {
 import { compareSessionsByLifecycleOrder, useSessionOrderingStore } from '@/sync/session-ordering';
 import { useNotificationStore } from '@/sync/notification-store';
 import { useSessionPinnedStore } from '@/stores/useSessionPinnedStore';
-import { respondToPermission } from '@/sync/session-actions';
+import { AcpBlockingRequestExpiredError, respondToPermission } from '@/sync/session-actions';
 import {
   useGlobalSessionsStore,
   resolveGlobalSessionDirectory,
@@ -561,7 +561,10 @@ export const useTraySync = (): void => {
     const handle = (action: TrayAction) => {
       switch (action.type) {
         case 'respond-permission':
-          void respondToPermission(action.sessionId, action.id, action.response).catch(() => {
+          void respondToPermission(action.sessionId, action.id, action.response).catch((error) => {
+            // The agent process is gone (API restart): the card is already
+            // removed, so an expired reply is not a failure to report.
+            if (error instanceof AcpBlockingRequestExpiredError) return;
             toast.error('Failed to respond to permission request');
           });
           break;

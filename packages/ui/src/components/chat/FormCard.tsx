@@ -94,7 +94,14 @@ const GenericFormCard: React.FC<FormCardProps> = ({ form }) => {
         try {
             await sessionActions.replyToForm(form.sessionID, form.id, buildFormAnswer(fields, values));
             setHasResponded(true);
-        } catch {
+        } catch (error) {
+            // The agent process is gone (API restart): the action already
+            // removed the card, so say it expired instead of failing.
+            if (error instanceof sessionActions.AcpBlockingRequestExpiredError) {
+                setHasResponded(true);
+                toast.info(t('chat.blockingRequest.expired'));
+                return;
+            }
             toast.error(t('chat.formCard.submitFailed'), { description: t('chat.formCard.tryAgain') });
         } finally {
             setIsResponding(false);
@@ -106,7 +113,12 @@ const GenericFormCard: React.FC<FormCardProps> = ({ form }) => {
         try {
             await sessionActions.cancelForm(form.sessionID, form.id);
             setHasResponded(true);
-        } catch {
+        } catch (error) {
+            if (error instanceof sessionActions.AcpBlockingRequestExpiredError) {
+                setHasResponded(true);
+                toast.info(t('chat.blockingRequest.expired'));
+                return;
+            }
             toast.error(t('chat.formCard.cancelFailed'), { description: t('chat.formCard.tryAgain') });
         } finally {
             setIsResponding(false);
