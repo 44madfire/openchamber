@@ -1,3 +1,6 @@
+import { registerAcpRoutes } from '../acp/http/routes.js';
+import { createAcpBackendManager } from '../acp/core/backend-manager.js';
+import { createAcpBackendRegistry } from '../acp/core/registry.js';
 import { registerFsRoutes } from '../fs/routes.js';
 import { registerEnvironmentRoutes } from '../environment/routes.js';
 import { registerQuotaRoutes } from '../quota/routes.js';
@@ -112,6 +115,10 @@ export const createFeatureRoutesRuntime = (dependencies) => {
   let gitRepositoryCredentialRuntime = null;
   let networkOperations = null;
   let gitWorktreeCreation = null;
+  // The one ACP backend manager owned by this host runtime. Set during
+  // route registration; shutdown drains it (see shutdownAcpBackends).
+  let acpBackendManagerInstance = null;
+  const setAcpBackendManager = (manager) => { acpBackendManagerInstance = manager; };
   const getWalkthroughService = async () => {
     if (!walkthroughService) {
       const [service, pullRequest] = await Promise.all([
@@ -277,6 +284,24 @@ export const createFeatureRoutesRuntime = (dependencies) => {
     // Before the generic OpenCode proxy: swallows the `openchamber/auto` model
     // switch and routes the sends that follow it.
     registerRoutingPromptRewrite(app, routingRuntime);
+    // Before the generic OpenCode proxy: the ACP API is OpenChamber-owned and
+    // must never fall through to the upstream server.
+    const acpBackendRegistry = createAcpBackendRegistry({ dataDir: openchamberDataDir });
+    const acpBackendManager = createAcpBackendManager({
+      registry: acpBackendRegistry,
+      // Every connect logs its negotiated version + agentInfo (§0).
+      onConnect: ({ backendId, protocolVersion, agentInfo }) => {
+        console.log(
+          `[acp] backend ${backendId} connected: protocol v${protocolVersion},`
+          + ` agent ${agentInfo?.name ?? 'unknown'} ${agentInfo?.version ?? ''}`.trimEnd(),
+        );
+      },
+    });
+    setAcpBackendManager(acpBackendManager);
+    registerAcpRoutes(app, {
+      registry: acpBackendRegistry,
+      manager: acpBackendManager,
+    });
 
     registerOpenCodeRoutes(app, {
       crypto,
@@ -731,5 +756,9 @@ export const createFeatureRoutesRuntime = (dependencies) => {
     createChangeRequestWorktree,
     /** Writes the Git credential helper's endpoint file; a no-op until the Git routes are registered. */
     publishRepositoryCredentialEndpoint: async () => { await gitRepositoryCredentialRuntime?.publish(); },
+    /** The ACP backend manager owned by this runtime (null until routes register). */
+    getAcpBackendManager: () => acpBackendManagerInstance,
+    /** Stop all ACP agents. Awaited by server shutdown; safe before registration. */
+    shutdownAcpBackends: async () => { await acpBackendManagerInstance?.shutdown().catch(() => {}); },
   };
 };

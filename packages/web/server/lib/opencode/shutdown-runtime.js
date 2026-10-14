@@ -42,6 +42,7 @@ export const createGracefulShutdownRuntime = (dependencies) => {
     getRelayService,
     getRelayReconcileTimer,
     getSpacesHost = () => null,
+    shutdownAcpBackends,
   } = dependencies;
 
   let shutdownPromise = null;
@@ -82,6 +83,8 @@ export const createGracefulShutdownRuntime = (dependencies) => {
       () => getSpacesHost()?.close(),
       () => getRelayService()?.stop(),
       () => getDictationRuntime()?.stop(),
+      // ACP agents: stop every backend process (no-op until routes register).
+      () => shutdownAcpBackends?.(),
       () => openCodeWatcherRuntime.stop(),
       () => sessionRuntime.dispose(),
       () => sessionAssistRuntime?.stop?.(),

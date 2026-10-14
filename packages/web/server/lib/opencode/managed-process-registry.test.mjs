@@ -183,6 +183,207 @@ describe('reapOrphanedProcesses', () => {
       const calls = execFileImpl.mock.calls.filter(([cmd]) => cmd === 'taskkill');
       expect(calls).toHaveLength(0);
     });
+
+    it('reaps an ACP node agent whose owner is gone and identity matches', async () => {
+      const startTimeMs = Date.now();
+      const invocation = 'C:\\Program Files\\nodejs\\node.exe C:\\agents\\fake-agent.mjs';
+      readdirMock.mockResolvedValue(['778.json']);
+      readFileMock.mockResolvedValue(JSON.stringify({
+        pid: 778, ownerPid: 12345, runtime: 'web', kind: 'acp',
+        startTimeMs, command: 'C:\\Program Files\\nodejs\\node.exe', invocation,
+      }));
+      killAliveFor([778]);
+      execFileYields((cmd, _args, _opts, cb) => {
+        if (cmd === 'tasklist') return cb(null, '"node.exe","778","Console","1","1,000 K"\n', '');
+        if (cmd === 'powershell') {
+          return cb(null, JSON.stringify({
+            ExecutablePath: 'C:\\Program Files\\nodejs\\node.exe',
+            CommandLine: `"C:\\Program Files\\nodejs\\node.exe" C:\\agents\\fake-agent.mjs`,
+            CreationDate: `/Date(${startTimeMs})/`,
+          }), '');
+        }
+        if (cmd === 'taskkill') return cb(null, '', '');
+        return cb(new Error(`unexpected cmd: ${cmd}`));
+      });
+      rmMock.mockResolvedValue();
+
+      const result = await reapOrphanedProcesses({ log: () => {} });
+
+      expect(result).toEqual({ inspected: 1, reaped: 1 });
+      expect(execFileImpl.mock.calls.some(([cmd]) => cmd === 'taskkill')).toBe(true);
+    });
+
+    it('reaps an ACP batch shim (cmd.exe image) naming our shim', async () => {
+      const startTimeMs = Date.now();
+      readdirMock.mockResolvedValue(['779.json']);
+      readFileMock.mockResolvedValue(JSON.stringify({
+        pid: 779, ownerPid: 12345, runtime: 'web', kind: 'acp',
+        startTimeMs, command: 'C:\\tools\\agent.cmd',
+      }));
+      killAliveFor([779]);
+      execFileYields((cmd, _args, _opts, cb) => {
+        if (cmd === 'tasklist') return cb(null, '"cmd.exe","779","Console","1","1,000 K"\n', '');
+        if (cmd === 'powershell') {
+          return cb(null, JSON.stringify({
+            ExecutablePath: 'C:\\Windows\\System32\\cmd.exe',
+            CommandLine: 'cmd.exe /d /s /c ""C:\\tools\\agent.cmd" "acp""',
+            CreationDate: `/Date(${startTimeMs})/`,
+          }), '');
+        }
+        if (cmd === 'taskkill') return cb(null, '', '');
+        return cb(new Error(`unexpected cmd: ${cmd}`));
+      });
+      rmMock.mockResolvedValue();
+
+      const result = await reapOrphanedProcesses({ log: () => {} });
+
+      expect(result).toEqual({ inspected: 1, reaped: 1 });
+    });
+
+    it('leaves an ACP pid whose creation time differs (recycled pid)', async () => {
+      readdirMock.mockResolvedValue(['778.json']);
+      readFileMock.mockResolvedValue(JSON.stringify({
+        pid: 778, ownerPid: 12345, runtime: 'web', kind: 'acp',
+        startTimeMs: Date.now() - 3600_000, command: 'C:\\Program Files\\nodejs\\node.exe',
+      }));
+      killAliveFor([778]);
+      execFileYields((cmd, _args, _opts, cb) => {
+        if (cmd === 'tasklist') return cb(null, '"node.exe","778","Console","1","1,000 K"\n', '');
+        if (cmd === 'powershell') {
+          return cb(null, JSON.stringify({
+            ExecutablePath: 'C:\\Program Files\\nodejs\\node.exe',
+            CreationDate: `/Date(${Date.now()})/`,
+          }), '');
+        }
+        return cb(new Error(`unexpected cmd: ${cmd}`));
+      });
+
+      const result = await reapOrphanedProcesses({ log: () => {} });
+
+      expect(result).toEqual({ inspected: 1, reaped: 0 });
+      expect(execFileImpl.mock.calls.some(([cmd]) => cmd === 'taskkill')).toBe(false);
+    });
+
+    it('leaves an ACP pid 1500 ms newer (inside the old 2 s tolerance)', async () => {
+      const recorded = Date.now() - 60_000;
+      readdirMock.mockResolvedValue(['778.json']);
+      readFileMock.mockResolvedValue(JSON.stringify({
+        pid: 778, ownerPid: 12345, runtime: 'web', kind: 'acp',
+        startTimeMs: recorded, command: 'C:\\Program Files\\nodejs\\node.exe',
+      }));
+      killAliveFor([778]);
+      execFileYields((cmd, _args, _opts, cb) => {
+        if (cmd === 'tasklist') return cb(null, '"node.exe","778","Console","1","1,000 K"\n', '');
+        if (cmd === 'powershell') {
+          return cb(null, JSON.stringify({
+            ExecutablePath: 'C:\\Program Files\\nodejs\\node.exe',
+            CreationDate: `/Date(${recorded + 1500})/`,
+          }), '');
+        }
+        return cb(new Error(`unexpected cmd: ${cmd}`));
+      });
+
+      const result = await reapOrphanedProcesses({ log: () => {} });
+
+      expect(result).toEqual({ inspected: 1, reaped: 0 });
+      expect(execFileImpl.mock.calls.some(([cmd]) => cmd === 'taskkill')).toBe(false);
+    });
+
+    it('leaves a recycled pid running a different node service (same launcher)', async () => {
+      const startTimeMs = Date.now();
+      readdirMock.mockResolvedValue(['778.json']);
+      readFileMock.mockResolvedValue(JSON.stringify({
+        pid: 778, ownerPid: 12345, runtime: 'web', kind: 'acp',
+        startTimeMs,
+        command: 'C:\\Program Files\\nodejs\\node.exe',
+        invocation: 'C:\\Program Files\\nodejs\\node.exe C:\\agents\\fake-agent.mjs',
+      }));
+      killAliveFor([778]);
+      execFileYields((cmd, _args, _opts, cb) => {
+        if (cmd === 'tasklist') return cb(null, '"node.exe","778","Console","1","1,000 K"\n', '');
+        if (cmd === 'powershell') {
+          return cb(null, JSON.stringify({
+            ExecutablePath: 'C:\\Program Files\\nodejs\\node.exe',
+            CommandLine: '"C:\\Program Files\\nodejs\\node.exe" C:\\other\\unrelated-service.js',
+            CreationDate: `/Date(${startTimeMs})/`,
+          }), '');
+        }
+        return cb(new Error(`unexpected cmd: ${cmd}`));
+      });
+
+      const result = await reapOrphanedProcesses({ log: () => {} });
+
+      expect(result).toEqual({ inspected: 1, reaped: 0 });
+      expect(execFileImpl.mock.calls.some(([cmd]) => cmd === 'taskkill')).toBe(false);
+    });
+
+    it('leaves a cmd.exe running a different batch file (same image)', async () => {
+      const startTimeMs = Date.now();
+      readdirMock.mockResolvedValue(['779.json']);
+      readFileMock.mockResolvedValue(JSON.stringify({
+        pid: 779, ownerPid: 12345, runtime: 'web', kind: 'acp',
+        startTimeMs, command: 'C:\\tools\\agent.cmd',
+      }));
+      killAliveFor([779]);
+      execFileYields((cmd, _args, _opts, cb) => {
+        if (cmd === 'tasklist') return cb(null, '"cmd.exe","779","Console","1","1,000 K"\n', '');
+        if (cmd === 'powershell') {
+          return cb(null, JSON.stringify({
+            ExecutablePath: 'C:\\Windows\\System32\\cmd.exe',
+            CommandLine: 'cmd.exe /d /c C:\\other\\something.cmd',
+            CreationDate: `/Date(${startTimeMs})/`,
+          }), '');
+        }
+        return cb(new Error(`unexpected cmd: ${cmd}`));
+      });
+
+      const result = await reapOrphanedProcesses({ log: () => {} });
+
+      expect(result).toEqual({ inspected: 1, reaped: 0 });
+      expect(execFileImpl.mock.calls.some(([cmd]) => cmd === 'taskkill')).toBe(false);
+    });
+
+    it('leaves an ACP pid whose executable path differs', async () => {
+      const startTimeMs = Date.now();
+      readdirMock.mockResolvedValue(['778.json']);
+      readFileMock.mockResolvedValue(JSON.stringify({
+        pid: 778, ownerPid: 12345, runtime: 'web', kind: 'acp',
+        startTimeMs, command: 'C:\\tools\\omp.exe',
+      }));
+      killAliveFor([778]);
+      execFileYields((cmd, _args, _opts, cb) => {
+        if (cmd === 'tasklist') return cb(null, '"notepad.exe","778","Console","1","1,000 K"\n', '');
+        if (cmd === 'powershell') {
+          return cb(null, JSON.stringify({
+            ExecutablePath: 'C:\\Windows\\notepad.exe',
+            CreationDate: `/Date(${startTimeMs})/`,
+          }), '');
+        }
+        return cb(new Error(`unexpected cmd: ${cmd}`));
+      });
+
+      const result = await reapOrphanedProcesses({ log: () => {} });
+
+      expect(result).toEqual({ inspected: 1, reaped: 0 });
+      expect(execFileImpl.mock.calls.some(([cmd]) => cmd === 'taskkill')).toBe(false);
+    });
+
+    it('leaves an ACP child whose owner is still alive', async () => {
+      const startTimeMs = Date.now();
+      readdirMock.mockResolvedValue(['778.json']);
+      readFileMock.mockResolvedValue(JSON.stringify({
+        pid: 778, ownerPid: 12345, runtime: 'web', kind: 'acp',
+        startTimeMs, command: 'C:\\tools\\omp.exe',
+      }));
+      killAliveFor([778, 12345]);
+      execFileYields((_cmd, _args, _opts, cb) => cb(null, '', ''));
+
+      const result = await reapOrphanedProcesses({ log: () => {} });
+
+      expect(result).toEqual({ inspected: 1, reaped: 0 });
+      // Owner alive: no identity probe, no kill.
+      expect(execFileImpl).not.toHaveBeenCalled();
+    });
   });
 
   describe('on Unix', () => {
@@ -232,6 +433,90 @@ describe('reapOrphanedProcesses', () => {
       killAliveFor([777, 12345]);
       execFileYields((cmd, _args, _opts, cb) => {
         if (cmd === 'ps') return cb(null, '12345 /usr/bin/opencode serve --port 4096\n', '');
+        cb(new Error(`unexpected cmd: ${cmd}`));
+      });
+
+      const result = await reapOrphanedProcesses({ log: () => {} });
+
+      expect(result).toEqual({ inspected: 1, reaped: 0 });
+    });
+
+    it('reaps an ACP agent whose invocation and starttime match', async () => {
+      readdirMock.mockResolvedValue(['778.json']);
+      readFileMock.mockResolvedValue(JSON.stringify({
+        pid: 778, ownerPid: 12345, runtime: 'web', kind: 'acp',
+        startTimeMs: 1234567, command: '/usr/bin/node',
+        invocation: '/usr/bin/node /agents/fake-agent.mjs',
+      }));
+      killAliveFor([778]);
+      readFileMock.mockImplementation(async (file) => {
+        if (file === '/proc/778/stat') return '778 (node) S 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0 1234567 0 0 0\n';
+        return JSON.stringify({
+          pid: 778, ownerPid: 12345, runtime: 'web', kind: 'acp',
+          startTimeMs: 1234567, command: '/usr/bin/node',
+          invocation: '/usr/bin/node /agents/fake-agent.mjs',
+        });
+      });
+      execFileYields((cmd, _args, _opts, cb) => {
+        if (cmd === 'ps') return cb(null, '1 /usr/bin/node /agents/fake-agent.mjs\n', '');
+        cb(new Error(`unexpected cmd: ${cmd}`));
+      });
+      rmMock.mockResolvedValue();
+
+      const result = await reapOrphanedProcesses({ log: () => {} });
+
+      expect(result).toEqual({ inspected: 1, reaped: 1 });
+    });
+
+    it('leaves a recycled pid running a different node service (reviewer case)', async () => {
+      readdirMock.mockResolvedValue(['778.json']);
+      readFileMock.mockResolvedValue(JSON.stringify({
+        pid: 778, ownerPid: 12345, runtime: 'web', kind: 'acp',
+        startTimeMs: 1, command: '/usr/bin/node',
+      }));
+      killAliveFor([778]);
+      execFileYields((cmd, _args, _opts, cb) => {
+        if (cmd === 'ps') return cb(null, '1 /usr/bin/node unrelated-user-service\n', '');
+        cb(new Error(`unexpected cmd: ${cmd}`));
+      });
+
+      const result = await reapOrphanedProcesses({ log: () => {} });
+
+      expect(result).toEqual({ inspected: 1, reaped: 0 });
+    });
+
+    it('leaves an ACP pid whose starttime ticks differ', async () => {
+      readdirMock.mockResolvedValue(['778.json']);
+      const entry = {
+        pid: 778, ownerPid: 12345, runtime: 'web', kind: 'acp',
+        startTimeMs: 1234567, command: '/usr/bin/node',
+        invocation: '/usr/bin/node /agents/fake-agent.mjs',
+      };
+      readFileMock.mockImplementation(async (file) => {
+        if (file === '/proc/778/stat') return '778 (node) S 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0 9999999 0 0 0\n';
+        return JSON.stringify(entry);
+      });
+      killAliveFor([778]);
+      execFileYields((cmd, _args, _opts, cb) => {
+        if (cmd === 'ps') return cb(null, '1 /usr/bin/node /agents/fake-agent.mjs\n', '');
+        cb(new Error(`unexpected cmd: ${cmd}`));
+      });
+
+      const result = await reapOrphanedProcesses({ log: () => {} });
+
+      expect(result).toEqual({ inspected: 1, reaped: 0 });
+    });
+
+    it('leaves an ACP entry with no recorded start time (fail closed)', async () => {
+      readdirMock.mockResolvedValue(['778.json']);
+      readFileMock.mockResolvedValue(JSON.stringify({
+        pid: 778, ownerPid: 12345, runtime: 'web', kind: 'acp',
+        command: '/usr/bin/node',
+        invocation: '/usr/bin/node /agents/fake-agent.mjs',
+      }));
+      killAliveFor([778]);
+      execFileYields((cmd, _args, _opts, cb) => {
+        if (cmd === 'ps') return cb(null, '1 /usr/bin/node /agents/fake-agent.mjs\n', '');
         cb(new Error(`unexpected cmd: ${cmd}`));
       });
 

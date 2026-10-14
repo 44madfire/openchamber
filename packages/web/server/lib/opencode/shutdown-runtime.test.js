@@ -273,4 +273,25 @@ describe('graceful shutdown runtime', () => {
     expect(stopAllGuestServices).toHaveBeenCalledTimes(1);
     expect(process.exit).toHaveBeenCalledWith(0);
   });
+
+  it('drains ACP backends during shutdown and tolerates absence', async () => {
+    const shutdownAcpBackends = vi.fn(async () => {});
+    const runtime = createRuntime(null, { shutdownAcpBackends });
+    await runtime.gracefulShutdown({ exitProcess: false });
+    expect(shutdownAcpBackends).toHaveBeenCalledTimes(1);
+
+    // Hosts that predate ACP wiring pass nothing: shutdown still completes.
+    const legacy = createRuntime(null, {});
+    await legacy.gracefulShutdown({ exitProcess: false });
+  });
+
+  it('continues shutdown when ACP drain fails', async () => {
+    const stopAllGuestServices = vi.fn(async () => {});
+    const runtime = createRuntime(null, {
+      shutdownAcpBackends: vi.fn(async () => { throw new Error('acp drain failed'); }),
+      stopAllGuestServices,
+    });
+    await runtime.gracefulShutdown({ exitProcess: false });
+    expect(stopAllGuestServices).toHaveBeenCalledTimes(1);
+  });
 });
