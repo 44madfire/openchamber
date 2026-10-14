@@ -72,13 +72,17 @@ const until = async (predicate, { timeout = 5000 } = {}) => {
 };
 // The agent writes lifecycle markers to stderr; the pipe delivers them
 // asynchronously, so a marker asserted immediately after its RPC completed
-// may not have arrived yet. Poll briefly instead of asserting once.
+// may not have arrived yet. Poll until it lands — and REJECT when the cap
+// expires, so a missing marker fails loudly instead of asserting on a
+// silent partial tail.
 const stderrWith = async (manager, marker, backendId = 'fake', timeoutMs = 15_000) => {
   const start = Date.now();
   for (;;) {
     const stderr = (await manager.status(backendId)).stderrTail;
     if (stderr.includes(marker)) return stderr;
-    if (Date.now() - start > timeoutMs) return stderr;
+    if (Date.now() - start > timeoutMs) {
+      throw new Error(`timed out waiting for stderr to contain ${JSON.stringify(marker)}`);
+    }
     await new Promise((resolve) => setTimeout(resolve, 10));
   }
 };

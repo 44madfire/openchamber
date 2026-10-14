@@ -83,14 +83,18 @@ const stderrOf = async (manager, backendId = 'fixture') =>
   (await manager.status(backendId)).stderrTail;
 
 // The agent writes lifecycle markers to stderr; the pipe delivers them
-// asynchronously, so a marker asserted immediately after a fast timeout
-// may not have arrived yet. Poll briefly instead of asserting once.
-const stderrWith = async (manager, marker, backendId = 'fixture', timeoutMs = 5000) => {
+// asynchronously, so a marker asserted immediately after its RPC completed
+// may not have arrived yet. Poll until it lands — and REJECT when the cap
+// expires, so a missing marker fails loudly instead of asserting on a
+// silent partial tail.
+const stderrWith = async (manager, marker, backendId = 'fixture', timeoutMs = 15_000) => {
   const start = Date.now();
   for (;;) {
     const stderr = await stderrOf(manager, backendId);
     if (stderr.includes(marker)) return stderr;
-    if (Date.now() - start > timeoutMs) return stderr;
+    if (Date.now() - start > timeoutMs) {
+      throw new Error(`timed out waiting for stderr to contain ${JSON.stringify(marker)}`);
+    }
     await new Promise((resolve) => setTimeout(resolve, 10));
   }
 };
@@ -109,7 +113,9 @@ const configLinesWith = async (manager, count, backendId = 'fixture', timeoutMs 
   for (;;) {
     const lines = await configLines(manager, backendId);
     if (lines.length >= count) return lines;
-    if (Date.now() - start > timeoutMs) return lines;
+    if (Date.now() - start > timeoutMs) {
+      throw new Error(`timed out waiting for ${count} CONFIG lines (saw ${lines.length})`);
+    }
     await new Promise((resolve) => setTimeout(resolve, 10));
   }
 };
@@ -438,10 +444,12 @@ describe('acp one-off generation', () => {
   });
 
   it('cancels the turn on hard timeout and still cleans up', async () => {
-    // Deterministic by construction: the turn parks scripted at the agent
-    // until WE cancel it, and the timeout phase is proven by a deadline
-    // far below the park (not by a wall-clock race against spawn). The
-    // cancel/delete echoes are poll-awaited on the stderr pipe.
+    // Deterministic by construction: the rejection handler attaches
+    // immediately (no unhandled-rejection window), and the mid-turn phase
+    // is proven by an explicit ENTERED acknowledgement — the fixture's
+    // prompt handler started, so the turn is parked at the agent, not
+    // merely created. The deadline (2 s) then fires mid-turn while the
+    // park (30 s) holds; the cancel/delete echoes are poll-awaited.
     const { oneOff, manager } = await setup({
       entry: {
         env: {
@@ -451,11 +459,10 @@ describe('acp one-off generation', () => {
       oneOffOptions: { timeoutMs: 2000 },
     });
     const pending = oneOff.generate({ backendId: 'fixture', instruction: 'Hi.', input: 'x' });
-    // The turn is parked at the agent before the deadline can fire: spawn
-    // + initialize + session/new all completed, so the timeout below can
-    // only be the mid-turn hard timeout — never a startup race.
-    await stderrWith(manager, 'NEW:oneoff-session-1');
-    await expect(pending).rejects.toMatchObject({ code: 'ACP_ONEOFF_TIMEOUT' });
+    const rejected = expect(pending).rejects.toMatchObject({ code: 'ACP_ONEOFF_TIMEOUT' });
+    pending.catch(() => {});
+    await stderrWith(manager, 'ENTERED:oneoff-session-1');
+    await rejected;
     expect(await stderrWith(manager, 'CANCELLED:oneoff-session-1')).toContain('CANCELLED:oneoff-session-1');
     expect(await stderrWith(manager, 'DELETE:oneoff-session-1')).toContain('DELETE:oneoff-session-1');
   });
@@ -544,36 +551,43 @@ describe('acp one-off generation', () => {
   });
 
   it('serializes calls per backend while different backends overlap', async () => {
-    // No wall-clock margins: each slow turn parks on a scripted
-    // hold-for-cancel step that the test releases in order, so overlap
-    // (or its absence) is OBSERVED, not timed. The first slow call must
-    // still be holding the backend (second slow call not yet at the
-    // agent) while the fast call completes — and the second slow call
-    // must reach the agent only after the first is released.
+    // Ordered event stream, not wall-clock margins and not a negative
+    // stderr snapshot: every lifecycle event lands in ONE array in the
+    // order observed, and the final assertion is a strict ordering over
+    // it. Same-backend second admission must come strictly after first
+    // completion; the other backend completes before first release.
     const hold = JSON.stringify([{ holdForCancel: 30_000 }]);
     const slow = fixtureEntry({ id: 'slow', env: { ONEOFF_FIX_PROMPT_SCRIPT: hold } });
     const fast = fixtureEntry({ id: 'fast', env: { ONEOFF_FIX_PROMPT_SCRIPT: JSON.stringify([]) } });
     const { oneOff, manager } = await setup({ entries: [slow, fast], oneOffOptions: { timeoutMs: 30_000 } });
-    const stderrWithBackend = async (backendId, marker, timeoutMs = 15_000) =>
-      stderrWith(manager, marker, backendId, timeoutMs);
-    const first = oneOff.generate({ backendId: 'slow', instruction: 'A.', input: 'a' });
-    // First slow turn parked at the agent (holding the per-backend slot).
-    await stderrWithBackend('slow', 'NEW:oneoff-session-1');
-    const second = oneOff.generate({ backendId: 'slow', instruction: 'B.', input: 'b' });
+    const events = [];
+    const note = (name) => events.push(name);
+    const cancelAt = (backendId, sessionId) =>
+      manager.ensureReady(backendId).then(({ connection }) => connection.cancel({ sessionId }));
+    // Admission/completion observed at the fixture boundary (stderr pipe,
+    // poll-awaited) and at the generate() promise: same stream, one order.
+    const first = oneOff.generate({ backendId: 'slow', instruction: 'A.', input: 'a' })
+      .then((result) => { note('first-done'); return result; });
+    first.catch(() => {});
+    await stderrWith(manager, 'ENTERED:oneoff-session-1', 'slow');
+    note('first-admitted');
+    const second = oneOff.generate({ backendId: 'slow', instruction: 'B.', input: 'b' })
+      .then((result) => { note('second-done'); return result; });
+    second.catch(() => {});
     const other = await oneOff.generate({ backendId: 'fast', instruction: 'C.', input: 'c' });
     expect(other.text).toBe('');
-    // The fast backend overlapped freely, but the sibling slow call is
-    // still queued behind the parked first: no second session at the agent.
-    expect(await stderrOf(manager, 'slow')).not.toContain('NEW:oneoff-session-2');
-    // Release the first turn; the queued sibling then reaches the agent.
-    await manager.ensureReady('slow').then(({ connection }) => connection.cancel({ sessionId: 'oneoff-session-1' }));
-    const [firstResult, secondResult] = await Promise.all([first, (async () => {
-      await stderrWithBackend('slow', 'NEW:oneoff-session-2');
-      await manager.ensureReady('slow').then(({ connection }) => connection.cancel({ sessionId: 'oneoff-session-2' }));
-      return second;
-    })()]);
+    note('fast-done');
+    // Release the parked first turn; the queued sibling is admitted only
+    // after the first COMPLETES (slot release), then release it too.
+    await cancelAt('slow', 'oneoff-session-1');
+    const firstResult = await first;
     expect(firstResult.sessionCleanup).toBe('deleted');
+    await stderrWith(manager, 'NEW:oneoff-session-2', 'slow');
+    note('second-admitted');
+    await cancelAt('slow', 'oneoff-session-2');
+    const secondResult = await second;
     expect(secondResult.sessionCleanup).toBe('deleted');
+    expect(events).toEqual(['first-admitted', 'fast-done', 'first-done', 'second-admitted', 'second-done']);
   });
 
   it('holds a lease so idle reap cannot kill the backend mid-turn', async () => {

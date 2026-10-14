@@ -93,13 +93,17 @@ const until = async (predicate, { timeout = 15_000 } = {}) => {
 };
 // The agent writes lifecycle markers to stderr; the pipe delivers them
 // asynchronously, so a marker asserted after its RPC completed may not
-// have arrived yet. Poll briefly instead of asserting once.
+// have arrived yet. Poll until it lands — and REJECT when the cap
+// expires, so a missing marker fails loudly instead of asserting on a
+// silent partial tail.
 const stderrWith = async (manager, marker, backendId = 'fake', timeoutMs = 15_000) => {
   const start = Date.now();
   for (;;) {
     const stderr = (await manager.status(backendId)).stderrTail;
     if (stderr.includes(marker)) return stderr;
-    if (Date.now() - start > timeoutMs) return stderr;
+    if (Date.now() - start > timeoutMs) {
+      throw new Error(`timed out waiting for stderr to contain ${JSON.stringify(marker)}`);
+    }
     await new Promise((resolve) => setTimeout(resolve, 10));
   }
 };
@@ -344,11 +348,19 @@ describe('acp checkpoint wiring', () => {
     expect(patchEvents[0].properties.patch.metadata.acp.revertedFromTurn).toBe(2);
     expect(patchEvents[0].properties.patch.revert).toEqual({ messageID: 'msg-2' });
 
-    // The next prompt carries the note; the agent sees it first.
+    // The next prompt carries the note; the agent sees it first. Wait until
+    // THREE complete parseable PROMPT records have landed: the note prefixes
+    // the third prompt's text, so matching any PROMPT line (or the bare
+    // text) would return the already-delivered first two.
     await service.prompt({ key: session.id, messageId: 'msg-3', parts: [{ type: 'text', text: 'three' }] });
     await untilIdle(frames);
-    const stderr = await stderrWith(manager, 'PROMPT:');
-    const prompts = stderr.split('\n').filter((line) => line.startsWith('PROMPT:')).map((line) => JSON.parse(line.slice('PROMPT:'.length)));
+    const promptLines = async () => (await manager.status('fake')).stderrTail
+      .split('\n').filter((line) => line.startsWith('PROMPT:'));
+    const prompts = await until(async () => {
+      const lines = await promptLines();
+      return lines.length >= 3 ? lines.map((line) => JSON.parse(line.slice('PROMPT:'.length))) : null;
+    });
+    expect(prompts).toHaveLength(3);
     const last = prompts.at(-1);
     expect(last.prompt[0].text.startsWith('[Note: files were reverted to the state before turn 2; turns 2+ were undone]')).toBe(true);
     void index;
