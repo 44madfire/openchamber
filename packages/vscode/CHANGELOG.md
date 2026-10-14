@@ -1,3 +1,21 @@
+## [2.3.2] - 2026-10-14
+
+### New
+
+- Chat: images in an assistant reply show where the text puts them; a paragraph of screenshots becomes one row.
+
+### Improvements
+
+- Chat: diff previews open in the diff layout set in Appearance, and hunks in side-by-side diffs are set apart.
+
+### Fixes
+
+- Chat: short messages get a bubble that fits them, without empty space on the left (thanks to @timothywang21).
+- Chat: the working status line no longer covers the last line of the chat or grows its own scrollbar.
+- Chat: a step that failed and then recovered in the same turn no longer shows "failed to send message".
+- Settings: the OpenCode config file and agent and command files are replaced in one step, so OpenCode never reads a half-written file. A symlinked config keeps pointing into your dotfiles, and a read-only config stays untouched (thanks to @Ghilteras).
+- Settings/Agents: the permissions editor shows outside folders as allowed by default, as OpenCode treats them.
+
 ## [2.3.1] - 2026-10-13
 
 ### New
