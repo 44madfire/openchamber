@@ -85,6 +85,10 @@ const statusForError = (error) => {
       return 503;
     case 'ACP_ONEOFF_TIMEOUT':
       return 504;
+    case 'ACP_ONEOFF_FAILED':
+      // The agent (an upstream of this route) failed the turn: 502, the
+      // same status the small-model route uses for this code.
+      return 502;
     default:
       return 500;
   }

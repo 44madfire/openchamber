@@ -230,6 +230,44 @@ describe('acp one-off generation', () => {
     ]);
   });
 
+  it('keeps model-override state across a later config change in the fixture', async () => {
+    // The override response (model + dependent thinking) becomes the
+    // fixture's live state: a second generate's session/new must report
+    // the selected model and the dependent option, proving the override
+    // was retained rather than reverting to the pre-override set.
+    const afterModel = [
+      {
+        id: 'model', name: 'Model', type: 'select', currentValue: 'helper-model',
+        options: [{ value: 'helper-model', name: 'Helper' }],
+      },
+      {
+        id: 'thinking', name: 'Thinking', type: 'select', currentValue: 'minimal',
+        options: [{ value: 'minimal', name: 'Minimal' }, { value: 'max', name: 'Max' }],
+      },
+    ];
+    const { oneOff, manager } = await setup({
+      entry: {
+        helper: { config: { model: 'helper-model' } },
+        env: {
+          ONEOFF_FIX_SET_CONFIG_RESPONSE: JSON.stringify({ model: afterModel }),
+          ONEOFF_FIX_RECORD_PROMPTS: '1',
+        },
+      },
+    });
+    await oneOff.generate({ backendId: 'fixture', instruction: 'Hi.', input: 'x' });
+    // Second call, no helper config left to apply: its session/new must
+    // still report the override state — but session/new traffic is not
+    // recorded, so assert via the manager's live connection instead.
+    const connected = await manager.ensureReady('fixture');
+    const created = await connected.connection.newSession({ cwd: await tempDir('acp-oneoff-override-'), mcpServers: [] });
+    try {
+      const ids = Object.fromEntries((created.configOptions ?? []).map((option) => [option.id, option.currentValue]));
+      expect(ids).toMatchObject({ model: 'helper-model', thinking: 'minimal' });
+    } finally {
+      await connected.connection.deleteSession({ sessionId: created.sessionId }).catch(() => {});
+    }
+  });
+
   it('collects only agent_message_chunk text and skips thoughts and tools', async () => {
     const { oneOff } = await setup({
       entry: {

@@ -209,16 +209,21 @@ const agent = new AgentSideConnection((client) => ({
     if (behaviour === 'error') {
       throw new Error(`set_config_option failed for ${params?.configId}`);
     }
-    const base = SET_CONFIG_RESPONSE?.[params?.configId] ?? (() => {
-      if (Array.isArray(liveOptions)) {
-        liveOptions = liveOptions.map((option) => (
-          option?.id === params?.configId ? { ...option, currentValue: params?.value ?? option?.currentValue } : option
-        ));
-        return liveOptions;
-      }
-      return CONFIG_OPTIONS ?? [];
-    })();
-    return { configOptions: structuredClone(base) };
+    const override = SET_CONFIG_RESPONSE?.[params?.configId];
+    if (override !== undefined && override !== null) {
+      // An explicit model-dependent response becomes the new live state,
+      // like a real agent: the next change builds on it instead of
+      // reverting to the pre-override set.
+      liveOptions = structuredClone(override);
+      return { configOptions: structuredClone(override) };
+    }
+    if (Array.isArray(liveOptions)) {
+      liveOptions = liveOptions.map((option) => (
+        option?.id === params?.configId ? { ...option, currentValue: params?.value ?? option?.currentValue } : option
+      ));
+      return { configOptions: structuredClone(liveOptions) };
+    }
+    return { configOptions: structuredClone(CONFIG_OPTIONS ?? []) };
   },
   prompt: async (params) => {
     if (RECORD_PROMPTS) {

@@ -494,4 +494,50 @@ describe('ACP routing routes', () => {
       agentCode: -32603,
     });
   });
+
+  it('matches the ACP one-off route status for ACP_ONEOFF_FAILED (502 both)', async () => {
+    // Cross-route contract: the same provider failure surfaces the same
+    // status through POST /api/small-model/generate and
+    // POST /api/acp/oneoff. The ACP route has no OpenCode stub in this
+    // suite, so it is mounted with a throwing one-off service.
+    const { registerAcpRoutes } = await import('../acp/http/routes.js');
+    const failure = () => Object.assign(
+      new Error('one-off generation on omp failed: out of funds'),
+      { code: 'ACP_ONEOFF_FAILED', backendId: 'omp', agentCode: -32603 },
+    );
+    const acpHandlers = {};
+    registerAcpRoutes({
+      get(route, handler) { acpHandlers[`GET ${route}`] = handler; },
+      put(route, ...handlers) { acpHandlers[`PUT ${route}`] = handlers.at(-1); },
+      post(route, ...handlers) { acpHandlers[`POST ${route}`] = handlers.at(-1); },
+      patch(route, ...handlers) { acpHandlers[`PATCH ${route}`] = handlers.at(-1); },
+      delete(route, handler) { acpHandlers[`DELETE ${route}`] = handler; },
+    }, {
+      registry: {},
+      manager: {},
+      oneOff: {
+        resolveBackend: async () => 'omp',
+        generate: async () => { throw failure(); },
+      },
+    });
+    const smallHandlers = mountRoutes({
+      generateSmallModelText: async () => {
+        throw Object.assign(failure(), { statusCode: 502 });
+      },
+    });
+    const acp = await runHandler(
+      acpHandlers['POST /api/acp/oneoff'],
+      { body: { sessionKey: 'ses_acp-omp_rnative-1', instruction: 'do', input: 'x' } },
+    );
+    const small = await runHandler(
+      smallHandlers['POST /api/small-model/generate'],
+      { body: { prompt: 'hi', sessionKey: 'ses_acp-omp_rnative-1' } },
+    );
+    expect(acp.status).toBe(502);
+    expect(small.status).toBe(502);
+    expect(acp.payload.code).toBe('ACP_ONEOFF_FAILED');
+    expect(small.payload.code).toBe('ACP_ONEOFF_FAILED');
+    expect(acp.payload.backendId).toBe('omp');
+    expect(small.payload.backendId).toBe('omp');
+  });
 });
