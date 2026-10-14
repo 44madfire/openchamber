@@ -1419,3 +1419,202 @@ describe('terminal runtime', () => {
     } finally { await harness.runtime.shutdown(); }
   });
 });
+
+describe('terminal runtime direct mode (ACP terminal auth)', () => {
+  it('spawns argv verbatim with env overlaid and no shell', async () => {
+    const routes = { get: new Map(), post: new Map(), delete: new Map() };
+    const processes = [];
+    const app = {
+      post(route, handler) { routes.post.set(route, handler); },
+      get(route, handler) { routes.get.set(route, handler); },
+      delete(route, handler) { routes.delete.set(route, handler); },
+    };
+    const runtime = createTerminalRuntime({
+      app,
+      server: new EventEmitter(),
+      fs: { promises: { stat: async () => ({ isDirectory: () => true }) } },
+      path,
+      uiAuthController: null,
+      buildAugmentedPath: () => process.env.PATH || '',
+      searchPathFor: () => null,
+      isExecutable: () => false,
+      isRequestOriginAllowed: async () => true,
+      rejectWebSocketUpgrade() {},
+      terminalTerminationGraceMs: 10,
+      loadPtyProvider: async () => ({
+        backend: 'fake-pty',
+        spawn: async (file, args, options) => {
+          const process = { pid: 999, file, args, options, write() {}, resize() {}, kill() {}, onData: () => ({ dispose() {} }), onExit: () => ({ dispose() {} }) };
+          processes.push(process);
+          return process;
+        },
+      }),
+    });
+    try {
+      const create = routes.post.get('/api/terminal/create');
+      const response = createResponse();
+      await create({ body: {
+        sessionId: 'auth-direct',
+        cwd: '/repo',
+        mode: 'direct',
+        // argv[0] resolves on Windows (PATH/PATHEXT); the rest — spaces,
+        // quotes, empties, metacharacters — passes through verbatim.
+        argv: [process.execPath, 'login', '--flag with space', '', 'safe&ver', 'a"b'],
+        env: { ACP_FORCE_TTY: '1' },
+      } }, response);
+      expect(response.statusCode).toBe(200);
+      expect(processes).toHaveLength(1);
+      // argv[0] may be wrapped (env -u) on POSIX; the tail carries the command verbatim.
+      const [file, args, options] = [processes[0].file, processes[0].args, processes[0].options];
+      for (const entry of ['login', '--flag with space', '', 'safe&ver', 'a"b']) {
+        expect(args).toContain(entry);
+      }
+      expect(String(file).length > 0).toBe(true);
+      expect(options.env.ACP_FORCE_TTY).toBe('1');
+      expect(options.env.TERM).toBe('xterm-256color');
+      // A second create with the same id but different argv is rejected.
+      const clash = createResponse();
+      await create({ body: { sessionId: 'auth-direct', cwd: '/repo', mode: 'direct', argv: [process.execPath, 'other'] } }, clash);
+      expect(clash.statusCode).toBe(400);
+    } finally { await runtime.shutdown(); }
+  });
+
+  it('validates direct argv and env', async () => {
+    const routes = { get: new Map(), post: new Map(), delete: new Map() };
+    const app = {
+      post(route, handler) { routes.post.set(route, handler); },
+      get(route, handler) { routes.get.set(route, handler); },
+      delete(route, handler) { routes.delete.set(route, handler); },
+    };
+    let spawns = 0;
+    const runtime = createTerminalRuntime({
+      app,
+      server: new EventEmitter(),
+      fs: { promises: { stat: async () => ({ isDirectory: () => true }) } },
+      path,
+      uiAuthController: null,
+      buildAugmentedPath: () => process.env.PATH || '',
+      searchPathFor: () => null,
+      isExecutable: () => false,
+      isRequestOriginAllowed: async () => true,
+      rejectWebSocketUpgrade() {},
+      terminalTerminationGraceMs: 10,
+      loadPtyProvider: async () => ({ backend: 'fake-pty', spawn: async () => { spawns += 1; throw new Error('must not spawn'); } }),
+    });
+    try {
+      const create = routes.post.get('/api/terminal/create');
+      for (const body of [
+        { sessionId: 'd1', cwd: '/repo', mode: 'direct' },
+        { sessionId: 'd2', cwd: '/repo', mode: 'direct', argv: [] },
+        { sessionId: 'd3', cwd: '/repo', mode: 'direct', argv: [''] },
+        { sessionId: 'd4', cwd: '/repo', mode: 'direct', argv: ['x'], env: { '': 'v' } },
+        { sessionId: 'd5', cwd: '/repo', mode: 'direct', argv: ['x'], command: 'nope' },
+        { sessionId: 'd6', cwd: '/repo', mode: 'command', command: 'echo hi', argv: ['x'] },
+        // NUL is unrepresentable in native argv/env; '=' splits env names.
+        { sessionId: 'd7', cwd: '/repo', mode: 'direct', argv: ['x', 'a\0b'] },
+        { sessionId: 'd8', cwd: '/repo', mode: 'direct', argv: ['x'], env: { 'BAD=KEY': 'v' } },
+        { sessionId: 'd9', cwd: '/repo', mode: 'direct', argv: ['x'], env: { OK: 'a\0b' } },
+      ]) {
+        const response = createResponse();
+        await create({ body }, response);
+        expect(response.statusCode).toBe(400);
+      }
+      // Rejected before the provider: nothing spawned.
+      expect(spawns).toBe(0);
+    } finally { await runtime.shutdown(); }
+  });
+
+  it.runIf(process.platform === 'win32')('refuses batch wrappers and unresolvable targets without spawning', async () => {
+    const { mkdtemp, rm, writeFile } = await import('node:fs/promises');
+    const { tmpdir } = await import('node:os');
+    const dir = await mkdtemp(path.join(tmpdir(), 'acp-direct-refuse-'));
+    try {
+      // A non-shim batch file: the server must refuse, never let
+      // node-pty hand it to cmd.exe implicitly.
+      const bat = path.join(dir, 'agent.cmd');
+      await writeFile(bat, '@echo off\r\necho ARG=%1\r\n');
+      const routes = { get: new Map(), post: new Map(), delete: new Map() };
+      const app = {
+        post(route, handler) { routes.post.set(route, handler); },
+        get(route, handler) { routes.get.set(route, handler); },
+        delete(route, handler) { routes.delete.set(route, handler); },
+      };
+      let spawns = 0;
+      const runtime = createTerminalRuntime({
+        app,
+        server: new EventEmitter(),
+        fs: { promises: { stat: async () => ({ isDirectory: () => true }) } },
+        path,
+        uiAuthController: null,
+        buildAugmentedPath: () => process.env.PATH || '',
+        searchPathFor: () => null,
+        isExecutable: () => false,
+        isRequestOriginAllowed: async () => true,
+        rejectWebSocketUpgrade() {},
+        terminalTerminationGraceMs: 10,
+        loadPtyProvider: async () => ({ backend: 'fake-pty', spawn: async () => { spawns += 1; throw new Error('must not spawn'); } }),
+      });
+      try {
+        const create = routes.post.get('/api/terminal/create');
+        const batch = createResponse();
+        await create({ body: { sessionId: 'refuse-bat', cwd: dir, mode: 'direct', argv: [bat, 'safe&ver'] } }, batch);
+        expect(batch.statusCode).toBe(400);
+        expect(batch.body.error).toMatch(/batch wrappers/);
+        const missing = createResponse();
+        await create({ body: { sessionId: 'refuse-missing', cwd: dir, mode: 'direct', argv: ['definitely-not-a-real-binary-xyz', 'x'] } }, missing);
+        expect(missing.statusCode).toBe(400);
+        expect(missing.body.error).toMatch(/not found on PATH/);
+        expect(spawns).toBe(0);
+      } finally { await runtime.shutdown(); }
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('rejects same-id creates whose env differs, ignoring key order', async () => {
+    const routes = { get: new Map(), post: new Map(), delete: new Map() };
+    const processes = [];
+    const app = {
+      post(route, handler) { routes.post.set(route, handler); },
+      get(route, handler) { routes.get.set(route, handler); },
+      delete(route, handler) { routes.delete.set(route, handler); },
+    };
+    const runtime = createTerminalRuntime({
+      app,
+      server: new EventEmitter(),
+      fs: { promises: { stat: async () => ({ isDirectory: () => true }) } },
+      path,
+      uiAuthController: null,
+      buildAugmentedPath: () => process.env.PATH || '',
+      searchPathFor: () => null,
+      isExecutable: () => false,
+      isRequestOriginAllowed: async () => true,
+      rejectWebSocketUpgrade() {},
+      terminalTerminationGraceMs: 10,
+      loadPtyProvider: async () => ({
+        backend: 'fake-pty',
+        spawn: async (file, args, options) => {
+          const process = { pid: 999, file, args, options, write() {}, resize() {}, kill() {}, onData: () => ({ dispose() {} }), onExit: () => ({ dispose() {} }) };
+          processes.push(process);
+          return process;
+        },
+      }),
+    });
+    try {
+      const create = routes.post.get('/api/terminal/create');
+      const first = createResponse();
+      await create({ body: { sessionId: 'same', cwd: '/repo', mode: 'direct', argv: [process.execPath, 'auth'], env: { TOKEN: 'first' } } }, first);
+      expect(first.statusCode).toBe(200);
+      // Same argv, different env → rejected (not silently the old process).
+      const clash = createResponse();
+      await create({ body: { sessionId: 'same', cwd: '/repo', mode: 'direct', argv: [process.execPath, 'auth'], env: { TOKEN: 'second' } } }, clash);
+      expect(clash.statusCode).toBe(400);
+      expect(processes).toHaveLength(1);
+      // Same argv + env in a different key order → same session.
+      const reorder = createResponse();
+      await create({ body: { sessionId: 'same', cwd: '/repo', mode: 'direct', argv: [process.execPath, 'auth'], env: { TOKEN: 'first' } } }, reorder);
+      expect(reorder.statusCode).toBe(200);
+      expect(processes).toHaveLength(1);
+    } finally { await runtime.shutdown(); }
+  });
+});

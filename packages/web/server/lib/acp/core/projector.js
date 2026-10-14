@@ -221,12 +221,21 @@ export const createSessionProjector = ({ key, backendId, directory, index = null
       cost: 0,
       tokens: cloneTokens(ZERO_TOKENS),
       time: { created: now(), updated: now() },
+      // The revert boundary is authoritative session state (D13): the UI
+      // dock reads `session.revert.messageID`, so it lives on the record
+      // — not just in the emitted patch. Restored from the index on
+      // rebuild; the message id is re-canonicalized after replay (see
+      // `restoreRevertBoundary`), because replay mints fresh ids.
+      ...(typeof index?.revertMessageID === 'string' && index.revertMessageID
+        ? { revert: { messageID: index.revertMessageID } }
+        : {}),
       metadata: {
         acp: {
           backendId,
           capabilities: {},
           configOptions: [],
           modes: [],
+          ...(Number.isInteger(index?.revertedFromTurn) ? { revertedFromTurn: index.revertedFromTurn } : {}),
         },
       },
     },
@@ -235,6 +244,12 @@ export const createSessionProjector = ({ key, backendId, directory, index = null
     status: { type: 'idle' },
     busy: false,
     turn: null,
+    // Accepted user turns, oldest→newest as message ids. Every entry is one
+    // checkpoint turn: a client `acceptPrompt` appends, a replayed user
+    // message appends during rebuild, and the ordinal is the 1-based index
+    // — canonical across rebuilds because the replay stream is ordered.
+    // Compaction/announcement messages never append.
+    userTurnIds: [],
     // One allocator for every live-generated message kind (assistants,
     // announcements): unique across sessions via the tag, ordered within
     // the transcript via the zero-padded sequence.
@@ -460,6 +475,28 @@ export const createSessionProjector = ({ key, backendId, directory, index = null
     return list.find((part) => part.type === 'tool' && part.callID === toolCallId) ?? null;
   };
 
+  // Terminal output from the `_meta` extension channel. String form is taken
+  // verbatim; object form carries the bytes in `data` (pi-acp streams
+  // `{terminal_id, data}` chunks). Extension data is consumed wherever it
+  // appears, never by agent name (D8). Returns the text or null.
+  const terminalMetaTextOf = (meta) => {
+    const terminalMeta = meta?.terminal_output ?? meta?.terminalOutput;
+    if (typeof terminalMeta === 'string' && terminalMeta) return terminalMeta;
+    const data = terminalMeta && typeof terminalMeta === 'object' ? terminalMeta.data : null;
+    return typeof data === 'string' && data ? data : null;
+  };
+
+  // Exit status from the `_meta` extension channel (`{exit_code, signal}`).
+  // Returns `{ exitCode?, signal? }` (possibly empty).
+  const terminalExitOf = (meta) => {
+    const exit = meta?.terminal_exit ?? meta?.terminalExit;
+    if (!exit || typeof exit !== 'object') return {};
+    return {
+      ...(typeof exit.exit_code === 'number' ? { exitCode: exit.exit_code } : {}),
+      ...(typeof exit.signal === 'string' && exit.signal ? { signal: exit.signal } : {}),
+    };
+  };
+
   const metadataFromContent = (content, meta, rawOutput) => {
     const metadata = {};
     const files = [];
@@ -473,21 +510,56 @@ export const createSessionProjector = ({ key, backendId, directory, index = null
         const label = Array.isArray(rawFiles) ? matchRawFileLabel(item, rawFiles) : null;
         files.push(diffToFileEntry(item, label));
       } else if (item?.type === 'terminal') {
+        // Inline bytes when present; bare `{terminalId}` refs carry no bytes
+        // (fetching needs terminal/* caps, which we never advertise) — the
+        // bytes arrive over the `_meta` channel instead.
         if (typeof item.output === 'string' && item.output) outputs.push(item.output);
       } else if (item?.type === 'content') {
         const block = item.content;
         if (block?.type === 'text' && typeof block.text === 'string' && block.text) outputs.push(block.text);
       }
     }
-    const terminalMeta = meta?.terminal_output ?? meta?.terminalOutput;
-    if (typeof terminalMeta === 'string' && terminalMeta) outputs.push(terminalMeta);
     if (files.length > 0) metadata.files = files;
     if (outputs.length > 0) metadata.output = cappedText(outputs.join('\n'));
+    Object.assign(metadata, terminalExitOf(meta));
     return metadata;
+  };
+
+  /**
+   * Merge one update's terminal metadata into the part's accumulated output.
+   * The `_meta` channel streams DELTAS (each chunk is new bytes), so they
+   * append; typed content is a complete snapshot, so it replaces. When the
+   * update carries neither, the accumulated output survives (a status-only
+   * update such as `terminal_exit` must not wipe it).
+   */
+  const outputWithTerminalMeta = (previous, update, typedOutput) => {
+    const delta = terminalMetaTextOf(asRecord(update?._meta));
+    // Both channels in one update: the update is self-contained, typed
+    // first (the historical join).
+    if (delta && typedOutput !== undefined) return cappedText(`${typedOutput}\n${delta}`);
+    if (delta) return cappedText((previous ?? '') + delta);
+    if (typedOutput !== undefined) return typedOutput;
+    return previous;
   };
 
   /** Shared terminal/update projection used by both `tool_call` and `tool_call_update`. */
   const projectToolStatus = (events, assistant, part, update, startedAt) => {
+    // Generic tools keep the raw ACP identity for the renderer: the mapped
+    // kinds already have renderers, `acp` does not. Verbatim strings, unset
+    // when the agent sends none/empty. Survives the settle merge (like the
+    // child-session link); progress keeps the previous value when the
+    // update carries no newer one.
+    const generic = part?.tool === 'acp';
+    const previousGeneric = generic && part.state && typeof part.state === 'object' && part.state.metadata
+      && typeof part.state.metadata === 'object' ? part.state.metadata : null;
+    const carryGenericIdentity = (metadata) => {
+      if (!generic) return metadata;
+      const kind = typeof update?.kind === 'string' && update.kind ? update.kind : previousGeneric?.acpKind;
+      const title = typeof update?.title === 'string' && update.title ? update.title : previousGeneric?.acpTitle;
+      if (typeof kind === 'string' && kind) metadata.acpKind = kind;
+      if (typeof title === 'string' && title) metadata.acpTitle = title;
+      return metadata;
+    };
     const status = update?.status ?? null;
     if ((status === 'in_progress' || status === null) && part.state.status === 'pending') {
       const input = update?.rawInput !== undefined ? cappedToolInput(update.rawInput) : part.state.input;
@@ -507,9 +579,20 @@ export const createSessionProjector = ({ key, backendId, directory, index = null
       const metadata = metadataFromContent(update?.content, asRecord(update?._meta), update?.rawOutput);
       // A linked child session survives the settle: the agent's own metadata
       // never names it (typed content only), so keep ours.
-      const linked = part.state && typeof part.state === 'object' && part.state.metadata
-        && typeof part.state.metadata === 'object' ? part.state.metadata.sessionID : undefined;
+      const previousMeta = part.state && typeof part.state === 'object' && part.state.metadata
+        && typeof part.state.metadata === 'object' ? part.state.metadata : null;
+      const linked = previousMeta?.sessionID;
       if (typeof linked === 'string' && linked && metadata.sessionID === undefined) metadata.sessionID = linked;
+      // Streamed `_meta` output accumulated during progress survives a bare
+      // terminal update (`terminal_exit` carries no bytes).
+      const mergedOutput = outputWithTerminalMeta(
+        typeof previousMeta?.output === 'string' ? previousMeta.output : undefined,
+        update,
+        metadata.output,
+      );
+      if (mergedOutput !== undefined) metadata.output = mergedOutput;
+      else delete metadata.output;
+      carryGenericIdentity(metadata);
       const output = metadata.output ?? '';
       const transition = status === 'completed'
         ? {
@@ -553,10 +636,19 @@ export const createSessionProjector = ({ key, backendId, directory, index = null
     }
     if (part.state.status === 'running') {
       const metadata = metadataFromContent(update?.content, asRecord(update?._meta), update?.rawOutput);
-      const linked = part.state.metadata && typeof part.state.metadata === 'object'
-        ? part.state.metadata.sessionID
-        : undefined;
+      const previousMeta = part.state.metadata && typeof part.state.metadata === 'object'
+        ? part.state.metadata
+        : null;
+      const linked = previousMeta?.sessionID;
       if (typeof linked === 'string' && linked && metadata.sessionID === undefined) metadata.sessionID = linked;
+      const mergedOutput = outputWithTerminalMeta(
+        typeof previousMeta?.output === 'string' ? previousMeta.output : undefined,
+        update,
+        metadata.output,
+      );
+      if (mergedOutput !== undefined) metadata.output = mergedOutput;
+      else delete metadata.output;
+      carryGenericIdentity(metadata);
       if (Object.keys(metadata).length > 0) {
         events.push({
           type: 'message.tool.transition',
@@ -625,6 +717,28 @@ export const createSessionProjector = ({ key, backendId, directory, index = null
     }
   };
 
+  // A replayed assistant finished before the replay: seal its streams and
+  // mark it complete (`finish` + `time.completed`, like a live turn's
+  // settle) so consumers that require completed turns (AI rename) treat
+  // replayed history as finished work, not a running turn.
+  const completeReplayedAssistant = (events, assistantId, at) => {
+    const assistant = messageById(assistantId);
+    if (!assistant || assistant.role !== 'assistant') return;
+    sealAssistantStreams(events, assistantId, at);
+    if (assistant.finish === undefined) {
+      assistant.finish = 'stop';
+      assistant.time.completed = at;
+      events.push({
+        type: 'message.patched',
+        properties: {
+          sessionID: key,
+          messageID: assistantId,
+          patch: { time: { completed: at }, finish: 'stop' },
+        },
+      });
+    }
+  };
+
   const applyUserReplay = (events, chunk) => {
     const text = textOf(chunk?.content);
     const agentId = typeof chunk?.messageId === 'string' && chunk.messageId ? chunk.messageId : null;
@@ -655,14 +769,17 @@ export const createSessionProjector = ({ key, backendId, directory, index = null
     const at = tickAfter();
     const message = { id, sessionID: key, role: 'user', time: { created: at } };
     recordMessage(message);
-    events.push({ type: 'message.updated', properties: { info: { ...message, time: { ...message.time } } } });
+    state.userTurnIds.push(id);
+    message.metadata = { acpTurn: state.userTurnIds.length };
+    events.push({ type: 'message.updated', properties: { info: { ...message, time: { ...message.time }, metadata: { ...message.metadata } } } });
     const part = { id: `${id}:text:0`, sessionID: key, messageID: id, type: 'text', text: cappedText(text) };
     appendPart(id, part);
     events.push({ type: 'message.parts.replaced', properties: { sessionID: key, messageID: id, parts: [{ ...part }] } });
     // Each replayed user turn starts a fresh assistant message; without this
-    // every replayed agent chunk would accumulate on the first reply.
+    // every replayed agent chunk would accumulate on the first reply. The
+    // rotated assistant finished before the replay: mark it complete.
     if (state.replayAssistantId) {
-      sealAssistantStreams(events, state.replayAssistantId, at);
+      completeReplayedAssistant(events, state.replayAssistantId, at);
     }
     state.replayAssistantId = null;
     touch();
@@ -1266,7 +1383,13 @@ export const createSessionProjector = ({ key, backendId, directory, index = null
       // turns interleaved (user, assistant, user, assistant, ...).
       const message = { id: messageId, sessionID: key, role: 'user', time: { created: tickAfter() } };
       recordMessage(message);
-      events.push({ type: 'message.updated', properties: { info: { ...message, time: { ...message.time } } } });
+      state.userTurnIds.push(messageId);
+      // Canonical turn stamp (D12): the 1-based ordinal in the
+      // accepted-turn list, so the UI reverts/gates/diffs the absolute
+      // turn instead of counting its loaded window. Identical across
+      // rebuilds (replay appends in transcript order).
+      message.metadata = { acpTurn: state.userTurnIds.length };
+      events.push({ type: 'message.updated', properties: { info: { ...message, time: { ...message.time }, metadata: { ...message.metadata } } } });
       const projected = (Array.isArray(parts) ? parts : []).flatMap((part, partIndex) => {
         if (part?.type === 'text' && typeof part.text === 'string') {
           return [{ id: `${messageId}:text:0`, sessionID: key, messageID: messageId, type: 'text', text: cappedText(part.text) }];
@@ -1295,6 +1418,15 @@ export const createSessionProjector = ({ key, backendId, directory, index = null
       state.replaying = false;
       state.replayAssistantId = null;
       state.status = { type: 'busy' };
+      // The staged revert commits with the next prompt (OpenCode-style):
+      // the marker AND its ordinal drop, so replay cannot resurrect the
+      // boundary after eviction/restart. The service clears the persisted
+      // fields alongside (see startTurn).
+      if (state.info.revert || Number.isInteger(state.info.metadata?.acp?.revertedFromTurn)) {
+        delete state.info.revert;
+        if (state.info.metadata?.acp) delete state.info.metadata.acp.revertedFromTurn;
+        events.push({ type: 'session.patched', properties: { sessionID: key, patch: { revert: null } } });
+      }
       touch();
       events.push({ type: 'session.status', properties: { sessionID: key, status: { type: 'busy' } } });
       return events;
@@ -1415,9 +1547,11 @@ export const createSessionProjector = ({ key, backendId, directory, index = null
         status: { ...state.status },
         completedAssistantId: state.completedAssistantId,
         compactions: new Map(state.compactions),
+        userTurnIds: [...state.userTurnIds],
       };
       state.messages = [];
       state.parts = new Map();
+      state.userTurnIds = [];
       state.busy = false;
       state.turn = null;
       state.completedAssistantId = null;
@@ -1444,6 +1578,7 @@ export const createSessionProjector = ({ key, backendId, directory, index = null
       if (!snapshot) return;
       state.messages = snapshot.messages;
       state.parts = new Map(snapshot.parts);
+      state.userTurnIds = Array.isArray(snapshot.userTurnIds) ? snapshot.userTurnIds : [];
       state.busy = snapshot.busy;
       state.status = snapshot.status;
       state.completedAssistantId = snapshot.completedAssistantId;
@@ -1459,6 +1594,36 @@ export const createSessionProjector = ({ key, backendId, directory, index = null
     endReplay() {
       const before = state.replacedIds ?? [];
       const canonical = new Set(state.messages.map((message) => message.id));
+      // The revert boundary re-canonicalizes after replay: a stored
+      // boundary message id from the live transcript (a client prompt id)
+      // never appears in the canonical transcript, so it is re-resolved
+      // from the stored turn ordinal — the only stable coordinate.
+      const revertedFromTurn = state.info.metadata?.acp?.revertedFromTurn;
+      if (Number.isInteger(revertedFromTurn)) {
+        const boundary = state.userTurnIds[revertedFromTurn - 1];
+        if (typeof boundary === 'string') {
+          state.info.revert = { messageID: boundary };
+          touch();
+        } else {
+          delete state.info.revert;
+        }
+      }
+      // The trailing assistant (no later user turn rotated it) also
+      // finished before the replay: complete it in place. No events —
+      // the replacement batch carries removals only, and the buffered
+      // canonical messages already went out; the record state is what
+      // pages serve from here on. Part seals go out as updates so live
+      // rows converge.
+      if (state.replayAssistantId) {
+        const assistant = messageById(state.replayAssistantId);
+        if (assistant && assistant.role === 'assistant' && assistant.finish === undefined) {
+          const at = tickAfter();
+          sealAssistantStreams([], state.replayAssistantId, at);
+          assistant.finish = 'stop';
+          assistant.time.completed = at;
+          touch();
+        }
+      }
       state.replacedIds = null;
       state.replayRollback = null;
       state.replaying = false;
@@ -1466,6 +1631,31 @@ export const createSessionProjector = ({ key, backendId, directory, index = null
       return before
         .filter((id) => !canonical.has(id))
         .map((id) => ({ type: 'message.removed', properties: { sessionID: key, messageID: id } }));
+    },
+
+    /**
+     * Install the revert boundary (D13) on the authoritative session
+     * record: `session.revert.messageID` (the field the UI dock reads)
+     * plus `metadata.acp.revertedFromTurn`. The caller emits the returned
+     * `session.patched` so live clients converge. The next accepted
+     * prompt clears the boundary (the revert commits, OpenCode-style).
+     */
+    setRevertBoundary(turn, messageId) {
+      if (!Number.isInteger(turn) || turn <= 0 || typeof messageId !== 'string' || !messageId) return [];
+      state.info.revert = { messageID: messageId };
+      state.info.metadata.acp.revertedFromTurn = turn;
+      touch();
+      return [{
+        type: 'session.patched',
+        properties: {
+          sessionID: key,
+          patch: {
+            time: { updated: state.info.time.updated },
+            metadata: JSON.parse(JSON.stringify(state.info.metadata)),
+            revert: { messageID: messageId },
+          },
+        },
+      }];
     },
 
     /**
@@ -1518,6 +1708,18 @@ export const createSessionProjector = ({ key, backendId, directory, index = null
     /** Live transcript message ids, oldest first (for sidecar replacement sets). */
     transcriptIds() {
       return state.messages.map((message) => message.id);
+    },
+
+    /**
+     * Canonical 1-based turn ordinal of a user message id: its index in
+     * the accepted-turn list. Live prompts and load replay append in
+     * transcript order, so the ordinal survives rebuilds. Unknown ids
+     * (announcements, compactions, never-seen) answer null.
+     */
+    turnNumberOf(messageId) {
+      if (typeof messageId !== 'string' || !messageId) return null;
+      const at = state.userTurnIds.indexOf(messageId);
+      return at === -1 ? null : at + 1;
     },
   };
 };

@@ -1,3 +1,10 @@
+export interface AcpCheckpointRecord {
+  turn: number;
+  start: string;
+  end: string | null;
+  complete: boolean;
+}
+
 export interface AcpSessionEntry {
   key: string;
   backendId: string;
@@ -10,6 +17,10 @@ export interface AcpSessionEntry {
   updated: number;
   lastConfig?: Record<string, string | number | boolean>;
   messageIds?: string[];
+  checkpoints?: AcpCheckpointRecord[];
+  revertedFromTurn?: number;
+  revertMessageID?: string;
+  pendingRevertNote?: string;
 }
 
 export declare function displayTitle(entry: AcpSessionEntry | null | undefined): string;

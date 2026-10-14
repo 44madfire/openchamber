@@ -50,6 +50,9 @@
  * - `FAKE_ACP_RESUME` — when `true`, `session/resume` answers with the
  *   configured options/modes and records `RESUME:<sessionId>`; otherwise it
  *   throws method-not-found.
+ * - `FAKE_ACP_FORK` — when `true`, `session/fork` mints a new session id,
+ *   registers it, and records `FORK:<oldId> -> <newId>`; otherwise it
+ *   throws method-not-found.
  * - `FAKE_ACP_LOAD_ERROR` — JSON `{ code, message }`: `session/load` throws
  *   it instead of replaying.
  * - `FAKE_ACP_PROMPT_RECORD` — when set, every prompt's `{ sessionId, prompt
@@ -116,6 +119,7 @@ const MODES = readJson(process.env.FAKE_ACP_MODES, null);
 const SUPPORTS_DELETE = process.env.FAKE_ACP_DELETE === 'true';
 const SUPPORTS_CLOSE = process.env.FAKE_ACP_CLOSE === 'true';
 const SUPPORTS_RESUME = process.env.FAKE_ACP_RESUME === 'true';
+const SUPPORTS_FORK = process.env.FAKE_ACP_FORK === 'true';
 const LOAD_ERROR = readJson(process.env.FAKE_ACP_LOAD_ERROR, null);
 const RECORD_PROMPTS = process.env.FAKE_ACP_PROMPT_RECORD !== undefined && process.env.FAKE_ACP_PROMPT_RECORD !== '';
 
@@ -269,6 +273,17 @@ const agent = new AgentSideConnection((client) => ({
     }
     process.stderr.write(`RESUME:${params?.sessionId ?? ''}\n`);
     return { ...sessionOptions() };
+  },
+  unstable_forkSession: async (params) => {
+    if (!SUPPORTS_FORK) {
+      const error = new Error('Method not found: session/fork');
+      error.code = -32601;
+      throw error;
+    }
+    const sessionId = `fake-session-${nextSession++}`;
+    sessions.set(sessionId, { sessionId, cwd: params?.cwd ?? null, title: '' });
+    process.stderr.write(`FORK:${params?.sessionId ?? ''} -> ${sessionId}\n`);
+    return { sessionId, ...sessionOptions() };
   },
   setSessionConfigOption: async (params) => {
     process.stderr.write(`CONFIG:${JSON.stringify({ sessionId: params?.sessionId, configId: params?.configId, value: params?.value })}\n`);

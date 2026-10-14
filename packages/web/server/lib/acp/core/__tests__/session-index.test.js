@@ -30,7 +30,7 @@ describe('acp session index', () => {
     await expect(index.get('ses_acp-omp_rnative-1')).resolves.toMatchObject({ title: 'hello' });
 
     const raw = JSON.parse(await readFile(index.filePath, 'utf8'));
-    expect(raw.version).toBe(1);
+    expect(raw.version).toBe(2);
     expect(raw.sessions).toHaveLength(1);
     // No temp files left behind: enumerate the directory for real.
     const files = await readdir(dir);

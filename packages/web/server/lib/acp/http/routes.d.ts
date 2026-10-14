@@ -6,6 +6,7 @@ import type {
 } from '@agentclientprotocol/sdk';
 
 import type { AcpBackendManager, AcpBackendState } from '../core/backend-manager.js';
+import type { AcpOneOffService } from '../core/oneoff.js';
 import type { AcpBackendRegistry } from '../core/registry.js';
 import type { AcpSessionService } from '../core/sessions.js';
 
@@ -49,6 +50,8 @@ export interface AcpSessionMeta {
   modes: Array<{ id: string; name?: string; description?: string | null; current?: boolean }>;
   /** Context window size in tokens, once a `usage_update` has arrived. */
   contextSize?: number;
+  /** Checkpoint turn this session was reverted from, when it last reverted. */
+  revertedFromTurn?: number;
 }
 
 export interface AcpSession {
@@ -377,6 +380,94 @@ export interface AcpCommandsEnvelope {
 export interface AcpConfigCacheEnvelope {
   configOptions: AcpSessionMeta['configOptions'];
 }
+// ---------------------------------------------------------------------------
+// Checkpoints (Phase 1.5): per-turn file snapshots for diff and revert.
+// ---------------------------------------------------------------------------
+
+/**
+ * `GET /api/acp/sessions/:key/checkpoints` — one checkpoint summary per
+ * completed or in-progress turn, as a bare JSON array. Unknown key → 404
+ * `ACP_SESSION_UNKNOWN`.
+ */
+export interface AcpCheckpointSummary {
+  turn: number;
+  complete: boolean;
+}
+
+/**
+ * One file entry of `GET /api/acp/sessions/:key/diff?turn=N` — the turn's
+ * working-tree changes vs its checkpoint as a bare JSON array. Bad `turn` →
+ * 400 `ACP_INVALID_REQUEST`; unknown turn → 404 `ACP_CHECKPOINT_UNKNOWN`;
+ * in-progress turn → 422 `ACP_CHECKPOINT_INCOMPLETE`.
+ */
+export interface AcpFileDiff {
+  file: string;
+  patch: string;
+  additions: number;
+  deletions: number;
+  status: 'added' | 'deleted' | 'modified';
+}
+
+/**
+ * `POST /api/acp/sessions/:key/revert` — restore the checkpoint of one turn.
+ * Bad `turn` → 400 `ACP_INVALID_REQUEST`; busy session → 409
+ * `ACP_SESSION_BUSY`; in-progress turn → 422 `ACP_CHECKPOINT_INCOMPLETE`.
+ */
+export interface AcpRevertRequest {
+  turn: number;
+}
+export interface AcpRevertResponse {
+  restored: string[];
+  removed: string[];
+  skipped: Array<{ file: string; reason: string }>;
+  session: AcpSession;
+}
+
+// ---------------------------------------------------------------------------
+// One-off generation (Phase 1.6): single-turn ask without a live session.
+// ---------------------------------------------------------------------------
+
+/**
+ * `POST /api/acp/oneoff` — generate one completion on a resolved backend.
+ * Validation failures → 400 `ACP_INVALID_REQUEST`; unknown backend → 404
+ * `ACP_BACKEND_UNKNOWN`; no usable backend → 503 `ACP_BACKEND_UNAVAILABLE`;
+ * generation timeout → 504 `ACP_ONEOFF_TIMEOUT`.
+ */
+export interface AcpOneOffRequest {
+  backendId?: string;
+  sessionKey?: string;
+  instruction: string;
+  input: string;
+  maxChars?: number;
+}
+export interface AcpOneOffResponse {
+  text: string;
+  usage?: { totalTokens?: number; contextSize?: number };
+  cost?: { amount: number; currency: string };
+  warnings?: string[];
+  sessionCleanup: 'deleted' | 'closed' | 'left';
+  backendId: string;
+}
+
+// ---------------------------------------------------------------------------
+// Terminal auth (Phase 1.6): interactive login runs in a spawned terminal.
+// ---------------------------------------------------------------------------
+
+/**
+ * `POST /api/acp/backends/:id/auth/terminal` — spawn details for an
+ * interactive auth method. This route never calls `authenticate`. Unknown
+ * backend → 404 `ACP_BACKEND_UNKNOWN`; non-terminal method → 400
+ * `ACP_AUTH_NOT_TERMINAL`.
+ */
+export interface AcpAuthTerminalRequest {
+  methodId?: string;
+}
+export interface AcpAuthTerminalResponse {
+  command: string;
+  args: string[];
+  env: Record<string, string>;
+  methodId: string;
+}
 
 // ---------------------------------------------------------------------------
 // Phase 1.4 frame events (existing `SyncEvent` vocabulary — no new frame
@@ -449,6 +540,12 @@ export interface AcpRouteDependencies {
    * routes answer 503 `ACP_SESSIONS_UNAVAILABLE` without it.
    */
   sessions?: AcpSessionService;
+  /**
+   * One-off generation service (Phase 1.6). Optional until the host wires
+   * it; `POST /api/acp/oneoff` answers 503 `ACP_ONEOFF_UNAVAILABLE` without
+   * it.
+   */
+  oneOff?: AcpOneOffService;
   /**
    * Hub publish hook: `publishSyncFrame(frame)` fans out to SSE + WS clients
    * with replay (the host binds `globalEventHub.injectEvent`). Optional in

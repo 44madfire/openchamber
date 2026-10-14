@@ -70,6 +70,19 @@ export type AcpFormAnswer = Record<string, string | number | boolean | string[]>
 
 const errorBodySchema = z.looseObject({ error: z.unknown(), message: z.unknown(), code: z.unknown() })
 
+const acpBackendEntrySchema = z.looseObject({
+  id: z.string(),
+  label: z.string(),
+  command: z.string(),
+  args: z.array(z.string()).optional(),
+  env: z.record(z.string(), z.string()).optional(),
+  enabled: z.boolean().optional(),
+  helper: z.looseObject({ config: z.record(z.string(), z.string()) }).optional(),
+})
+
+/** A registry entry as the backends route embeds it under `entry`. */
+export type AcpBackendEntry = z.infer<typeof acpBackendEntrySchema>
+
 const acpBackendStatusSchema = z.looseObject({
   id: z.string(),
   label: z.string().optional(),
@@ -78,16 +91,58 @@ const acpBackendStatusSchema = z.looseObject({
   protocolVersion: z.number().nullable(),
   agentInfo: z.looseObject({ name: z.string().optional(), version: z.string().optional() }).nullable(),
   agentCapabilities: z.record(z.string(), z.unknown()).nullable(),
-  authMethods: z.array(z.looseObject({ id: z.string(), name: z.string().optional(), description: z.string().optional() })),
+  authMethods: z.array(z.looseObject({ id: z.string(), name: z.string().optional(), description: z.string().optional(), type: z.string().optional() })),
   lastError: z.string().nullable(),
   stderrTail: z.string(),
+  entry: acpBackendEntrySchema.optional(),
 })
 
 /** One ACP backend entry with its live status. */
 export type AcpBackendStatus = z.infer<typeof acpBackendStatusSchema>
 
 const backendsEnvelopeSchema = z.object({ backends: z.array(acpBackendStatusSchema) })
+const backendEnvelopeSchema = z.object({ backend: acpBackendStatusSchema })
 
+const acpCheckpointSchema = z.looseObject({ turn: z.number().int().positive(), complete: z.boolean() })
+
+/** One checkpoint summary of `GET .../checkpoints` (D12). */
+export type AcpCheckpointSummary = z.infer<typeof acpCheckpointSchema>
+
+const acpFileDiffSchema = z.looseObject({
+  file: z.string(),
+  patch: z.string(),
+  additions: z.number(),
+  deletions: z.number(),
+  status: z.enum(["added", "deleted", "modified"]),
+})
+
+/** One file entry of `GET .../diff` (D14), in the `FileDiffInfo` shape DiffView consumes. */
+export type AcpFileDiff = z.infer<typeof acpFileDiffSchema>
+
+const acpRevertResponseSchema = z.looseObject({
+  restored: z.array(z.string()),
+  removed: z.array(z.string()),
+  skipped: z.array(z.looseObject({ file: z.string(), reason: z.string() })),
+  session: sessionSchema,
+})
+
+/** The `POST .../revert` answer (D13): file outcome plus the session to continue in. */
+export type AcpRevertResponse = z.infer<typeof acpRevertResponseSchema>
+
+const acpAuthTerminalSchema = z.looseObject({
+  command: z.string(),
+  args: z.array(z.string()),
+  env: z.record(z.string(), z.string()),
+  methodId: z.string(),
+})
+
+/** Spawn details for a terminal auth method (Phase 1.6). */
+export type AcpAuthTerminal = z.infer<typeof acpAuthTerminalSchema>
+
+const acpOneOffResponseSchema = z.looseObject({ text: z.string() })
+
+/** The `POST /api/acp/oneoff` answer; the UI consumes only `text`. */
+export type AcpOneOffResponse = z.infer<typeof acpOneOffResponseSchema>
 const acpConfigOptionSchema = z.looseObject({
   id: z.string(),
   name: z.string().optional(),
@@ -117,6 +172,7 @@ const acpSessionMetaSchema = z.looseObject({
   modes: z.array(z.looseObject({ id: z.string(), name: z.string().optional() })).optional(),
   contextSize: z.number().optional(),
   plan: z.looseObject({ entries: z.array(acpPlanEntrySchema).optional(), updatedAt: z.number().optional() }).optional(),
+  revertedFromTurn: z.number().int().positive().optional(),
 })
 
 /** The `metadata.acp` block the server attaches to every ACP session. */
@@ -127,6 +183,8 @@ export type AcpSessionMeta = {
   modes: Array<{ id: string; name?: string }>
   contextSize?: number
   plan?: { entries: AcpPlanEntry[]; updatedAt?: number }
+  /** Checkpoint turn this session was reverted from, when it last reverted (D13). */
+  revertedFromTurn?: number
 }
 
 /** A prompt part in `POST /api/acp/sessions/:key/prompt`. */
@@ -149,12 +207,15 @@ const directoryHeader = (directory?: string | null): Record<string, string> => {
 export class AcpApiError extends Error {
   readonly status: number
   readonly code?: string
+  /** The server's raw error message, without the operation/status prefix in `message`. */
+  readonly detail: string
 
   constructor(operation: string, status: number, message: string, options?: { code?: string; cause?: unknown }) {
     super(`${operation} failed (${status}): ${message}`, { cause: options?.cause })
     this.name = "AcpApiError"
     this.status = status
     this.code = options?.code
+    this.detail = message
   }
 }
 
@@ -451,6 +512,132 @@ export class AcpClient {
     if (!parsed.success) throw invalidEnvelope(operation, "commands")
     return parsed.data.commands
   }
+
+  /** One checkpoint summary per turn, oldest first (D12). Bare JSON array on the wire. */
+  async getSessionCheckpoints(key: string, directory?: string | null): Promise<AcpCheckpointSummary[]> {
+    const operation = "acp.sessions.checkpoints"
+    const response = await runtimeFetch(`/api/acp/sessions/${encodeURIComponent(key)}/checkpoints`, {
+      headers: { Accept: "application/json", ...directoryHeader(directory) },
+    })
+    const parsed = z.array(acpCheckpointSchema).safeParse(await readJson(operation, response))
+    if (!parsed.success) throw invalidEnvelope(operation, "checkpoints")
+    return parsed.data
+  }
+
+  /**
+   * Per-file diffs of one turn's working-tree changes vs its checkpoint
+   * (D14), in the `FileDiffInfo` shape DiffView consumes. Bare JSON array on
+   * the wire. 422 `ACP_CHECKPOINT_INCOMPLETE` when the turn never landed a
+   * usable start snapshot.
+   */
+  async getSessionTurnDiff(key: string, turn: number, directory?: string | null): Promise<AcpFileDiff[]> {
+    const operation = "acp.sessions.diff"
+    const response = await runtimeFetch(
+      buildUrl(`/api/acp/sessions/${encodeURIComponent(key)}/diff`, { turn: String(turn) }),
+      { headers: { Accept: "application/json", ...directoryHeader(directory) } },
+    )
+    const parsed = z.array(acpFileDiffSchema).safeParse(await readJson(operation, response))
+    if (!parsed.success) throw invalidEnvelope(operation, "diff")
+    return parsed.data
+  }
+
+  /**
+   * One-step file revert to before `turn` (D13): restores the checkpoint,
+   * then either forks (the returned session is the new fork to navigate to)
+   * or marks the session reverted in place (the returned session is the same
+   * key, with `metadata.acp.revertedFromTurn` and a `revert` boundary). 409
+   * while busy, 422 for an incomplete turn. No staged/clear: ACP has no
+   * two-phase revert.
+   */
+  async revertSession(key: string, turn: number, directory?: string | null): Promise<AcpRevertResponse> {
+    const operation = "acp.sessions.revert"
+    const response = await runtimeFetch(`/api/acp/sessions/${encodeURIComponent(key)}/revert`, {
+      method: "POST",
+      headers: { "content-type": "application/json", Accept: "application/json", ...directoryHeader(directory) },
+      body: JSON.stringify({ turn }),
+    })
+    const parsed = acpRevertResponseSchema.safeParse(await readJson(operation, response))
+    if (!parsed.success) throw invalidEnvelope(operation, "session")
+    return parsed.data
+  }
+
+  /** Replaces the backend registry (validated server-side); returns fresh statuses. */
+  async saveBackends(backends: AcpBackendEntry[]): Promise<AcpBackendStatus[]> {
+    const operation = "acp.backends.save"
+    const response = await runtimeFetch("/api/acp/backends", {
+      method: "PUT",
+      headers: { "content-type": "application/json", Accept: "application/json" },
+      body: JSON.stringify({ backends }),
+    })
+    const parsed = backendsEnvelopeSchema.safeParse(await readJson(operation, response))
+    if (!parsed.success) throw invalidEnvelope(operation, "backends")
+    return parsed.data.backends
+  }
+
+  /** Stops a backend and starts it fresh; returns its new status. */
+  async restartBackend(id: string): Promise<AcpBackendStatus> {
+    const operation = "acp.backends.restart"
+    const response = await runtimeFetch(`/api/acp/backends/${encodeURIComponent(id)}/restart`, {
+      method: "POST",
+      headers: { Accept: "application/json" },
+    })
+    const parsed = backendEnvelopeSchema.safeParse(await readJson(operation, response))
+    if (!parsed.success) throw invalidEnvelope(operation, "backend")
+    return parsed.data.backend
+  }
+
+  /** Runs `authenticate` for an agent auth method; terminal methods reject here. */
+  async authenticateBackend(id: string, methodId: string): Promise<AcpBackendStatus> {
+    const operation = "acp.backends.authenticate"
+    const response = await runtimeFetch(`/api/acp/backends/${encodeURIComponent(id)}/authenticate`, {
+      method: "POST",
+      headers: { "content-type": "application/json", Accept: "application/json" },
+      body: JSON.stringify({ methodId }),
+    })
+    const parsed = backendEnvelopeSchema.safeParse(await readJson(operation, response))
+    if (!parsed.success) throw invalidEnvelope(operation, "backend")
+    return parsed.data.backend
+  }
+
+  /**
+   * Spawn details for an interactive terminal auth method. The route never
+   * calls `authenticate`; the UI opens the command in the terminal panel and
+   * offers a restart afterwards.
+   */
+  async getBackendAuthTerminal(id: string, methodId?: string): Promise<AcpAuthTerminal> {
+    const operation = "acp.backends.authTerminal"
+    const response = await runtimeFetch(`/api/acp/backends/${encodeURIComponent(id)}/auth/terminal`, {
+      method: "POST",
+      headers: { "content-type": "application/json", Accept: "application/json" },
+      body: JSON.stringify({ ...(methodId !== undefined ? { methodId } : {}) }),
+    })
+    const parsed = acpAuthTerminalSchema.safeParse(await readJson(operation, response))
+    if (!parsed.success) throw invalidEnvelope(operation, "command")
+    return parsed.data
+  }
+
+  /**
+   * One completion on a resolved backend (D15): a throwaway session running
+   * the backend's helper model/effort, then deleted/closed. `sessionKey`
+   * resolves to the session's own backend. The UI consumes only `text`.
+   */
+  async generateOneOff(input: {
+    backendId?: string
+    sessionKey?: string
+    instruction: string
+    input: string
+    maxChars?: number
+  }): Promise<AcpOneOffResponse> {
+    const operation = "acp.oneoff.generate"
+    const response = await runtimeFetch("/api/acp/oneoff", {
+      method: "POST",
+      headers: { "content-type": "application/json", Accept: "application/json" },
+      body: JSON.stringify(input),
+    })
+    const parsed = acpOneOffResponseSchema.safeParse(await readJson(operation, response))
+    if (!parsed.success) throw invalidEnvelope(operation, "text")
+    return parsed.data
+  }
 }
 
 export const acpClient = new AcpClient()
@@ -467,6 +654,7 @@ export const readAcpSessionMeta = (session: Pick<Session, "metadata"> | null | u
     modes: parsed.data.modes ?? [],
     ...(parsed.data.contextSize !== undefined ? { contextSize: parsed.data.contextSize } : {}),
     ...(parsed.data.plan ? { plan: { entries: parsed.data.plan.entries ?? [], ...(parsed.data.plan.updatedAt !== undefined ? { updatedAt: parsed.data.plan.updatedAt } : {}) } } : {}),
+    ...(parsed.data.revertedFromTurn !== undefined ? { revertedFromTurn: parsed.data.revertedFromTurn } : {}),
   }
 }
 

@@ -247,7 +247,11 @@ describe('generation lifecycle', () => {
       const request = new Request(input, init);
       expect(new URL(request.url).pathname).toBe('/api/small-model/generate');
       expect(request.method).toBe('POST');
-      expect(await request.json()).toMatchObject({
+      // Byte-identical OpenCode body: exact keys in historical order, never a sessionKey.
+      const raw = await request.text();
+      const body = JSON.parse(raw) as Record<string, unknown>;
+      expect(Object.keys(body)).toEqual(['prompt', 'system', 'directory', 'preferredProviderID', 'preferredModelID', 'restrictToPreferredProvider']);
+      expect(body).toMatchObject({
         directory: '/project', preferredProviderID: 'provider', preferredModelID: 'model', restrictToPreferredProvider: true,
       });
       calls += 1;
@@ -260,6 +264,44 @@ describe('generation lifecycle', () => {
       await expect(generateSessionTitle(input)).rejects.toThrow('Session title generation failed');
       expect(calls).toBe(2);
     } finally { globalThis.fetch = originalFetch; configureRuntimeUrlResolver({ apiBaseUrl: '' }); }
+  });
+
+  test('an OpenCode session key never leaks into the body or the fallback lookup', async () => {
+    let body: Record<string, unknown> = {};
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = async (input, init) => {
+      body = await new Request(input, init).json() as Record<string, unknown>;
+      return Response.json({ text: 'A useful title' });
+    };
+    configureRuntimeUrlResolver({ apiBaseUrl: 'http://session-title.test' });
+    try {
+      // Even when the caller passes an OpenCode id (defensive: callers only
+      // pass ACP keys), the body keeps its exact historical shape.
+      await generateSessionTitle({ turns, directory: '/project', signal: new AbortController().signal, sessionKey: 'ses_01ABc2' });
+    } finally { globalThis.fetch = originalFetch; configureRuntimeUrlResolver({ apiBaseUrl: '' }); }
+    expect(Object.keys(body)).toEqual(['prompt', 'system', 'directory', 'preferredProviderID', 'preferredModelID', 'restrictToPreferredProvider']);
+  });
+
+  test('omits the synthetic ACP provider preference and sends the session key', async () => {
+    const acpTurns = collectSessionTitleTurns([
+      user('u'),
+      assistant('u', { providerID: 'acp:omp', modelID: 'openai-codex/gpt-6-luna' }),
+    ]);
+    expect(acpTurns).toHaveLength(1);
+    let body: Record<string, unknown> = {};
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = async (input, init) => {
+      body = await new Request(input, init).json() as Record<string, unknown>;
+      return Response.json({ text: 'ACP title' });
+    };
+    configureRuntimeUrlResolver({ apiBaseUrl: 'http://session-title.test' });
+    try {
+      expect(await generateSessionTitle({ turns: acpTurns, directory: '/project', signal: new AbortController().signal, sessionKey: 'ses_acp-omp_r1' })).toBe('ACP title');
+    } finally { globalThis.fetch = originalFetch; configureRuntimeUrlResolver({ apiBaseUrl: '' }); }
+    expect(body).toMatchObject({ directory: '/project', sessionKey: 'ses_acp-omp_r1' });
+    expect(Object.keys(body)).toEqual(['prompt', 'system', 'directory', 'sessionKey', 'restrictToPreferredProvider']);
+    expect(body).not.toHaveProperty('preferredProviderID');
+    expect(body).not.toHaveProperty('preferredModelID');
   });
 
   test('saves only after generation and a fresh metadata read', async () => {

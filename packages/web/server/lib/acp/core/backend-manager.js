@@ -24,6 +24,7 @@
 import { EventEmitter } from 'node:events';
 
 import { AcpVersionMismatchError } from './protocol-version.js';
+import { resolveAuthTerminalInvocation } from './auth-terminal.js';
 import { connectAcpAgent } from './connection.js';
 import { spawnAcpAgent } from './spawn.js';
 
@@ -480,6 +481,49 @@ export const createAcpBackendManager = ({
     return snapshot(backendId, record);
   };
 
+  /**
+   * Resolve a `terminal` auth method into the `{ command, args, env }` the
+   * UI opens in the terminal panel: registry invocation + the method's
+   * extra args/env (spec: the client runs the configured agent program as
+   * a separate interactive process and MUST NOT pass it to
+   * `authenticate`). `methodId` selects among several; omitted, the
+   * single terminal method is used, else rejected as ambiguous.
+   */
+  const authTerminal = async (backendId, methodId = null) => {
+    const connected = await ensureReady(backendId);
+    const entry = await resolveEntry(backendId);
+    const methods = connected.authMethods ?? [];
+    let method = null;
+    if (methodId !== null && methodId !== undefined) {
+      method = methods.find((candidate) => candidate?.id === methodId) ?? null;
+      if (!method) {
+        throw new AcpBackendError(`Unknown auth method for backend ${backendId}: ${methodId}`, {
+          code: 'ACP_AUTH_UNKNOWN_METHOD',
+          backendId,
+        });
+      }
+      if (method.type !== 'terminal') {
+        throw new AcpBackendError(`Auth method ${methodId} is not a terminal method`, {
+          code: 'ACP_AUTH_NOT_TERMINAL',
+          backendId,
+        });
+      }
+    } else {
+      const terminals = methods.filter((candidate) => candidate?.type === 'terminal');
+      if (terminals.length !== 1) {
+        throw new AcpBackendError(
+          terminals.length === 0
+            ? `Backend ${backendId} offers no terminal auth method`
+            : `Backend ${backendId} offers several terminal auth methods; pass methodId`,
+          { code: 'ACP_AUTH_UNKNOWN_METHOD', backendId },
+        );
+      }
+      method = terminals[0];
+    }
+    const invocation = resolveAuthTerminalInvocation(entry, method);
+    return { ...invocation, methodId: method.id };
+  };
+
   const status = async (backendId) => {
     const record = recordOf(backendId);
     // Read the entry outside the chain; the state transition runs
@@ -555,6 +599,7 @@ export const createAcpBackendManager = ({
     acquire,
     restart,
     authenticate,
+    authTerminal,
     status,
     listStatuses,
     shutdown,

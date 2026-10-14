@@ -1,3 +1,4 @@
+import { acpSettingsI18n } from './acp.settings.i18n';
 import { extensionsSettingsI18n } from './extensions.settings.i18n';
 import { guestIntegrationsI18n } from './guest-integrations.i18n';
 import { linearIntegrationI18n } from './linear-integration.i18n';
@@ -2514,6 +2515,7 @@ export const settingsDict = {
   ...extensionCatalogI18n.ja,
   ...guestIntegrationsI18n.ja,
   ...extensionsSettingsI18n.ja,
+  ...acpSettingsI18n.ja,
   'settings.page.integrations.title': '連携',
   'settings.page.integrations.description': 'OpenChamber と連携するサービスやサブスクリプションを接続します。',
   'settings.agents.page.field.steps': '最大ステップ数',

@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { getRelativeFilePath, normalizeFilePath, toAbsoluteFilePath } from '@/lib/path-utils';
 import {
+    isAcpTool,
     isExplorationTool,
     isFileChangeTool,
     isPatchTool,
@@ -9,7 +10,6 @@ import {
     isWebTool,
 } from '@/lib/opencode/tools';
 import type { ChatMessageEntry } from './types';
-
 const patchTextSchema = z.string().regex(/\S/);
 const patchSchema = z.union([patchTextSchema, z.object({ patch: patchTextSchema }).transform((value) => value.patch)]);
 const optionalText = z.string().trim().min(1).optional().catch(undefined);
@@ -154,8 +154,13 @@ export function summarizeLiveActivity(messages: readonly ChatMessageEntry[]): Li
                 const childSession = metadata?.sessionID ?? metadata?.sessionId;
                 if (childSession) subagents.add(childSession);
             }
-            if (!isFileChangeTool(tool)) continue;
-
+            // The ACP generic tool (§3.4) counts when it carries typed diffs —
+            // the same rule its card renders by — so turns whose edits arrived
+            // through unmapped kinds still list their files and open the turn
+            // diff. Without diffs it is not a file change (think, mode switch).
+            const isAcpChange = isAcpTool(tool)
+                && (metadata?.files?.some((file) => file !== null) === true || metadata?.filediff !== undefined || metadata?.patch !== undefined || metadata?.diff !== undefined);
+            if (!isFileChangeTool(tool) && !isAcpChange) continue;
             const input = inputSchema.safeParse(state.input).data;
             if (metadata?.files?.some((file) => file === null)) summary.hasCompleteDiff = false;
             const entries = metadata?.files?.filter((file) => file !== null);

@@ -16,8 +16,18 @@
  *   `mcpServers: []` (replay builds the projection). Warm after a backend
  *   restart: `resume` if capable, else `load`. No `loadSession` capability →
  *   read-only stub with the index title.
- * - prompt → 409 when busy, opening or settling; post-cancel settle + 30 s
- *   watchdog (§4: cancel, load, replay-once, error).
+ * - prompt → 409 when busy, opening, settling or mutating; post-cancel
+ *   settle + 30 s watchdog (§4: cancel, load, replay-once, error). The
+ *   turn installs before the start-snapshot await, so the pre-dispatch
+ *   window is cancellable and guarded. Checkpoint `start` before
+ *   `session/prompt` (budgeted; late → incomplete turn), `end` after
+ *   every terminal outcome incl. crash and watchdog failure (D12).
+ *   A persisted revert note is consumed exactly once at dispatch (D13).
+ * - checkpoints/diff/revert/fork → per-turn git snapshots in the index
+ *   (D12), turn diffs in the DiffView shape (D14), file restore from a
+ *   session-owned end tree under a mutation lock + fork with load
+ *   rebuild or persisted boundary + note (D13), explicit fork with load
+ *   rebuild (unstable cap only).
  * - cancel → `session/cancel` notification + answer pending permission /
  *   elicitation requests with `cancelled`.
  * - `permissions.reply` / `forms.reply` / `forms.cancel` → answer the parked
@@ -62,6 +72,12 @@ export const MAX_LIST_PAGES = 50;
 export const DEFAULT_MAX_INACTIVE_PROJECTIONS = 20;
 /** Idle projections older than this evict (rebuilt via load on demand). */
 export const DEFAULT_IDLE_EVICT_MS = 15 * 60_000;
+/** Budget for the pre-prompt `start` snapshot before the prompt goes out anyway (D12). */
+export const CHECKPOINT_START_BUDGET_MS = 1500;
+/** The well-known empty git tree, used as the placeholder `start` of incomplete turns. */
+export const EMPTY_TREE_ID = '4b825dc642cb6eb9a060e54bf8d69288fbee4904';
+/** Note prefixed to the next prompt after a no-fork revert (D13). */
+export const REVERT_NOTE_PREFIX = (turn) => `[Note: files were reverted to the state before turn ${turn}; turns ${turn}+ were undone]`;
 
 export class AcpSessionError extends Error {
   constructor(message, { code, cause } = {}) {
@@ -101,6 +117,17 @@ const toPromptBlocks = (parts) => (Array.isArray(parts) ? parts : []).flatMap((p
 });
 
 /**
+ * Prefix the revert note (D13) to prompt parts: joined onto the first
+ * text part when there is one, else a new leading text part. File parts
+ * pass through untouched.
+ */
+const prefixRevertNote = (parts, note) => {
+  const list = Array.isArray(parts) ? parts : [];
+  const at = list.findIndex((part) => part?.type === 'text' && typeof part.text === 'string');
+  if (at === -1) return [{ type: 'text', text: note }, ...list];
+  return list.map((part, index) => (index === at ? { ...part, text: `${note}\n\n${part.text}` } : part));
+};
+/**
  * The SDK wraps agent-thrown errors as `internalError({ details })`: the
  * message degrades to "Internal error" while the agent's text hides in
  * `data.details`. Unwrap it so the UI shows what the agent actually said.
@@ -123,6 +150,8 @@ export const createAcpSessionService = ({
   manager,
   index,
   registry = null,
+  checkpoints = null,
+  checkpointStartBudgetMs = CHECKPOINT_START_BUDGET_MS,
   now = () => Date.now(),
   settleMs = POST_CANCEL_SETTLE_MS,
   watchdogMs = POST_CANCEL_WATCHDOG_MS,
@@ -162,10 +191,103 @@ export const createAcpSessionService = ({
   const byNative = new Map();
   // Latest adopted connection per backend (stale-generation guard).
   const latestConnected = new Map();
+  // In-flight crash end-settlements (best-effort, never block teardown).
+  const pendingCrashSettles = new Set();
 
   const emitSync = (directory, syncEvents) => {
     if (!Array.isArray(syncEvents) || syncEvents.length === 0) return;
     events.emit('sync', { directory, events: syncEvents });
+  };
+
+  // -- Phase 1.5: checkpoints (D12), revert (D13), turn diff (D14) -------------
+  //
+  // Turn ordinals are canonical from the projector (`turnNumberOf`): the
+  // 1-based index in the accepted-turn list, identical across rebuilds
+  // because live prompts and load replay append in transcript order. The
+  // index persists `{ turn, start, end, complete }` per turn; a turn with
+  // no usable start snapshot is `complete: false` and refuses revert/diff.
+
+  /** Merge `row` into the entry's checkpoints (by turn), returning the entry. */
+  const recordCheckpoint = (entry, row) => {
+    const rows = Array.isArray(entry.checkpoints) ? [...entry.checkpoints] : [];
+    const at = rows.findIndex((candidate) => candidate.turn === row.turn);
+    if (at === -1) rows.push(row);
+    else rows[at] = { ...rows[at], ...row };
+    rows.sort((a, b) => a.turn - b.turn);
+    return { ...entry, checkpoints: rows };
+  };
+
+  const persistCheckpointRow = (record, row, { bypassLiveGuard = false } = {}) => {
+    if (!record?.entry) return;
+    // Never resurrect a deleted index entry: the record is dropped before
+    // the index entry on delete, so a record that is no longer live
+    // settles silently (crash/watchdog teardowns race delete this way) —
+    // unless the caller proves the entry still exists (crash settle,
+    // which re-reads the index first).
+    if (!bypassLiveGuard && live.get(record.key) !== record) return;
+    record.entry = recordCheckpoint(record.entry, row);
+    index.upsert(record.key, { checkpoints: record.entry.checkpoints, updated: now() }).catch(() => {});
+  };
+
+  const checkpointRowOf = (entry, turn) =>
+    (Array.isArray(entry?.checkpoints) ? entry.checkpoints : []).find((row) => row.turn === turn) ?? null;
+
+  const latestCheckpointTurn = (entry) => {
+    let latest = 0;
+    for (const row of entry?.checkpoints ?? []) {
+      if (Number.isInteger(row?.turn) && row.turn > latest) latest = row.turn;
+    }
+    return latest;
+  };
+
+  /** One snapshot attempt; `ACP_CHECKPOINT_BUSY` retries once, then throws. */
+  const snapshotOnce = async (args) => {
+    try {
+      return await checkpoints.snapshot(args);
+    } catch (error) {
+      if (error?.code !== 'ACP_CHECKPOINT_BUSY') throw error;
+      return checkpoints.snapshot(args);
+    }
+  };
+
+  /** Race a snapshot against `ms`; resolves `{ tree }` or `{ timeout: true }`. */
+  const snapshotWithin = (args, ms) => {
+    const attempt = snapshotOnce(args);
+    // The loser still settles (ref + index write land); only the waiter
+    // moves on. Unhandled rejections are impossible: both branches observe.
+    attempt.catch(() => {});
+    if (!(ms > 0)) return attempt.then((result) => ({ tree: result.tree }));
+    let timer;
+    return Promise.race([
+      attempt.then((result) => ({ tree: result.tree })),
+      new Promise((resolve) => {
+        timer = setTimeout(() => resolve({ timeout: true }), ms);
+        timer.unref?.();
+      }),
+    ]).finally(() => {
+      clearTimeout(timer);
+    });
+  };
+
+  /**
+   * Background warm for a project's shadow repo: the first-ever snapshot
+   * (~12 s cold on large projects) must not delay the first prompt. A
+   * turn-0 probe snapshot warms the work index; the prompt flow never
+   * waits on it. Fire-and-forget: failures leave the first real snapshot
+   * cold, which the start budget already tolerates.
+   */
+  const warmedProjects = new Set();
+  const warmCheckpoints = (directory) => {
+    if (!checkpoints) return;
+    let scope;
+    try {
+      scope = directoryKey(directory);
+    } catch {
+      return;
+    }
+    if (warmedProjects.has(scope)) return;
+    warmedProjects.add(scope);
+    snapshotOnce({ cwd: directory, sessionKey: 'warm', turn: 0, phase: 'start' }).catch(() => {});
   };
 
   const dropLive = (key, { onlyRecord = null } = {}) => {
@@ -204,17 +326,20 @@ export const createAcpSessionService = ({
   };
 
   /**
-   * Evict idle projections: non-busy, non-opening records older than
-   * `idleEvictMs`, plus an LRU cap on the inactive set. `exceptKey` (the
-   * record just tracked) never evicts itself. Children whose parent is live
-   * never evict (the parent's transcript links to them). Eviction drops
-   * only the projection; the sidecar entry stays and reopening rebuilds via
-   * load. Evicted records settle their parked prompts first.
+   * Evict idle projections: non-busy, non-opening, non-mutating records
+   * older than `idleEvictMs`, plus an LRU cap on the inactive set.
+   * `exceptKey` (the record just tracked) never evicts itself. Children
+   * whose parent is live never evict (the parent's transcript links to
+   * them). A record holding the mutation lock (revert/fork in flight)
+   * never evicts: eviction would drop the locked record and let a fresh
+   * open dispatch a prompt while the original restore still runs.
+   * Eviction drops only the projection; the sidecar entry stays and
+   * reopening rebuilds via load. Evicted records settle parked prompts.
    */
   const pruneIdle = (exceptKey = null) => {
     const evictable = (record) => {
       if (!record.projector || record.readOnly) return false;
-      if (record.turn || opening.has(record.key) || record.settling) return false;
+      if (record.turn || opening.has(record.key) || record.settling || record.mutating) return false;
       if (record.parentKey && live.has(record.parentKey)) return false;
       return true;
     };
@@ -897,6 +1022,16 @@ export const createAcpSessionService = ({
       if (record.backendId !== backendId || !record.projector) continue;
       const syncEvents = record.projector.applyBackendExit(exit ?? null);
       const settled = answerPending(record);
+      // The dead turn's end snapshot still lands (best-effort): without
+      // it a successful start row would keep `complete: true` with no
+      // end tree, and later reverts would lose their current tree. The
+      // shared terminal settlement snapshots, then merges onto a fresh
+      // index read only when the entry still exists — settle-after-drop
+      // can never resurrect a deleted session.
+      if (record.turn?.messageId && typeof record.projector.turnNumberOf === 'function') {
+        const turnNumber = record.projector.turnNumberOf(record.turn.messageId);
+        record.crashSettle = settleTerminalCheckpoint(record, turnNumber);
+      }
       dropLive(record.key, { onlyRecord: record });
       emitSync(record.directory, [...syncEvents, ...settled]);
     }
@@ -905,6 +1040,41 @@ export const createAcpSessionService = ({
   if (typeof manager.events?.on === 'function') {
     manager.events.on('backend-exit', onBackendExit);
   }
+
+  /**
+   * Shared terminal settlement for teardown paths that drop the record
+   * (backend exit, watchdog failure): snapshots the end tree, then
+   * merges it onto a FRESH index read — never onto a pre-teardown
+   * row — and only when the entry still exists, so settle-after-drop
+   * can never resurrect a deleted session. Best-effort; teardown
+   * never blocks on it. The promise parks in `pendingCrashSettles`
+   * so tests can await it.
+   */
+  const settleTerminalCheckpoint = (record, turnNumber) => {
+    if (!checkpoints || !Number.isInteger(turnNumber)) return Promise.resolve();
+    const key = record.key;
+    const directory = record.directory;
+    const settled = (async () => {
+      try {
+        const ended = await snapshotWithin(
+          { cwd: directory, sessionKey: key, turn: turnNumber, phase: 'end' },
+          checkpointStartBudgetMs,
+        ).catch(() => null);
+        const entry = await index.get(key).catch(() => null);
+        if (!entry) return;
+        const row = checkpointRowOf(entry, turnNumber);
+        if (!row || !ended?.tree) return;
+        const next = recordCheckpoint(entry, { turn: turnNumber, end: ended.tree, complete: row.complete === true });
+        await index.upsert(key, { checkpoints: next.checkpoints, updated: now() }).catch(() => {});
+      } catch {
+        // Best-effort: the terminal report already went out.
+      }
+    })();
+    settled.catch(() => {});
+    pendingCrashSettles.add(settled);
+    settled.finally(() => pendingCrashSettles.delete(settled));
+    return settled;
+  };
 
   // -- turn runner -----------------------------------------------------------
 
@@ -930,6 +1100,9 @@ export const createAcpSessionService = ({
           emitSync(record.directory, syncEvents);
         } catch {
           // The projector is gone; nothing left to report.
+        }
+        if (record.turn?.messageId && typeof record.projector?.turnNumberOf === 'function' && record.projector) {
+          settleTerminalCheckpoint(record, record.projector.turnNumberOf(record.turn.messageId));
         }
         answerPendingTree(record);
         record.turn?.deferred?.resolve({ status: 'error', error });
@@ -976,6 +1149,9 @@ export const createAcpSessionService = ({
       if (!stillOurs()) return;
       const syncEvents = record.projector.applyTerminalError({ message, code });
       emitSync(record.directory, syncEvents);
+      if (recovery.messageId && typeof record.projector.turnNumberOf === 'function') {
+        settleTerminalCheckpoint(record, record.projector.turnNumberOf(recovery.messageId));
+      }
       answerPendingTree(record);
       recovery.deferred.resolve({ status: 'error' });
       dropLive(record.key, { onlyRecord: record });
@@ -1047,7 +1223,7 @@ export const createAcpSessionService = ({
       armWatchdog(record);
       const connected = record.connected;
       connected.connection.prompt({ sessionId: record.nativeId, prompt: blocks }).then(
-        (result) => {
+        async (result) => {
           if (live.get(record.key) !== record || record.turn !== retry) return;
           settleWatchdog(record);
           const done = record.projector.applyPromptResult(result ?? null, {
@@ -1055,6 +1231,11 @@ export const createAcpSessionService = ({
             declinedInTurn: record.declinedInTurn,
           });
           index.upsert(record.key, { updated: now() }).catch(() => {});
+          await settleTurnCheckpoint(
+            record,
+            typeof record.projector.turnNumberOf === 'function' ? record.projector.turnNumberOf(retry.messageId) : null,
+          );
+          if (live.get(record.key) !== record || record.turn !== retry) return;
           emitSync(record.directory, done);
           answerPendingTree(record);
           retry.deferred.resolve({ status: 'settled', events: done });
@@ -1075,6 +1256,11 @@ export const createAcpSessionService = ({
             ? { message: `agent process exited (code ${exited.code ?? 'null'}${exited.signal ? `, signal ${exited.signal}` : ''})`, code: 'acp_backend_exit' }
             : promptErrorDetails(error);
           const done = record.projector.applyPromptError(unwrapped);
+          await settleTurnCheckpoint(
+            record,
+            typeof record.projector.turnNumberOf === 'function' ? record.projector.turnNumberOf(retry.messageId) : null,
+          );
+          if (live.get(record.key) !== record || record.turn !== retry) return;
           emitSync(record.directory, done);
           answerPendingTree(record);
           retry.deferred.resolve({ status: 'error', events: done, error });
@@ -1088,12 +1274,59 @@ export const createAcpSessionService = ({
     }
   };
 
+  /**
+   * Record the `end` snapshot for a settled turn (D12): result, cancel,
+   * error, backend exit and watchdog failure alike. End capture is
+   * attempted even when the start never landed — under a retained end
+   * the row keeps `complete: false` but gains a session-owned end tree
+   * for later reverts. A hung end snapshot must not wedge turn teardown:
+   * it races the start budget, and a miss marks the row incomplete
+   * rather than failing the turn. Never resurrects a deleted index
+   * entry: a missing entry (deleted session) settles silently.
+   */
+  const settleTurnCheckpoint = async (record, turnNumber, { bypassLiveGuard = false } = {}) => {
+    if (!checkpoints || !Number.isInteger(turnNumber)) return;
+    const row = checkpointRowOf(record.entry, turnNumber);
+    if (!row) return;
+    const complete = row.complete === true;
+    try {
+      const ended = await snapshotWithin(
+        { cwd: record.directory, sessionKey: record.key, turn: turnNumber, phase: 'end' },
+        checkpointStartBudgetMs,
+      );
+      if (ended.tree) {
+        persistCheckpointRow(record, { turn: turnNumber, end: ended.tree, complete }, { bypassLiveGuard });
+      } else {
+        persistCheckpointRow(record, { turn: turnNumber, end: row.end ?? null, complete: false }, { bypassLiveGuard });
+      }
+    } catch {
+      persistCheckpointRow(record, { turn: turnNumber, end: row.end ?? null, complete: false }, { bypassLiveGuard });
+    }
+  };
+
+  /** Latest session-owned end tree: newest `end` across this session's rows, or null. */
+  const latestSessionEndTree = (entry) => {
+    let tree = null;
+    let at = -1;
+    for (const row of entry?.checkpoints ?? []) {
+      if (typeof row?.end === 'string' && row.end && Number.isInteger(row.turn) && row.turn > at) {
+        at = row.turn;
+        tree = row.end;
+      }
+    }
+    return tree;
+  };
+
   const runPromptTurn = (record, turn) => {
     const blocks = toPromptBlocks(turn.parts);
     const connected = record.connected;
     const captured = turn;
+    const settleCheckpoint = () => settleTurnCheckpoint(
+      record,
+      typeof record.projector.turnNumberOf === 'function' ? record.projector.turnNumberOf(captured.messageId) : null,
+    );
     connected.connection.prompt({ sessionId: record.nativeId, prompt: blocks }).then(
-      (result) => {
+      async (result) => {
         // A watchdog recovery or newer turn owns the record now: the late
         // completion must not settle it.
         if (record.turn !== captured) return;
@@ -1106,6 +1339,8 @@ export const createAcpSessionService = ({
         // without them (or answered around them) — settle the cards so the
         // UI never shows a prompt for a finished turn.
         persistTranscriptIds(record);
+        await settleCheckpoint();
+        if (record.turn !== captured) return;
         emitSync(record.directory, syncEvents);
         answerPendingTree(record);
         captured.deferred.resolve({ status: 'settled', events: syncEvents });
@@ -1127,6 +1362,8 @@ export const createAcpSessionService = ({
           : promptErrorDetails(error);
         const syncEvents = record.projector.applyPromptError(unwrapped);
         persistTranscriptIds(record);
+        await settleCheckpoint();
+        if (record.turn !== captured) return;
         emitSync(record.directory, syncEvents);
         answerPendingTree(record);
         captured.deferred.resolve({ status: 'error', events: syncEvents, error });
@@ -1135,11 +1372,28 @@ export const createAcpSessionService = ({
     );
   };
 
-  const startTurn = (record, messageId, parts, { retried = false } = {}) => {
+  const startTurn = async (record, messageId, parts, { retried = false } = {}) => {
     const blocks = toPromptBlocks(parts);
     if (blocks.length === 0) {
       throw new AcpSessionError('ACP prompt needs at least one text or file part', { code: 'ACP_INVALID_PROMPT' });
     }
+    // The turn installs BEFORE the first await (the start snapshot): the
+    // projector is busy from `acceptPrompt` on, and the window between
+    // accept and dispatch must be observable (cancel) and guarded
+    // (delete, backend exit). `dispatching` marks the pre-dispatch
+    // window; cancel during it reports the interruption and startTurn
+    // abandons the dispatch instead of prompting a dead session.
+    let resolve;
+    const deferred = { promise: new Promise((inner) => { resolve = inner; }), resolve: (value) => resolve(value) };
+    deferred.promise.catch(() => {});
+    const turn = {
+      generation: (record.turnGeneration = (record.turnGeneration ?? 0) + 1),
+      messageId,
+      parts,
+      retried,
+      deferred,
+      dispatching: true,
+    };
     let acceptEvents;
     try {
       acceptEvents = record.projector.acceptPrompt(messageId, parts);
@@ -1147,24 +1401,138 @@ export const createAcpSessionService = ({
       if (error?.code === 'ACP_SESSION_BUSY') throw busyError(record.key);
       throw error;
     }
-    emitSync(record.directory, acceptEvents);
+    record.turn = turn;
     record.cancelled = false;
     record.declinedInTurn = false;
     record.lastUpdateAt = now();
     touch(record);
-    let resolve;
-    const deferred = { promise: new Promise((inner) => { resolve = inner; }), resolve: (value) => resolve(value) };
-    const turn = {
-      generation: (record.turnGeneration = (record.turnGeneration ?? 0) + 1),
-      messageId,
-      parts,
-      retried,
-      deferred,
-    };
-    record.turn = turn;
+    // The `start` snapshot races a budget (D12): when it is not ready in
+    // time, the prompt goes out anyway and the turn is marked incomplete
+    // (revert/diff refuse it). The ordinal is canonical from the
+    // projector, so a rebuild numbers the same turn identically.
+    if (checkpoints && !record.parentKey) {
+      const turnNumber = typeof record.projector.turnNumberOf === 'function'
+        ? record.projector.turnNumberOf(messageId)
+        : null;
+      if (Number.isInteger(turnNumber)) {
+        try {
+          const started = await snapshotWithin(
+            { cwd: record.directory, sessionKey: record.key, turn: turnNumber, phase: 'start' },
+            checkpointStartBudgetMs,
+          );
+          if (started.tree) {
+            persistCheckpointRow(record, { turn: turnNumber, start: started.tree, end: null, complete: true });
+          } else {
+            persistCheckpointRow(record, {
+              turn: turnNumber,
+              start: EMPTY_TREE_ID,
+              end: null,
+              complete: false,
+            });
+          }
+        } catch {
+          persistCheckpointRow(record, { turn: turnNumber, start: EMPTY_TREE_ID, end: null, complete: false });
+        }
+      }
+    }
+    // Post-await guard: cancel, delete or backend replacement during the
+    // snapshot window abandons the dispatch. A replaced record's teardown
+    // (dropLive resolves the deferred) owns the settle; a cancelled turn
+    // on the live record settles below as interrupted.
+    if (live.get(record.key) !== record || record.turn !== turn) {
+      return acceptEvents;
+    }
+    if (record.cancelled) {
+      settleWatchdog(record);
+      const syncEvents = record.projector.applyPromptResult({ stopReason: 'cancelled' }, { cancelledByUs: true });
+      persistTranscriptIds(record);
+      await settleTurnCheckpoint(
+        record,
+        typeof record.projector.turnNumberOf === 'function' ? record.projector.turnNumberOf(messageId) : null,
+      );
+      emitSync(record.directory, syncEvents);
+      answerPendingTree(record);
+      turn.deferred.resolve({ status: 'settled', events: syncEvents });
+      if (record.turn === turn) record.turn = null;
+      return acceptEvents;
+    }
+    // Exactly-once revert note (D13): consumed from the persisted entry
+    // when the prompt is actually dispatched, so eviction/restart cannot
+    // drop it and a cancelled dispatch cannot double-send it. The note
+    // write is itself a pre-dispatch await, so ownership/cancellation
+    // re-checks AFTER it: an abandoned dispatch restores the note
+    // instead of consuming it.
+    const note = typeof record.entry?.pendingRevertNote === 'string' && record.entry.pendingRevertNote
+      ? record.entry.pendingRevertNote
+      : null;
+    if (note) {
+      const next = { ...record.entry };
+      delete next.pendingRevertNote;
+      record.entry = next;
+      await index.upsert(record.key, { pendingRevertNote: undefined, updated: now() }).catch(() => {});
+      if (live.get(record.key) !== record || record.turn !== turn) {
+        // Replaced record: restore the note so the surviving record's
+        // next dispatch still carries it.
+        record.entry = { ...record.entry, pendingRevertNote: note };
+        await index.upsert(record.key, { pendingRevertNote: note, updated: now() }).catch(() => {});
+        return acceptEvents;
+      }
+      if (record.cancelled) {
+        // Cancelled during the note write: restore the note and settle
+        // as interrupted (same as the snapshot-window cancel below).
+        record.entry = { ...record.entry, pendingRevertNote: note };
+        await index.upsert(record.key, { pendingRevertNote: note, updated: now() }).catch(() => {});
+        settleWatchdog(record);
+        const syncEvents = record.projector.applyPromptResult({ stopReason: 'cancelled' }, { cancelledByUs: true });
+        persistTranscriptIds(record);
+        await settleTurnCheckpoint(
+          record,
+          typeof record.projector.turnNumberOf === 'function' ? record.projector.turnNumberOf(messageId) : null,
+        );
+        emitSync(record.directory, syncEvents);
+        answerPendingTree(record);
+        turn.deferred.resolve({ status: 'settled', events: syncEvents });
+        if (record.turn === turn) record.turn = null;
+        return acceptEvents;
+      }
+      turn.parts = prefixRevertNote(parts, note);
+    }
+    turn.dispatching = false;
+    // The staged revert commits with this dispatch: clear the persisted
+    // boundary fields alongside the projection (which acceptPrompt
+    // already cleared), so cold lists and replay stay boundary-free.
+    if (record.entry?.revertedFromTurn !== undefined || record.entry?.revertMessageID !== undefined) {
+      const next = { ...record.entry };
+      delete next.revertedFromTurn;
+      delete next.revertMessageID;
+      record.entry = next;
+      await index.upsert(record.key, { revertedFromTurn: undefined, revertMessageID: undefined, updated: now() }).catch(() => {});
+      if (live.get(record.key) !== record || record.turn !== turn || record.cancelled) {
+        // Abandoned during the boundary clear: same settle as the note
+        // paths (note already consumed — the prompt it prefixes never
+        // sends, so restore it).
+        if (note) {
+          record.entry = { ...record.entry, pendingRevertNote: note };
+          await index.upsert(record.key, { pendingRevertNote: note, updated: now() }).catch(() => {});
+        }
+        if (live.get(record.key) !== record || record.turn !== turn) return acceptEvents;
+        settleWatchdog(record);
+        const syncEvents = record.projector.applyPromptResult({ stopReason: 'cancelled' }, { cancelledByUs: true });
+        persistTranscriptIds(record);
+        await settleTurnCheckpoint(
+          record,
+          typeof record.projector.turnNumberOf === 'function' ? record.projector.turnNumberOf(messageId) : null,
+        );
+        emitSync(record.directory, syncEvents);
+        answerPendingTree(record);
+        turn.deferred.resolve({ status: 'settled', events: syncEvents });
+        if (record.turn === turn) record.turn = null;
+        return acceptEvents;
+      }
+    }
+    emitSync(record.directory, acceptEvents);
     armWatchdog(record);
     runPromptTurn(record, turn);
-    deferred.promise.catch(() => {});
     return acceptEvents;
   };
 
@@ -1217,6 +1585,7 @@ export const createAcpSessionService = ({
     };
     trackLive(record);
     refreshConfigCache(backendId, currentConfigOptions(record));
+    warmCheckpoints(cwd);
     const session = projector.session();
     const syncEvents = [{ type: 'session.created', properties: { info: session } }];
     emitSync(cwd, syncEvents);
@@ -1245,7 +1614,18 @@ export const createAcpSessionService = ({
           cost: 0,
           tokens: { input: 0, output: 0, reasoning: 0, cache: { read: 0, write: 0 } },
           time: { created: row.created, updated: row.updated },
-          metadata: { acp: { backendId: row.backendId, capabilities: {}, configOptions: [], modes: [] } },
+          ...(typeof row.revertMessageID === 'string' && row.revertMessageID
+            ? { revert: { messageID: row.revertMessageID } }
+            : {}),
+          metadata: {
+            acp: {
+              backendId: row.backendId,
+              capabilities: {},
+              configOptions: [],
+              modes: [],
+              ...(Number.isInteger(row.revertedFromTurn) ? { revertedFromTurn: row.revertedFromTurn } : {}),
+            },
+          },
         });
       }
     }
@@ -1334,6 +1714,18 @@ export const createAcpSessionService = ({
     const decoded = decode(key);
     if (!decoded) throw unknownError(key);
     const existing = live.get(key);
+    // A record mid-rebuild (fork warmup, cold open racing elsewhere)
+    // serves nothing until its replay lands: await the shared guard
+    // instead of returning an empty transcript. Without this, opening
+    // a fork URL in the rebuild window shows a draft that the router
+    // then drops.
+    if (existing?.replaying && opening.has(key)) {
+      await opening.get(key).catch(() => {});
+      const settled = live.get(key);
+      if (!settled?.projector) throw unknownError(key);
+      touch(settled);
+      return { session: settled.projector.session(), events: [] };
+    }
     if (existing?.projector && !existing.readOnly) {
       // Warm after a backend restart: the connection generation moved on;
       // `resume` if capable, else `load` — never serve a stale projector.
@@ -1429,6 +1821,7 @@ export const createAcpSessionService = ({
       descendant.replayBuffer = [];
     }
     let response;
+    warmCheckpoints(cwd);
     try {
       response = await connected.connection.loadSession({ sessionId: entry.nativeId, cwd, mcpServers: [] });
     } catch (error) {
@@ -1442,7 +1835,15 @@ export const createAcpSessionService = ({
     projector.seed(response, caps);
     const { parentReplacement, parentBuffered } = endReplayTree(record);
     record.entry = { ...record.entry, messageIds: record.projector.transcriptIds().slice(-5000) };
-    if (projector.session().title && projector.session().title !== entry.title && !entry.userTitle) {
+    // The replay re-canonicalized the revert boundary (fresh ids): persist
+    // the live boundary message id so cold list rows serve it too. The
+    // pending note needs no restore — it lives in the entry already and
+    // startTurn consumes it at dispatch.
+    const liveBoundary = record.projector.session().revert?.messageID;
+    if (typeof liveBoundary === 'string' && liveBoundary && liveBoundary !== record.entry.revertMessageID) {
+      record.entry = { ...record.entry, revertMessageID: liveBoundary };
+      await index.upsert(key, { revertMessageID: liveBoundary, messageIds: record.entry.messageIds, updated: now() }).catch(() => {});
+    } else if (projector.session().title && projector.session().title !== entry.title && !entry.userTitle) {
       await index.upsert(key, { title: projector.session().title, messageIds: record.entry.messageIds, updated: now() }).catch(() => {});
     } else {
       await index.upsert(key, { messageIds: record.entry.messageIds, updated: now() }).catch(() => {});
@@ -1494,10 +1895,34 @@ export const createAcpSessionService = ({
   };
 
   const assertReadyForTurn = (record) => {
-    if (record.turn || record.settling || record.recovering || opening.has(record.key)) {
+    if (record.turn || record.settling || record.recovering || record.mutating || opening.has(record.key)) {
       throw busyError(record.key);
     }
     if (record.projector.busy) throw busyError(record.key);
+  };
+
+  /**
+   * Generation-owned session mutation lock (revert/fork/delete paths):
+   * acquired synchronously after the readiness check, held through the
+   * whole `fn` (restore + boundary), released in `finally`. Prompt,
+   * revert, fork and delete all honor it via `assertReadyForTurn` /
+   * explicit checks, so no agent turn can edit files concurrently with
+   * a revert. Returns `fn`'s value.
+   */
+  const withMutationLock = async (record, fn) => {
+    const token = (record.mutationGeneration = (record.mutationGeneration ?? 0) + 1);
+    record.mutating = token;
+    try {
+      return await fn();
+    } finally {
+      if (record.mutating === token) record.mutating = null;
+    }
+  };
+
+  const assertMutable = (record) => {
+    if (record.turn || record.settling || record.recovering || record.mutating || opening.has(record.key) || record.projector.busy) {
+      throw busyError(record.key);
+    }
   };
 
   const prompt = async ({ key, messageId, parts }) => {
@@ -1519,6 +1944,27 @@ export const createAcpSessionService = ({
     // settle window keeps `settling` true so a second cancel also sees it.
     if (!record?.projector || !record.turn || record.settling) return false;
     if (!record.projector.busy) return false;
+    // Pre-dispatch window (start snapshot still running): flag the cancel
+    // and let startTurn abandon the dispatch after its await. No agent
+    // cancel is sent — nothing was dispatched yet. Still waits for the
+    // turn teardown so callers observe the interruption.
+    if (record.turn.dispatching) {
+      const pending = record.turn;
+      record.settling = true;
+      record.cancelled = true;
+      answerPendingTree(record);
+      try {
+        await pending.deferred.promise;
+      } catch {
+        // Turn teardown already emitted its events; cancel still succeeded.
+      }
+      await sleep(settleMs);
+      if (live.get(key) === record && (!record.turn || record.turn === pending)) {
+        record.settling = false;
+      }
+      touch(record);
+      return true;
+    }
     // Capture the cancelled turn and acquire the settle lock synchronously,
     // BEFORE awaiting the cancel send: a prompt result arriving during that
     // await must not expose an unlocked session, and the wait below must
@@ -1813,6 +2259,10 @@ export const createAcpSessionService = ({
     const record = live.get(key) ?? null;
     const entry = record?.entry ?? await index.get(key);
     if (!entry) throw unknownError(key);
+    // A revert/fork holds the mutation lock through restore + boundary:
+    // deleting under it would strand the boundary install and the fork
+    // record. Deletion refuses while a mutation runs (409).
+    if (record?.mutating) throw busyError(key);
     if (record?.turn) {
       await cancel({ key }).catch(() => {});
     }
@@ -1829,6 +2279,11 @@ export const createAcpSessionService = ({
     }
     dropLive(key, { onlyRecord: record });
     await index.remove(key);
+    // Checkpoint refs die with the session (best-effort; a GC failure must
+    // not fail the delete).
+    if (checkpoints) {
+      await checkpoints.gc({ sessionKey: key, cwd: entry.cwd }).catch(() => {});
+    }
     emitSync(entry.cwd, [{ type: 'session.deleted', properties: { sessionID: key } }]);
     return true;
   };
@@ -1866,6 +2321,331 @@ export const createAcpSessionService = ({
     return { session, events: [] };
   };
 
+  // -- Phase 1.5 operations: checkpoints, turn diff, revert, fork ------------
+
+  /** Per-turn checkpoint completeness of one session, oldest first. */
+  const checkpointsOf = async ({ key }) => {
+    const decoded = decode(key);
+    if (!decoded) throw unknownError(key);
+    const entry = live.get(key)?.entry ?? await index.get(key);
+    if (!entry) throw unknownError(key);
+    return (Array.isArray(entry.checkpoints) ? entry.checkpoints : [])
+      .filter((row) => Number.isInteger(row?.turn))
+      .map((row) => ({ turn: row.turn, complete: row.complete === true }))
+      .sort((a, b) => a.turn - b.turn);
+  };
+
+  const requireCheckpointStore = () => {
+    if (!checkpoints) {
+      throw new AcpSessionError('ACP checkpoints are not available', { code: 'ACP_SESSIONS_UNAVAILABLE' });
+    }
+    return checkpoints;
+  };
+
+  /**
+   * Turn diff (D14): `start..end` of one turn in the DiffView shape
+   * (`FileDiffInfo[]`). Incomplete turns refuse — their `start` never
+   * landed, so there is nothing truthful to diff.
+   */
+  const diff = async ({ key, turn }) => {
+    if (!Number.isInteger(turn) || turn <= 0) {
+      throw new AcpSessionError('ACP diff requires a positive turn', { code: 'ACP_INVALID_REQUEST' });
+    }
+    const decoded = decode(key);
+    if (!decoded) throw unknownError(key);
+    await open({ key });
+    const record = live.get(key);
+    if (!record?.projector) throw unknownError(key);
+    const row = checkpointRowOf(record.entry, turn);
+    if (!row) {
+      throw new AcpSessionError(`No checkpoint for turn ${turn} of ${key}`, { code: 'ACP_CHECKPOINT_UNKNOWN' });
+    }
+    if (row.complete !== true || !row.end) {
+      throw new AcpSessionError(`Checkpoint for turn ${turn} of ${key} is incomplete`, { code: 'ACP_CHECKPOINT_INCOMPLETE' });
+    }
+    touch(record);
+    return requireCheckpointStore().diff({ cwd: record.directory, from: row.start, to: row.end });
+  };
+
+  /**
+   * Ask the agent to fork the session (unstable `session/fork`, T6: never
+   * send `before` — no agent advertises fork-at-message). Returns the fork
+   * response, or null when the backend does not advertise `fork`.
+   */
+  const forkNative = async (record, connected) => {
+    const caps = sessionCaps(capsOf(connected));
+    if (!hasCap(caps, 'fork')) return null;
+    if (typeof connected.connection.unstable_forkSession !== 'function') {
+      throw new AcpSessionError(`ACP backend ${record.backendId} offers no fork method`, {
+        code: 'ACP_FORK_UNSUPPORTED',
+      });
+    }
+    return connected.connection.unstable_forkSession({
+      sessionId: record.nativeId,
+      cwd: record.directory,
+      mcpServers: [],
+    });
+  };
+
+  /** First user message id of a canonical turn ordinal, or null. */
+  const userMessageIdForTurn = (record, turn) => {
+    if (typeof record.projector.turnNumberOf !== 'function') return null;
+    for (const id of record.projector.transcriptIds()) {
+      if (record.projector.turnNumberOf(id) === turn) return id;
+    }
+    return null;
+  };
+
+  /** Track a live record for a forked native session id. */
+  const trackFork = async ({ record, nativeId, forked, pendingRevertNote = null }) => {
+    const forkKey = encode(record.backendId, nativeId);
+    const created = now();
+    const sourceEntry = record.entry;
+    const entry = await index.upsert(forkKey, {
+      backendId: record.backendId,
+      nativeId,
+      cwd: record.directory,
+      title: sourceEntry.title ?? '',
+      ...(sourceEntry.userTitle ? { userTitle: sourceEntry.userTitle } : {}),
+      ...(typeof pendingRevertNote === 'string' && pendingRevertNote ? { pendingRevertNote } : {}),
+      created,
+      updated: created,
+    });
+    const projector = createProjector({ key: forkKey, backendId: record.backendId, directory: record.directory, index: entry, now });
+    projector.seed(forked, capsOf(record.connected));
+    const forkedRecord = {
+      key: forkKey,
+      entry,
+      projector,
+      nativeId,
+      backendId: record.backendId,
+      directory: record.directory,
+      connected: record.connected,
+      generation: record.connected?.generation,
+      turn: null,
+      turnGeneration: 0,
+      cancelled: false,
+      declinedInTurn: false,
+      settling: false,
+      recovering: false,
+      replaying: false,
+      watchdogTimer: null,
+      pendingRequests: [],
+      pendingPermissions: new Map(),
+      pendingForms: new Map(),
+      readOnly: false,
+      lastUpdateAt: created,
+      lastActiveAt: created,
+    };
+    trackLive(forkedRecord);
+    return { forkKey, forkedRecord, created };
+  };
+
+  /**
+   * Rebuild a freshly tracked fork through its own `load` before it is
+   * exposed as ready: ACP fork preserves the whole transcript, and the
+   * fork's checkpoint turns must number canonically from the inherited
+   * conversation. Replay routes to the fork record (tracked, so bound
+   * updates land); failures drop the fork — a fork with no transcript
+   * is worse than no fork.
+   */
+  const openForkRecord = async (forkedRecord) => {
+    const connected = forkedRecord.connected;
+    // Shield the rebuild with an opening guard: concurrent open() calls
+    // for the fork key await the SAME replay instead of racing it, so a
+    // reader can never see the fork mid-rebuild (empty transcript) or
+    // start a second load against it.
+    if (opening.has(forkedRecord.key)) {
+      await opening.get(forkedRecord.key).catch(() => {});
+      const settled = live.get(forkedRecord.key);
+      if (settled?.projector) return { session: settled.projector.session(), events: [] };
+      throw unknownError(forkedRecord.key);
+    }
+    let releaseOpening;
+    const gate = new Promise((resolve) => { releaseOpening = resolve; });
+    opening.set(forkedRecord.key, gate);
+    forkedRecord.replaying = true;
+    forkedRecord.replayBuffer = [];
+    forkedRecord.projector.beginReplay();
+    let response;
+    try {
+      response = await connected.connection.loadSession({
+        sessionId: forkedRecord.nativeId,
+        cwd: forkedRecord.directory,
+        mcpServers: [],
+      });
+    } catch (error) {
+      forkedRecord.projector.rollbackReplay();
+      forkedRecord.replaying = false;
+      forkedRecord.replayBuffer = null;
+      dropLive(forkedRecord.key, { onlyRecord: forkedRecord });
+      if (opening.get(forkedRecord.key) === gate) opening.delete(forkedRecord.key);
+      releaseOpening();
+      throw new AcpSessionError(`ACP fork failed to load: ${error?.message ?? error}`, {
+        code: error?.code ?? 'ACP_LOAD_FAILED',
+        cause: error,
+      });
+    }
+    forkedRecord.projector.seed(response, capsOf(connected));
+    const replacement = forkedRecord.projector.endReplay();
+    const buffered = forkedRecord.replayBuffer ?? [];
+    forkedRecord.replaying = false;
+    forkedRecord.replayBuffer = null;
+    forkedRecord.entry = { ...forkedRecord.entry, messageIds: forkedRecord.projector.transcriptIds().slice(-5000) };
+    await index.upsert(forkedRecord.key, { messageIds: forkedRecord.entry.messageIds, updated: now() }).catch(() => {});
+    if (opening.get(forkedRecord.key) === gate) opening.delete(forkedRecord.key);
+    releaseOpening();
+    const events = [...replacement, ...buffered];
+    emitSync(forkedRecord.directory, events);
+    return { session: forkedRecord.projector.session(), events };
+  };
+
+  /**
+   * Revert (D13): restore files to the target turn's `start` tree with
+   * `current` = the newest session-owned end tree (rejected when none
+   * exists — the shared project index is never the deletion base), then
+   * the conversation boundary. A generation-owned mutation lock spans
+   * restore + boundary so no turn can edit concurrently. Fork when the
+   * backend supports it (the fork rebuilds via its own load, arms the
+   * persisted rollback note, and the caller continues there; the source
+   * keeps its transcript and refs), else the boundary lands on the
+   * authoritative projection with a persisted exactly-once note. Refuses
+   * while busy (409). The boundary is `session.revert.messageID` — the
+   * field the UI dock reads — plus `metadata.acp.revertedFromTurn`.
+   */
+  const revert = async ({ key, turn }) => {
+    if (!Number.isInteger(turn) || turn <= 0) {
+      throw new AcpSessionError('ACP revert requires a positive turn', { code: 'ACP_INVALID_REQUEST' });
+    }
+    const decoded = decode(key);
+    if (!decoded) throw unknownError(key);
+    await open({ key });
+    const record = live.get(key);
+    if (!record?.projector) throw unknownError(key);
+    assertMutable(record);
+    if (record.readOnly) {
+      throw new AcpSessionError(`ACP session is read-only: ${key}`, { code: 'ACP_SESSION_READONLY' });
+    }
+    const row = checkpointRowOf(record.entry, turn);
+    if (!row) {
+      throw new AcpSessionError(`No checkpoint for turn ${turn} of ${key}`, { code: 'ACP_CHECKPOINT_UNKNOWN' });
+    }
+    if (row.complete !== true) {
+      throw new AcpSessionError(`Checkpoint for turn ${turn} of ${key} is incomplete`, { code: 'ACP_CHECKPOINT_INCOMPLETE' });
+    }
+    // Session-owned deletion base: the newest `end` across THIS session's
+    // rows — never the shared project index, which other sessions' turns
+    // also warm. Without one the deletion set is unknowable and the
+    // revert is rejected rather than guessing.
+    const current = latestSessionEndTree(record.entry);
+    if (!current) {
+      throw new AcpSessionError(`No trustworthy end tree for ${key}; cannot revert`, { code: 'ACP_CHECKPOINT_INCOMPLETE' });
+    }
+    const store = requireCheckpointStore();
+    return withMutationLock(record, async () => {
+      if (live.get(key) !== record) throw unknownError(key);
+      const outcome = await store.restore({ cwd: record.directory, tree: row.start, current });
+      touch(record);
+      // The boundary user message: the first message of turn N is where
+      // the revert strip starts. Null when the projection predates the
+      // checkpoint — then the strip marker is omitted but the metadata
+      // boundary still lands.
+      const boundaryMessageId = userMessageIdForTurn(record, turn);
+      let forked = null;
+      try {
+        forked = await forkNative(record, record.connected);
+      } catch (error) {
+        // A fork the agent advertised but cannot perform is a failed
+        // revert, not a silent no-fork revert: the files already
+        // restored, so the session must not pretend the conversation
+        // followed.
+        throw new AcpSessionError(`ACP fork failed, files were restored: ${error?.message ?? error}`, {
+          code: 'ACP_FORK_FAILED',
+          cause: error,
+        });
+      }
+      if (forked?.sessionId) {
+        const nativeId = forked.sessionId;
+        if (typeof nativeId !== 'string' || !nativeId) {
+          throw new AcpSessionError('ACP backend returned no fork session id', { code: 'ACP_BAD_SESSION_ID' });
+        }
+        // Fork path: the fork inherits the whole transcript (rebuilt via
+        // its own load before it is exposed), carries the persisted
+        // rollback note for its first prompt, and the caller continues
+        // there. The source keeps its transcript, its checkpoint rows
+        // and its refs — and greys its undone turns.
+        const note = REVERT_NOTE_PREFIX(turn);
+        const { forkedRecord, created } = await trackFork({ record, nativeId, forked, pendingRevertNote: note });
+        await openForkRecord(forkedRecord);
+        record.entry = { ...record.entry, revertedFromTurn: turn, updated: created };
+        if (boundaryMessageId) record.entry.revertMessageID = boundaryMessageId;
+        await index.upsert(record.key, {
+          revertedFromTurn: turn,
+          ...(boundaryMessageId ? { revertMessageID: boundaryMessageId } : {}),
+          updated: created,
+        }).catch(() => {});
+        const sourceEvents = boundaryMessageId && typeof record.projector.setRevertBoundary === 'function'
+          ? record.projector.setRevertBoundary(turn, boundaryMessageId)
+          : [];
+        emitSync(record.directory, sourceEvents);
+        const session = forkedRecord.projector.session();
+        const createdEvents = [{ type: 'session.created', properties: { info: session } }];
+        emitSync(record.directory, createdEvents);
+        return { ...outcome, session, events: [...sourceEvents, ...createdEvents] };
+      }
+      // In-place path (no fork capability): the boundary lives on the
+      // authoritative projection (GET/list/revert all serve it), the
+      // pending note persists for exactly-once dispatch, and the patch
+      // the revert strip renders goes out. The session itself returns.
+      const at = now();
+      const note = REVERT_NOTE_PREFIX(turn);
+      record.entry = { ...record.entry, revertedFromTurn: turn, pendingRevertNote: note, updated: at };
+      if (boundaryMessageId) record.entry.revertMessageID = boundaryMessageId;
+      await index.upsert(record.key, {
+        revertedFromTurn: turn,
+        pendingRevertNote: note,
+        ...(boundaryMessageId ? { revertMessageID: boundaryMessageId } : {}),
+        updated: at,
+      }).catch(() => {});
+      const syncEvents = boundaryMessageId && typeof record.projector.setRevertBoundary === 'function'
+        ? record.projector.setRevertBoundary(turn, boundaryMessageId)
+        : [];
+      emitSync(record.directory, syncEvents);
+      return { ...outcome, session: record.projector.session(), events: syncEvents };
+    });
+  };
+
+  /**
+   * Fork one session (§3.2 `sessions.fork`): only when the fork capability
+   * is present (unstable). The fork rebuilds via its own load before it
+   * is exposed, so its transcript and turn numbering are canonical.
+   */
+  const fork = async ({ key }) => {
+    const decoded = decode(key);
+    if (!decoded) throw unknownError(key);
+    await open({ key });
+    const record = live.get(key);
+    if (!record?.projector) throw unknownError(key);
+    assertMutable(record);
+    return withMutationLock(record, async () => {
+      if (live.get(key) !== record) throw unknownError(key);
+      const forked = await forkNative(record, record.connected);
+      if (!forked || typeof forked.sessionId !== 'string' || !forked.sessionId) {
+        throw new AcpSessionError(`ACP backend ${record.backendId} does not support fork`, { code: 'ACP_FORK_UNSUPPORTED' });
+      }
+      const { forkKey, forkedRecord } = await trackFork({ record, nativeId: forked.sessionId, forked });
+      const { events: replayEvents } = await openForkRecord(forkedRecord);
+      const session = forkedRecord.projector.session();
+      const syncEvents = [
+        { type: 'session.forked', properties: { sessionID: forkKey, parentID: key } },
+        { type: 'session.created', properties: { info: session } },
+      ];
+      emitSync(record.directory, syncEvents);
+      touch(record);
+      return { session, events: [...replayEvents, ...syncEvents] };
+    });
+  };
+
   const status = async ({ directory }) => {
     const cwd = normalizeDirectory(directory);
     const wanted = directoryKey(cwd);
@@ -1873,7 +2653,12 @@ export const createAcpSessionService = ({
     const statuses = {};
     for (const record of live.values()) {
       if (directoryKey(record.directory) !== wanted || !record.projector) continue;
-      statuses[record.key] = record.projector.busy ? { type: 'busy' } : { ...record.projector.status };
+      // A turn whose result is being settled (end snapshot, deferred
+      // release) still owns the session: report busy until `record.turn`
+      // clears, or clients prompt into a 409.
+      statuses[record.key] = record.turn || record.projector.busy
+        ? { type: 'busy' }
+        : { ...record.projector.status };
     }
     return statuses;
   };
@@ -1897,6 +2682,21 @@ export const createAcpSessionService = ({
     delete: remove,
     rename,
     status,
+    checkpoints: checkpointsOf,
+    diff,
+    revert,
+    fork,
+    /**
+     * True when a live record tracks `nativeId` on `backendId`. The host's
+     * one-off `isKnownSession` predicate: disambiguates the throwaway
+     * creation window (unknown ids then are the throwaway's own setup
+     * traffic; known ids always pass through to the session router).
+     */
+    hasNativeSession: (backendId, nativeId) => {
+      if (typeof backendId !== 'string' || typeof nativeId !== 'string') return false;
+      const key = byNative.get(`${backendId}\0${nativeId}`);
+      return typeof key === 'string' && live.has(key);
+    },
     replyPermission,
     getPermission,
     listPendingPermissions,

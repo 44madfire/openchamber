@@ -229,6 +229,78 @@ describe("acpClient", () => {
     expect(requests[0].url.pathname).toBe("/api/acp/backends/omp/config-cache")
   })
 
+  test("getSessionCheckpoints reads the bare turn array", async () => {
+    const checkpoints = [{ turn: 1, complete: true }, { turn: 2, complete: false }]
+    responses.push(json(checkpoints))
+    expect(await acpClient.getSessionCheckpoints("ses_acp-omp_r1", "/repo")).toEqual(checkpoints)
+    expect(requests[0].url.pathname).toBe("/api/acp/sessions/ses_acp-omp_r1/checkpoints")
+  })
+
+  test("getSessionTurnDiff passes the turn as a query param", async () => {
+    const diff = [{ file: "a.ts", patch: "@@ -1 +1 @@", additions: 1, deletions: 0, status: "modified" }]
+    responses.push(json(diff))
+    expect(await acpClient.getSessionTurnDiff("ses_acp-omp_r1", 2, "/repo")).toEqual(diff)
+    expect(requests[0].url.pathname).toBe("/api/acp/sessions/ses_acp-omp_r1/diff")
+    expect(requests[0].url.searchParams.get("turn")).toBe("2")
+  })
+
+  test("revertSession posts the turn and returns restored/removed/skipped/session", async () => {
+    const revert = { restored: ["a.ts"], removed: ["b.ts"], skipped: [{ file: "c.ts", reason: "obstructed" }], session }
+    responses.push(json(revert))
+    expect(await acpClient.revertSession("ses_acp-omp_r1", 1, "/repo")).toEqual(revert)
+    expect(requests[0].method).toBe("POST")
+    expect(requests[0].url.pathname).toBe("/api/acp/sessions/ses_acp-omp_r1/revert")
+    expect(requests[0].body).toEqual({ turn: 1 })
+  })
+
+  test("saveBackends PUTs the registry and returns fresh statuses", async () => {
+    const backend = {
+      id: "omp", label: "omp", enabled: true, state: "ready", protocolVersion: 1,
+      agentInfo: null, agentCapabilities: null, authMethods: [], lastError: null, stderrTail: "",
+      entry: { id: "omp", label: "omp", command: "omp", args: ["acp"] },
+    }
+    responses.push(json({ backends: [backend] }))
+    const entries = [{ id: "omp", label: "omp", command: "omp", args: ["acp"] }]
+    expect(await acpClient.saveBackends(entries)).toEqual([backend])
+    expect(requests[0].method).toBe("PUT")
+    expect(requests[0].url.pathname).toBe("/api/acp/backends")
+    expect(requests[0].body).toEqual({ backends: entries })
+  })
+
+  test("restartBackend and authenticateBackend return the backend envelope", async () => {
+    const backend = {
+      id: "omp", state: "ready", protocolVersion: 1, agentInfo: null,
+      agentCapabilities: null, authMethods: [], lastError: null, stderrTail: "",
+    }
+    responses.push(json({ backend }))
+    expect(await acpClient.restartBackend("omp")).toEqual(backend)
+    expect(requests[0].method).toBe("POST")
+    expect(requests[0].url.pathname).toBe("/api/acp/backends/omp/restart")
+    responses.push(json({ backend }))
+    expect(await acpClient.authenticateBackend("omp", "oauth")).toEqual(backend)
+    expect(requests[1].url.pathname).toBe("/api/acp/backends/omp/authenticate")
+    expect(requests[1].body).toEqual({ methodId: "oauth" })
+  })
+
+  test("getBackendAuthTerminal posts the optional method id and returns spawn details", async () => {
+    const terminal = { command: "omp", args: ["auth", "login"], env: { A: "b" }, methodId: "oauth" }
+    responses.push(json(terminal))
+    expect(await acpClient.getBackendAuthTerminal("omp", "oauth")).toEqual(terminal)
+    expect(requests[0].url.pathname).toBe("/api/acp/backends/omp/auth/terminal")
+    expect(requests[0].body).toEqual({ methodId: "oauth" })
+    responses.push(json(terminal))
+    expect(await acpClient.getBackendAuthTerminal("omp")).toEqual(terminal)
+    expect(requests[1].body).toEqual({})
+  })
+
+  test("generateOneOff posts instruction/input and returns the text", async () => {
+    responses.push(json({ text: "hello", backendId: "omp", sessionCleanup: "deleted" }))
+    const result = await acpClient.generateOneOff({ sessionKey: "ses_acp-omp_r1", instruction: "do", input: "x" })
+    expect(result.text).toBe("hello")
+    expect(requests[0].method).toBe("POST")
+    expect(requests[0].url.pathname).toBe("/api/acp/oneoff")
+    expect(requests[0].body).toEqual({ sessionKey: "ses_acp-omp_r1", instruction: "do", input: "x" })
+  })
   test("a missing envelope field throws AcpApiError", async () => {
     responses.push(json({ sessions: [] }))
     const error = await acpClient.getSession("ses_acp-omp_r1").catch((e) => e)
@@ -301,5 +373,11 @@ describe("readAcpSessionMeta", () => {
     expect(readAcpSessionMeta({})).toBeNull()
     expect(readAcpSessionMeta(null)).toBeNull()
     expect(readAcpSessionMeta({ metadata: { acp: { capabilities: {} } } })).toBeNull()
+  })
+
+  test("carries revertedFromTurn when the session reverted", () => {
+    expect(readAcpSessionMeta({ metadata: { acp: { backendId: "omp", revertedFromTurn: 2 } } }))
+      .toMatchObject({ backendId: "omp", revertedFromTurn: 2 })
+    expect(readAcpSessionMeta({ metadata: { acp: { backendId: "omp" } } })).not.toHaveProperty("revertedFromTurn")
   })
 })

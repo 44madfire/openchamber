@@ -11,6 +11,7 @@ import { sanitizeTerminalHistoryChunk } from './history.js';
 import { consumeTerminalThemeQueries, terminalThemeModeReport } from './theme-response.js';
 import { buildTerminalShellLaunch, createTerminalShellResolver, normalizeTerminalShell } from './shells.js';
 import { stripAppImageArgv0Leak, stripAppImageLauncherEnv, resolvePosixPtyLaunch } from '../inherited-env.js';
+import { resolveAcpCommand, resolveNpmCmdShim } from '../acp/core/spawn.js';
 import { shutdownTerminalProcesses } from './shutdown.js';
 import { isOpaqueOriginRequest, isPasswordlessSocketOriginAllowed } from '../security/request-security.js';
 
@@ -25,6 +26,17 @@ const IDLE_TIMEOUT_MS = 30 * 60 * 1000;
 const TERMINATION_GRACE_MS = 1000;
 const INTERACTIVE_TERMINAL_MODE = 'interactive';
 const COMMAND_TERMINAL_MODE = 'command';
+// Direct mode: spawn argv/env exactly, with no shell in between. Added for
+// ACP terminal auth (Phase 1.6): the agent advertises `{command, args, env}`
+// and the client runs it as a separate interactive process. Shell-quoting
+// that triple per shell would corrupt args (spaces, quotes, `%`), so the
+// PTY spawns it verbatim instead.
+const DIRECT_TERMINAL_MODE = 'direct';
+const MAX_DIRECT_ARGV_ENTRIES = 256;
+const MAX_DIRECT_ARGV_CHARS = 32_768;
+const MAX_DIRECT_ENV_ENTRIES = 256;
+const MAX_DIRECT_ENV_NAME_CHARS = 256;
+const MAX_DIRECT_ENV_VALUE_CHARS = 32_768;
 // Error code the create/restart routes attach when the requested cwd no longer
 // exists. Mirrored by `TERMINAL_CWD_MISSING_CODE` in packages/ui/src/lib/terminalApi.ts.
 const TERMINAL_CWD_MISSING_CODE = 'TERMINAL_CWD_MISSING';
@@ -34,17 +46,55 @@ const OBJECT_TAG = '[object Object]';
 const validateSize = (value, max) => Number.isInteger(value) && value >= 1 && value <= max;
 const isString = (value) => String(value) === value;
 const isObjectRecord = (value) => value != null && !Array.isArray(value) && Object.prototype.toString.call(value) === OBJECT_TAG;
-const normalizeCreateMode = ({ mode, command }) => {
+const normalizeCreateMode = ({ mode, command, argv, env }) => {
   const normalizedMode = mode == null ? INTERACTIVE_TERMINAL_MODE : mode;
-  if (normalizedMode !== INTERACTIVE_TERMINAL_MODE && normalizedMode !== COMMAND_TERMINAL_MODE) throw new Error('Invalid terminal mode');
+  if (normalizedMode !== INTERACTIVE_TERMINAL_MODE && normalizedMode !== COMMAND_TERMINAL_MODE && normalizedMode !== DIRECT_TERMINAL_MODE) {
+    throw new Error('Invalid terminal mode');
+  }
   if (normalizedMode === INTERACTIVE_TERMINAL_MODE) {
     if (command != null) throw new Error('Interactive terminal create does not accept a command');
-    return { mode: INTERACTIVE_TERMINAL_MODE, command: null };
+    if (argv != null || env != null) throw new Error('Interactive terminal create does not accept argv or env');
+    return { mode: INTERACTIVE_TERMINAL_MODE, command: null, argv: null, env: null };
+  }
+  if (normalizedMode === DIRECT_TERMINAL_MODE) {
+    if (command != null) throw new Error('Direct terminal create takes argv, not a command string');
+    if (!Array.isArray(argv) || argv.length === 0) throw new Error('Direct terminal create requires a non-empty argv array');
+    if (argv.length > MAX_DIRECT_ARGV_ENTRIES) throw new Error('Direct terminal argv exceeds the entry limit');
+    // Only argv[0] must be non-empty: empty arguments at later indices
+    // are valid (ACP registry args allow them) and must survive
+    // verbatim. NUL can never survive a native spawn (NUL-terminated
+    // strings), so it is refused everywhere.
+    const cleanArgv = argv.map((entry, index) => {
+      if (!isString(entry)) throw new Error('Direct terminal argv entries must be strings');
+      if (index === 0 && !entry) throw new Error('Direct terminal argv[0] must be a non-empty string');
+      if (entry.length > MAX_DIRECT_ARGV_CHARS) throw new Error('Direct terminal argv entry exceeds the length limit');
+      if (entry.includes('\0')) throw new Error('Direct terminal argv entries must not contain NUL');
+      return entry;
+    });
+    let cleanEnv = null;
+    if (env != null) {
+      if (!isObjectRecord(env)) throw new Error('Direct terminal env must be an object');
+      const names = Object.keys(env);
+      if (names.length > MAX_DIRECT_ENV_ENTRIES) throw new Error('Direct terminal env exceeds the entry limit');
+      cleanEnv = {};
+      for (const name of names) {
+        const value = env[name];
+        // Env names travel as NAME=VALUE: '=' and NUL are unrepresentable.
+        // Values may be empty (cleared variable), but never carry NUL.
+        if (!isString(name) || !name || name.length > MAX_DIRECT_ENV_NAME_CHARS) throw new Error('Invalid direct terminal env name');
+        if (name.includes('=') || name.includes('\0')) throw new Error('Invalid direct terminal env name');
+        if (!isString(value) || value.length > MAX_DIRECT_ENV_VALUE_CHARS) throw new Error('Invalid direct terminal env value');
+        if (value.includes('\0')) throw new Error('Invalid direct terminal env value');
+        cleanEnv[name] = value;
+      }
+    }
+    return { mode: DIRECT_TERMINAL_MODE, command: null, argv: cleanArgv, env: cleanEnv };
   }
   if (!isString(command) || !command.trim()) throw new Error('Terminal command is required');
+  if (argv != null || env != null) throw new Error('Command terminal create does not accept argv or env');
   const trimmedCommand = command.trim();
   if (trimmedCommand.length > MAX_INPUT_CHARS) throw new Error('Terminal command exceeds the input limit');
-  return { mode: COMMAND_TERMINAL_MODE, command: trimmedCommand };
+  return { mode: COMMAND_TERMINAL_MODE, command: trimmedCommand, argv: null, env: null };
 };
 const normalizePurposeId = (value, errorMessage) => {
   if (!isString(value) || !value.trim()) throw new Error(errorMessage);
@@ -212,30 +262,75 @@ export function createTerminalRuntime({
     return ptyProviderPromise;
   };
 
-  const spawnPty = async ({ cwd, cols, rows, themeMode, shell, loginShell, mode, command }) => {
+  const spawnPty = async ({ cwd, cols, rows, themeMode, shell, loginShell, mode, command, argv = null, env: directEnv = null }) => {
     const provider = await getPtyProvider();
-    const resolvedShell = await shellResolver.resolve(shell);
     // The user's and the project's variables go under the terminal's own TERM
     // settings and the host-private removals below.
     const hostEnv = { ...process.env, PATH: buildAugmentedPath() };
     // Opening a terminal or running a project action is the user's own act,
     // so it may run the project's environment command.
     const inheritedEnv = environmentRuntime ? await environmentRuntime.applyToDirectory(cwd, hostEnv, { refresh: true }) : hostEnv;
+    const ptyEnv = (extra = null) => {
+      const env = { ...inheritedEnv, TERM: 'xterm-256color', COLORTERM: 'truecolor', COLORFGBG: themeMode === 'light' ? '0;15' : '15;0' };
+      // The daemon's IPC fd is closed inside the PTY; an inherited NODE_CHANNEL_FD
+      // (even an empty one) makes Node CLIs warn about an unparsable IPC channel.
+      delete env.NODE_CHANNEL_FD;
+      delete env.BASH_XTRACEFD; delete env.BASH_ENV; delete env.ENV; delete env.ELECTRON_RUN_AS_NODE;
+      // AppImage exports ARGV0; zsh would otherwise rewrite argv[0] for every command (#2588).
+      stripAppImageArgv0Leak(env);
+      // The AppImage launcher also prepends its own directories to PATH, LD_LIBRARY_PATH,
+      // GSETTINGS_SCHEMA_DIR and XDG_DATA_DIRS (#4177). Only the desktop app runs from an
+      // AppImage, and it spawns through node-pty, which uses this env as given, so these
+      // need no `env -u` below.
+      stripAppImageLauncherEnv(env);
+      if (extra) Object.assign(env, extra);
+      return env;
+    };
+    if (mode === DIRECT_TERMINAL_MODE) {
+      // No shell: argv spawns verbatim with the caller's env overlaid on
+      // the terminal env. Requested for ACP terminal auth, whose
+      // `{command, args, env}` must run exactly as advertised. On
+      // Windows the target resolves first (PATH/PATHEXT): handing a
+      // `.cmd`/`.bat` to node-pty would let Windows launch cmd.exe
+      // implicitly, splitting one argument into a shell command. npm
+      // shims resolve to their underlying target (same resolver the
+      // ACP launcher uses); anything else batch refuses with an
+      // actionable error instead of running through a shell.
+      const [file, ...rest] = argv ?? [];
+      if (!file) throw new Error('Direct terminal create requires a non-empty argv array');
+      let target = file;
+      let targetArgs = rest;
+      if (process.platform === 'win32') {
+        const resolved = resolveAcpCommand(file, { env: { ...process.env, PATH: buildAugmentedPath() } });
+        if (!resolved) {
+          throw new Error(`Direct terminal command not found on PATH: ${file}`);
+        }
+        const lower = resolved.toLowerCase();
+        if (lower.endsWith('.cmd') || lower.endsWith('.bat')) {
+          const shim = resolveNpmCmdShim(resolved);
+          if (!shim) {
+            throw new Error(
+              `Direct terminal refuses batch wrappers (${resolved}): Windows would parse them through cmd.exe.`
+              + ' Point the entry at the underlying .exe or `node <script>` instead.',
+            );
+          }
+          target = shim.file;
+          targetArgs = [...shim.prefixArgs, ...rest];
+        } else {
+          target = resolved;
+        }
+      }
+      const env = ptyEnv(directEnv);
+      const launch = resolvePosixPtyLaunch(target, targetArgs);
+      const options = { name: 'xterm-256color', cwd, cols, rows, env };
+      if (process.platform === 'win32') options.useConpty = true;
+      return { process: await provider.spawn(launch.executable, launch.args, options), backend: provider.backend, shell: 'direct', shellExecutable: target, loginShell: false };
+    }
+    const resolvedShell = await shellResolver.resolve(shell);
     let lastError = null;
     for (const executable of resolvedShell.executables) {
       try {
-        const env = { ...inheritedEnv, TERM: 'xterm-256color', COLORTERM: 'truecolor', COLORFGBG: themeMode === 'light' ? '0;15' : '15;0' };
-        // The daemon's IPC fd is closed inside the PTY; an inherited NODE_CHANNEL_FD
-        // (even an empty one) makes Node CLIs warn about an unparsable IPC channel.
-        delete env.NODE_CHANNEL_FD;
-        delete env.BASH_XTRACEFD; delete env.BASH_ENV; delete env.ENV; delete env.ELECTRON_RUN_AS_NODE;
-        // AppImage exports ARGV0; zsh would otherwise rewrite argv[0] for every command (#2588).
-        stripAppImageArgv0Leak(env);
-        // The AppImage launcher also prepends its own directories to PATH, LD_LIBRARY_PATH,
-        // GSETTINGS_SCHEMA_DIR and XDG_DATA_DIRS (#4177). Only the desktop app runs from an
-        // AppImage, and it spawns through node-pty, which uses this env as given, so these
-        // need no `env -u` below.
-        stripAppImageLauncherEnv(env);
+        const env = ptyEnv();
         const shellLaunch = buildTerminalShellLaunch(executable, { mode, command, loginShell });
         // bun-pty merges the native OS environ back in, so the POSIX launch is
         // wrapped with `env -u` for the variables deleted above.
@@ -403,15 +498,17 @@ export function createTerminalRuntime({
     }
   };
 
-  const startSession = async (session, { cwd, cols, rows, themeMode = 'dark', terminalBackground, terminalForeground, shell, loginShell, mode = INTERACTIVE_TERMINAL_MODE, command = null, purpose = TERMINAL_PURPOSE }, clear = true) => {
+  const startSession = async (session, { cwd, cols, rows, themeMode = 'dark', terminalBackground, terminalForeground, shell, loginShell, mode = INTERACTIVE_TERMINAL_MODE, command = null, argv = null, env = null, purpose = TERMINAL_PURPOSE }, clear = true) => {
     await validateCwd(cwd);
-    const spawned = await spawnPty({ cwd, cols, rows, themeMode, shell, loginShell, mode, command });
+    const spawned = await spawnPty({ cwd, cols, rows, themeMode, shell, loginShell, mode, command, argv, env });
     if (clear) { discardOutput(session); session.history = newHistory(); session.pendingHistoryControlSequence = ''; session.pendingThemeControlSequence = ''; session.themeModeEnabled = false; }
     session.retired = false;
     session.cwd = cwd; session.cols = cols; session.rows = rows; session.process = spawned.process;
     session.backend = spawned.backend; session.shell = spawned.shell; session.loginShell = spawned.loginShell; session.status = 'running'; session.exitCode = null; session.signal = null;
     session.shellExecutable = spawned.shellExecutable;
     session.mode = mode; session.command = mode === COMMAND_TERMINAL_MODE ? command : null;
+    session.argv = mode === DIRECT_TERMINAL_MODE && Array.isArray(argv) ? [...argv] : null;
+    session.directEnv = mode === DIRECT_TERMINAL_MODE && env && typeof env === 'object' ? { ...env } : null;
     session.purpose = purpose;
     session.themeMode = themeMode === 'light' ? 'light' : 'dark'; session.terminalBackground = terminalBackground; session.terminalForeground = terminalForeground;
     session.lastActivity = Date.now(); session.eventQueue.length = 0;
@@ -419,13 +516,26 @@ export function createTerminalRuntime({
     return spawned.process;
   };
 
-  const createSession = async ({ sessionId, cwd, cols = 80, rows = 24, themeMode, terminalBackground, terminalForeground, shell = 'auto', loginShell = false, mode, command, purpose }) => {
+  const sameArgv = (left, right) => Array.isArray(left) && Array.isArray(right)
+    && left.length === right.length && left.every((entry, index) => entry === right[index]);
+
+  /** Key/value equality independent of key order; null env equals null env only. */
+  const sameDirectEnv = (left, right) => {
+    if (left == null || right == null) return left == null && right == null;
+    if (typeof left !== 'object' || typeof right !== 'object') return false;
+    const leftKeys = Object.keys(left);
+    const rightKeys = Object.keys(right);
+    if (leftKeys.length !== rightKeys.length) return false;
+    return leftKeys.every((name) => Object.hasOwn(right, name) && right[name] === left[name]);
+  };
+
+  const createSession = async ({ sessionId, cwd, cols = 80, rows = 24, themeMode, terminalBackground, terminalForeground, shell = 'auto', loginShell = false, mode, command, argv, env, purpose }) => {
     if (shutdownPromise) throw new Error('Terminal runtime is shutting down');
     if (!validateSize(cols, 1000) || !validateSize(rows, 500)) throw new Error('Invalid terminal dimensions');
     if (typeof loginShell !== 'boolean') throw new Error('Invalid terminal login mode');
     const normalizedShell = normalizeTerminalShell(shell);
     if (!normalizedShell) throw new Error('Invalid terminal shell');
-    const launchMode = normalizeCreateMode({ mode, command });
+    const launchMode = normalizeCreateMode({ mode, command, argv, env });
     const normalizedPurpose = normalizeTerminalPurpose(purpose);
     const id = typeof sessionId === 'string' && sessionId.trim() ? sessionId.trim() : randomUUID();
     if (id.length > 128) throw new Error('Invalid terminal session id');
@@ -437,6 +547,8 @@ export function createTerminalRuntime({
       if (normalizedPurpose.type === 'project-action') { applyAppearance(existing, { themeMode, terminalBackground, terminalForeground }); return existing; }
       if ((existing.mode ?? INTERACTIVE_TERMINAL_MODE) !== launchMode.mode) throw new Error('Terminal session is already running with a different mode');
       if (launchMode.mode === COMMAND_TERMINAL_MODE && existing.command !== launchMode.command) throw new Error('Terminal session is already running with a different command');
+      if (launchMode.mode === DIRECT_TERMINAL_MODE && !sameArgv(existing.argv, launchMode.argv)) throw new Error('Terminal session is already running with a different command');
+      if (launchMode.mode === DIRECT_TERMINAL_MODE && !sameDirectEnv(existing.directEnv, launchMode.env)) throw new Error('Terminal session is already running with a different environment');
       applyAppearance(existing, { themeMode, terminalBackground, terminalForeground });
       return existing;
     }
@@ -454,6 +566,8 @@ export function createTerminalRuntime({
       if (pending.loginShell !== loginShell) throw new Error('Terminal session is already being created with a different login mode');
       if (pending.mode !== launchMode.mode) throw new Error('Terminal session is already being created with a different mode');
       if (launchMode.mode === COMMAND_TERMINAL_MODE && pending.command !== launchMode.command) throw new Error('Terminal session is already being created with a different command');
+      if (launchMode.mode === DIRECT_TERMINAL_MODE && !sameArgv(pending.argv, launchMode.argv)) throw new Error('Terminal session is already being created with a different command');
+      if (launchMode.mode === DIRECT_TERMINAL_MODE && !sameDirectEnv(pending.directEnv, launchMode.env)) throw new Error('Terminal session is already being created with a different environment');
       const session = await pending.promise;
       applyAppearance(session, { themeMode, terminalBackground, terminalForeground });
       return session;
@@ -469,10 +583,10 @@ export function createTerminalRuntime({
         && path.resolve(session.cwd) === resolvedCwd && isPurposeActionMatch(getSessionPurpose(session), normalizedPurpose))
       : [];
     if (!existing && sessions.size - superseded.length + pendingSessionCreates.size >= MAX_SESSIONS) throw new Error('Maximum terminal sessions reached');
-    const pendingEntry = { cwd: resolvedCwd, shell: normalizedShell, loginShell, mode: launchMode.mode, command: launchMode.command, purpose: normalizedPurpose, cancelled: false, promise: null };
+    const pendingEntry = { cwd: resolvedCwd, shell: normalizedShell, loginShell, mode: launchMode.mode, command: launchMode.command, argv: launchMode.argv, directEnv: launchMode.env, purpose: normalizedPurpose, cancelled: false, promise: null };
     const creation = (async () => {
       const session = existing ?? { id, sequence: 0, history: newHistory(), pendingHistoryControlSequence: '', pendingThemeControlSequence: '', eventQueue: [], draining: false, createdAt: Date.now() };
-      const ptyProcess = await startSession(session, { cwd, cols, rows, themeMode, terminalBackground, terminalForeground, shell: normalizedShell, loginShell, mode: launchMode.mode, command: launchMode.command, purpose: normalizedPurpose });
+      const ptyProcess = await startSession(session, { cwd, cols, rows, themeMode, terminalBackground, terminalForeground, shell: normalizedShell, loginShell, mode: launchMode.mode, command: launchMode.command, argv: launchMode.argv, env: launchMode.env, purpose: normalizedPurpose });
       if (pendingEntry.cancelled) {
         session.retired = true;
         discardOutput(session);
@@ -658,6 +772,7 @@ export function createTerminalRuntime({
     const session = sessions.get(req.params.sessionId);
     if (!session) return res.status(404).json({ error: 'Terminal session not found' });
     if ((session.mode ?? INTERACTIVE_TERMINAL_MODE) === COMMAND_TERMINAL_MODE) return res.status(400).json({ error: 'Command-mode terminal sessions cannot be restarted' });
+    if ((session.mode ?? INTERACTIVE_TERMINAL_MODE) === DIRECT_TERMINAL_MODE) return res.status(400).json({ error: 'Direct-mode terminal sessions cannot be restarted' });
     const cwd = req.body?.cwd ?? session.cwd;
     const cols = req.body?.cols ?? session.cols;
     const rows = req.body?.rows ?? session.rows;

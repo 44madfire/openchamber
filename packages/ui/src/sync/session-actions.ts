@@ -4,8 +4,9 @@
  */
 
 import type { FilePart, FormRequest, JsonValue, Message, Metadata, ModelRef, Part, PermissionRequest, Session, SyntheticMessage, TextPart, UserMessage } from "@/lib/opencode/model"
-import { AcpUnsupportedError } from "@/lib/acp/client"
+import { AcpApiError, AcpUnsupportedError, acpClient } from "@/lib/acp/client"
 import { isAcpUnsupported } from "@/lib/acp/capabilities"
+import { acpTurnOf, revertDidFork, skippedPathLines } from "@/lib/acp/revert"
 import { foldAcpPromptText } from "@/lib/acp/prompt"
 import { isAcpSessionId } from "@/lib/acp/session-key"
 import { compact, partIds } from "@/lib/opencode/model"
@@ -2505,6 +2506,11 @@ export async function dismissOpenFormsForSession(sessionId: string): Promise<boo
 /**
  * Revert to a specific user message.
  *
+ * OpenCode stages the revert (see below); ACP runs its own one-step flow
+ * (`revertAcpToMessage`): files restore from the turn's checkpoint, and the
+ * response either names a fork to navigate to or marks the session reverted
+ * in place. ACP has no staged/clear step.
+ *
  * 1. Abort if session is busy
  * 2. Extract text from the target message for prompt restoration
  * 3. Optimistically set revert marker so messages hide immediately
@@ -2512,7 +2518,10 @@ export async function dismissOpenFormsForSession(sessionId: string): Promise<boo
  * 5. Set pendingInputText so the reverted message text appears in the input
  */
 export async function revertToMessage(sessionId: string, messageId: string): Promise<void> {
-  if (isAcpUnsupported(sessionId, "revert")) throw new AcpUnsupportedError("session.revert.stage", sessionId)
+  if (isAcpSessionId(sessionId)) {
+    await revertAcpToMessage(sessionId, messageId)
+    return
+  }
   const { store, directory } = dirStoreForSession(sessionId)
   const state = store.getState()
 
@@ -2637,6 +2646,52 @@ export async function revertToMessage(sessionId: string, messageId: string): Pro
       useInlineCommentDraftStore.getState().restoreDrafts(draftTarget, prevDrafts)
     }
     throw err
+  }
+}
+
+/**
+ * ACP one-step revert (D13): restores the target turn's checkpoint files, then
+ * either navigates to the fork the response names or renders the reverted turns
+ * greyed in place via the response's `metadata.acp.revertedFromTurn` / `revert`
+ * boundary. Skipped paths surface in a toast. No staged/clear step.
+ *
+ * The turn comes from the target message's server-stamped `metadata.acpTurn`
+ * (canonical projector ordinal), never from counting the loaded window, which
+ * is only the transcript's tail. The target is fetched by id when absent.
+ */
+export async function revertAcpToMessage(sessionId: string, messageId: string): Promise<void> {
+  const { store, directory } = dirStoreForSession(sessionId)
+  const target = store.getState().message[sessionId]?.find((message) => message.id === messageId)
+    ?? (await fetchSessionMessages(sessionId, directory)).find((message) => message.id === messageId)
+    ?? (await opencodeClient.getSessionMessage(sessionId, messageId, directory).catch(() => null))?.info
+    ?? null
+  if (!target) throw new Error(`Cannot revert session: message ${messageId} was not found`)
+  const turn = acpTurnOf(target)
+  if (turn === null) {
+    throw new Error(`Cannot revert session: message ${messageId} is not a checkpointed user turn of this session`)
+  }
+  const checkpoints = await acpClient.getSessionCheckpoints(sessionId, directory)
+  if (!checkpoints.some((row) => row.turn === turn && row.complete)) {
+    throw new AcpApiError("acp.sessions.revert", 422, `Checkpoint for turn ${turn} is incomplete`)
+  }
+  const response = await acpClient.revertSession(sessionId, turn, directory)
+  const skipped = skippedPathLines(response)
+  if (directory) {
+    sessionEvents.requestGitRefresh({ directory })
+    fileTreeChanges.unknownChange(directory)
+  }
+  if (revertDidFork(sessionId, response)) {
+    openForkedSession(store, response.session, directory)
+  } else {
+    mirrorSessionIntoLiveStores(response.session, directory)
+  }
+  if (skipped.length > 0) {
+    // Static import would pull the whole component graph into this action
+    // module; the UI store toasts the same way (see handleSlashUndo).
+    const { toast } = await import("sonner")
+    const { useI18nStore, formatMessage } = await import("@/lib/i18n/store")
+    const { dictionary } = useI18nStore.getState()
+    toast.warning(formatMessage(dictionary, "chat.revert.toast.acpSkipped", { files: skipped.join("\n") }))
   }
 }
 

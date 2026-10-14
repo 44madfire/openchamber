@@ -2350,6 +2350,7 @@ export const dict = {
   'chat.revert.toast.undo': 'Reverted to {preview}',
   'chat.revert.toast.redo': 'Redone',
   'chat.revert.toast.restored': 'Restored all messages',
+  'chat.revert.toast.acpSkipped': 'Reverted with skipped paths:\n{files}',
   'chat.toast.opencodeRestartInterrupted.title': 'Chat interrupted',
   'chat.toast.opencodeRestartInterrupted.description': 'OpenCode restarted while a response was still running. Send a message to continue.',
   'chat.toast.opencodeRestartInterrupted.openSession': 'Open session',

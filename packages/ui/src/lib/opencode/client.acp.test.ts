@@ -294,7 +294,8 @@ describe("OpencodeService ACP routing", () => {
       () => opencodeClient.shellSession({ sessionId: ACP_ID, command: "ls", directory: "/repo/app" }),
       () => opencodeClient.backgroundSessionWork(ACP_ID, "/repo/app"),
       () => opencodeClient.moveSession(ACP_ID, "/other", {}),
-      () => opencodeClient.getSessionTurnDiff(ACP_ID, { directory: "/repo/app" }),
+      // ACP diffs address the newest complete checkpoint turn; from/to ranges stay OpenCode-only.
+      () => opencodeClient.getSessionTurnDiff(ACP_ID, { from: "msg_1", directory: "/repo/app" }),
     ]
     for (const run of unsupported) {
       await expect(run()).rejects.toBeInstanceOf(AcpUnsupportedError)
@@ -302,13 +303,63 @@ describe("OpencodeService ACP routing", () => {
     expect(requests).toHaveLength(0)
   })
 
-  test("unsupported ops still work for OpenCode sessions", async () => {
-    responses.push(json({ data: {} }))
-    await opencodeClient.compactSession(OPENCODE_ID, "/repo/app")
-    expect(sdkPathnames()).toHaveLength(1)
-    expect(acpPathnames()).toHaveLength(0)
+  test("getSessionTurnDiff resolves the newest complete checkpoint turn for ACP ids", async () => {
+    responses.push(
+      json([{ turn: 1, complete: true }, { turn: 2, complete: false }, { turn: 3, complete: true }]),
+      json([{ file: "a.ts", patch: "@@ -1 +1 @@", additions: 1, deletions: 0, status: "modified" }]),
+    )
+    const diff = await opencodeClient.getSessionTurnDiff(ACP_ID, { directory: "/repo/app" })
+    expect(diff).toHaveLength(1)
+    expect(requests.map((request) => request.url.pathname)).toEqual([
+      `/api/acp/sessions/${ACP_ID}/checkpoints`,
+      `/api/acp/sessions/${ACP_ID}/diff`,
+    ])
+    expect(requests[1].url.searchParams.get("turn")).toBe("3")
+    expect(sdkPathnames()).toHaveLength(0)
   })
 
+  test("getSessionTurnDiff throws a 404 AcpApiError when no turn completed", async () => {
+    responses.push(json([{ turn: 1, complete: false }]))
+    const error = await opencodeClient.getSessionTurnDiff(ACP_ID, { directory: "/repo/app" }).catch((e) => e)
+    expect(error).toBeInstanceOf(AcpApiError)
+    expect(error.status).toBe(404)
+  })
+
+  test("getSessionTurnDiff walks back past a complete-but-unready turn (start snapshot only)", async () => {
+    // The server marks complete:true when the start snapshot lands; the end
+    // snapshot — and a servable diff — arrives at turn end. The newest row
+    // here is still running, so its diff 422s and the lookup serves turn 2.
+    responses.push(
+      json([{ turn: 1, complete: true }, { turn: 2, complete: true }, { turn: 3, complete: true }]),
+      json({ error: "incomplete", code: "ACP_CHECKPOINT_INCOMPLETE" }, 422),
+      json([{ file: "a.ts", patch: "@@ -1 +1 @@", additions: 1, deletions: 0, status: "modified" }]),
+    )
+    const diff = await opencodeClient.getSessionTurnDiff(ACP_ID, { directory: "/repo/app" })
+    expect(diff).toHaveLength(1)
+    const turns = requests.slice(1).map((request) => request.url.searchParams.get("turn"))
+    expect(turns).toEqual(["3", "2"])
+    expect(sdkPathnames()).toHaveLength(0)
+  })
+
+  test("getSessionTurnDiff surfaces the 422 when no turn diff is ready", async () => {
+    responses.push(
+      json([{ turn: 1, complete: true }]),
+      json({ error: "incomplete", code: "ACP_CHECKPOINT_INCOMPLETE" }, 422),
+    )
+    const error = await opencodeClient.getSessionTurnDiff(ACP_ID, { directory: "/repo/app" }).catch((e) => e)
+    expect(error).toBeInstanceOf(AcpApiError)
+    expect(error.status).toBe(422)
+  })
+
+  test("generateSessionText runs ACP ids as a one-off on their own backend", async () => {
+    responses.push(json({ text: "generated", backendId: "omp", sessionCleanup: "deleted" }))
+    const text = await opencodeClient.generateSessionText(ACP_ID, "summarize", "/repo/app")
+    expect(text).toBe("generated")
+    expect(requests).toHaveLength(1)
+    expect(requests[0].url.pathname).toBe("/api/acp/oneoff")
+    expect(requests[0].body).toMatchObject({ sessionKey: ACP_ID, input: "summarize" })
+    expect(sdkPathnames()).toHaveLength(0)
+  })
   test("createSession with a backend id creates on the ACP route; without, on the SDK", async () => {
     responses.push(json({ session: acpSession }))
     expect((await opencodeClient.createSession({ title: "Hi", acpBackendId: "omp" }, "/repo/app")).id).toBe(ACP_ID)

@@ -82,6 +82,19 @@ const setup = async ({ entry = {}, entries = null, oneOffOptions = {}, managerOp
 const stderrOf = async (manager, backendId = 'fixture') =>
   (await manager.status(backendId)).stderrTail;
 
+// The agent writes lifecycle markers to stderr; the pipe delivers them
+// asynchronously, so a marker asserted immediately after a fast timeout
+// may not have arrived yet. Poll briefly instead of asserting once.
+const stderrWith = async (manager, marker, backendId = 'fixture', timeoutMs = 5000) => {
+  const start = Date.now();
+  for (;;) {
+    const stderr = await stderrOf(manager, backendId);
+    if (stderr.includes(marker)) return stderr;
+    if (Date.now() - start > timeoutMs) return stderr;
+    await new Promise((resolve) => setTimeout(resolve, 10));
+  }
+};
+
 const stderrLines = async (manager, prefix, backendId = 'fixture') =>
   (await stderrOf(manager, backendId)).split('\n').filter((line) => line.startsWith(prefix));
 
@@ -370,7 +383,10 @@ describe('acp one-off generation', () => {
     const tmpRoot = await tempDir('acp-oneoff-stuck-new-');
     const { oneOff, manager } = await setup({
       entry: { env: { ONEOFF_FIX_HANG: 'new' } },
-      oneOffOptions: { tmpRoot, timeoutMs: 200 },
+      // The deadline must clear slow spawn+initialize under parallel
+      // load (seconds) yet still prove the timeout path fires on the
+      // hang rather than on startup.
+      oneOffOptions: { tmpRoot, timeoutMs: 2000 },
     });
     const started = Date.now();
     // First the stuck call fails fast…
@@ -380,7 +396,7 @@ describe('acp one-off generation', () => {
     // …its temp dir is gone…
     expect(await readdir(tmpRoot)).toEqual([]);
     // …but the agent never answered newSession, so nothing was created.
-    expect(await stderrOf(manager)).toContain('HUNG:new');
+    expect(await stderrWith(manager, 'HUNG:new')).toContain('HUNG:new');
     // …and the queue is free: this call would hang too, so only assert the
     // first call released the slot by racing a second call's timeout.
     const second = Date.now();
@@ -395,13 +411,13 @@ describe('acp one-off generation', () => {
         helper: { config: { model: 'helper-model' } },
         env: { ONEOFF_FIX_HANG: 'config' },
       },
-      oneOffOptions: { timeoutMs: 200 },
+      oneOffOptions: { timeoutMs: 2000 },
     });
     const started = Date.now();
     await expect(oneOff.generate({ backendId: 'fixture', instruction: 'Hi.', input: 'x' }))
       .rejects.toMatchObject({ code: 'ACP_ONEOFF_TIMEOUT' });
     expect(Date.now() - started).toBeLessThan(10_000);
-    const stderr = await stderrOf(manager);
+    const stderr = await stderrWith(manager, 'HUNG:config:oneoff-session-1:model');
     expect(stderr).toContain('HUNG:config:oneoff-session-1:model');
     expect(stderr).toContain('DELETE:oneoff-session-1');
   });
@@ -416,7 +432,7 @@ describe('acp one-off generation', () => {
     expect(Date.now() - started).toBeLessThan(10_000);
     expect(result.text).toBe('fixture-reply');
     expect(result.sessionCleanup).toBe('left');
-    expect(await stderrOf(manager)).toContain('HUNG:delete:oneoff-session-1');
+    expect(await stderrWith(manager, 'HUNG:delete:oneoff-session-1')).toContain('HUNG:delete:oneoff-session-1');
     // The queue moved on: a second call also resolves (also capped).
     const second = await oneOff.generate({ backendId: 'fixture', instruction: 'Hi.', input: 'x' });
     expect(second.sessionCleanup).toBe('left');

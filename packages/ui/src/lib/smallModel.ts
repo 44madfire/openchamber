@@ -1,4 +1,5 @@
 import { requestSmallModel } from '@/lib/smallModelRequest';
+import { isAcpSessionId } from '@/lib/acp/session-key';
 import { useConfigStore } from '@/stores/useConfigStore';
 import { getSessionLastAssistantModel } from '@/sync/session-actions';
 
@@ -32,8 +33,14 @@ export async function summarizeSelectionForNotes(text: string, sessionId?: strin
     // that conversation. The composer picker only serves as a fallback.
     const sessionModel = sessionId ? getSessionLastAssistantModel(sessionId) : null;
     const { currentProviderId, currentModelId } = useConfigStore.getState();
-    const preferredProviderID = sessionModel?.providerID || currentProviderId || '';
-    const preferredModelID = sessionModel?.modelID || currentModelId || '';
+    const isAcp = !!sessionId && isAcpSessionId(sessionId);
+    // An ACP session's synthetic provider (`acp:<backend>`) names no OpenCode
+    // provider; fall through to the composer pick instead of failing the call.
+    // The historical `sessionID` field stays for every session; ACP sessions
+    // additionally resolve their one-off backend via `sessionKey`.
+    const sessionProviderID = !isAcp && sessionModel?.providerID ? sessionModel.providerID : '';
+    const preferredProviderID = sessionProviderID || currentProviderId || '';
+    const preferredModelID = (sessionProviderID ? sessionModel?.modelID : undefined) || currentModelId || '';
     const response = await requestSmallModel({
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -41,12 +48,12 @@ export async function summarizeSelectionForNotes(text: string, sessionId?: strin
         prompt: trimmed,
         system: NOTES_SYSTEM_PROMPT,
         sessionID: sessionId || undefined,
+        ...(isAcp && sessionId ? { sessionKey: sessionId } : {}),
         // Read by servers before 2026-10; newer ones stay on the named provider anyway.
         restrictToPreferredProvider: true,
         ...(preferredProviderID ? { preferredProviderID } : {}),
         ...(preferredModelID ? { preferredModelID } : {}),
       }),
-    // No small model is not an error here: the note keeps the original text.
     }, { silentStatuses: [404] });
     if (!response.ok) {
       return trimmed;

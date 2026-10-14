@@ -3,11 +3,16 @@
  * listable, renamable and re-openable across server restarts.
  *
  * One entry per session the user has seen: `{ key, backendId, nativeId, cwd,
- * title, userTitle?, parentKey?, created, updated, lastConfig? }`. It records
- * what ACP itself cannot: user renames (no ACP method), parent linkage
- * (missing from opencode's list), and the last-seen config for the
- * pre-session picker. It stores NO transcript — a cold session rebuilds its
- * projection from `session/load` replay.
+ * title, userTitle?, parentKey?, created, updated, lastConfig?,
+ * checkpoints?, revertedFromTurn?, revertMessageID?, pendingRevertNote? }`.
+ * It records what ACP itself cannot: user renames (no ACP method), parent
+ * linkage (missing from opencode's list), the last-seen config for the
+ * pre-session picker, per-turn git checkpoint trees (D12), the revert
+ * boundary (D13: turn ordinal + boundary message id) and the pending
+ * next-prompt note (consumed exactly once). It stores NO transcript — a
+ * cold session rebuilds its projection from `session/load` replay.
+ * Version 2 adds the checkpoint/revert fields; version 1 files still load
+ * (the new fields are optional and fill in on next write).
  *
  * Writes are atomic (temp file + rename) and mutations are serialized, the
  * same pattern as the backend registry. `title` is the agent's latest title;
@@ -22,7 +27,16 @@ import { directoryKey } from './directory-key.js';
 import { BACKEND_ID_PATTERN } from './session-key.js';
 
 export const ACP_SESSIONS_FILE = 'acp-sessions.json';
-const STORE_VERSION = 1;
+const STORE_VERSION = 2;
+
+const TREE_ID_PATTERN = /^[0-9a-f]{40}(?:[0-9a-f]{24})?$/;
+
+const checkpointSchema = z.strictObject({
+  turn: z.number().int().positive(),
+  start: z.string().regex(TREE_ID_PATTERN),
+  end: z.string().regex(TREE_ID_PATTERN).nullable(),
+  complete: z.boolean(),
+});
 
 const entrySchema = z.strictObject({
   key: z.string().min(1).max(128),
@@ -36,10 +50,14 @@ const entrySchema = z.strictObject({
   updated: z.number().int().nonnegative(),
   lastConfig: z.record(z.string().max(256), z.union([z.string().max(4096), z.number(), z.boolean()])).optional(),
   messageIds: z.array(z.string().max(256)).max(5000).optional(),
+  checkpoints: z.array(checkpointSchema).max(100_000).optional(),
+  revertedFromTurn: z.number().int().positive().optional(),
+  revertMessageID: z.string().min(1).max(256).optional(),
+  pendingRevertNote: z.string().min(1).max(2000).optional(),
 });
 
 const storeSchema = z.strictObject({
-  version: z.literal(STORE_VERSION),
+  version: z.union([z.literal(1), z.literal(STORE_VERSION)]),
   sessions: z.array(entrySchema),
 });
 
@@ -52,7 +70,12 @@ export const displayTitle = (entry) => entry?.userTitle ?? entry?.title ?? '';
 
 const filePathFor = (dataDir) => path.join(dataDir, ACP_SESSIONS_FILE);
 
-const clone = (entry) => ({ ...entry, ...(entry.lastConfig ? { lastConfig: { ...entry.lastConfig } } : {}) });
+const clone = (entry) => ({
+  ...entry,
+  ...(entry.lastConfig ? { lastConfig: { ...entry.lastConfig } } : {}),
+  ...(entry.messageIds ? { messageIds: [...entry.messageIds] } : {}),
+  ...(entry.checkpoints ? { checkpoints: entry.checkpoints.map((row) => ({ ...row })) } : {}),
+});
 
 export const createAcpSessionIndex = ({ dataDir, fsPromises = fsp } = {}) => {
   if (typeof dataDir !== 'string' || !dataDir.trim()) {
@@ -125,7 +148,8 @@ export const createAcpSessionIndex = ({ dataDir, fsPromises = fsp } = {}) => {
 
     /**
      * Insert or merge an entry by key. `patch` wins field-by-field over the
-     * stored entry (except `key`, which must match). Returns the stored entry.
+     * stored entry (except `key`, which must match). An explicit
+     * `undefined` value clears an optional field. Returns the stored entry.
      */
     upsert: async (key, patch) => withMutation(async () => {
       if (typeof key !== 'string' || !key) {
@@ -137,6 +161,9 @@ export const createAcpSessionIndex = ({ dataDir, fsPromises = fsp } = {}) => {
       const map = await loadUntracked();
       const previous = map.get(key) ?? {};
       const merged = { ...previous, ...patch, key };
+      for (const field of Object.keys(patch)) {
+        if (patch[field] === undefined) delete merged[field];
+      }
       const parsed = entrySchema.safeParse(merged);
       if (!parsed.success) {
         throw Object.assign(new Error('ACP session entry failed validation'), {

@@ -1,5 +1,5 @@
 import React from 'react';
-import { isAcpUnsupported } from '@/lib/acp/capabilities';
+import { isAcpSessionId } from '@/lib/acp/session-key';
 import type { Part } from '@/lib/opencode/model';
 import { Icon } from '@/components/icon/Icon';
 import { Button } from '@/components/ui/button';
@@ -12,7 +12,6 @@ import {
     buildRevertedMessageDockState,
     type RevertedMessageDockState,
 } from './revertedMessageDockState';
-
 /**
  * A one-line preview of a reverted message: its text parts joined and
  * collapsed to a single line, falling back to an attached filename and then to
@@ -69,8 +68,10 @@ export const RevertedMessagesStrip: React.FC<RevertedMessagesStripProps> = React
             : getRevertedPreview(record.parts, noTextContent),
     })), [noTextContent, revertedState]);
 
-    // ACP sessions have no staged revert; the strip never shows for them.
-    if (!sessionId || isAcpUnsupported(sessionId, "revert") || !revertedState.revertMessageID || items.length === 0) return null;
+    // ACP one-step reverts land the same `revert` boundary the server emits, so
+    // the strip renders — but there is nothing to restore (no staged/clear).
+    const isAcp = Boolean(sessionId && isAcpSessionId(sessionId));
+    if (!sessionId || !revertedState.revertMessageID || items.length === 0) return null;
 
     const restore = async () => {
         if (restoring) return;
@@ -85,7 +86,7 @@ export const RevertedMessagesStrip: React.FC<RevertedMessagesStripProps> = React
         }
     };
 
-    const restoreButton = (
+    const restoreButton = isAcp ? null : (
         <Button
             type="button"
             variant="ghost"

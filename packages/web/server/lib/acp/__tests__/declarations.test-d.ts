@@ -106,8 +106,33 @@ export async function exerciseAcpOneOffDeclarations(
     maxChars: 200,
   });
   void result.sessionCleanup;
+  const resolved: string = await oneOff.resolveBackend({ sessionKey: 'ses_acp-fake_r1' });
+  void resolved;
   const hooks: AcpOneOffHooks = oneOff.hooksForOneOff('fake', { isKnownSession: () => false });
   void hooks;
   void oneOff.trimOneOffOutput('hi', 10);
   return { result, hooks };
+}
+
+export async function exerciseAcpWaveDDeclarations(
+  service: AcpSessionService,
+  manager: AcpBackendManager,
+  projector: AcpProjector,
+): Promise<void> {
+  const rows = await service.checkpoints({ key: 'ses_acp-fake_r1' });
+  void rows[0]?.complete;
+  const diffs = await service.diff({ key: 'ses_acp-fake_r1', turn: 1 });
+  void diffs[0]?.status;
+  const reverted = await service.revert({ key: 'ses_acp-fake_r1', turn: 1 });
+  void reverted.session.id;
+  void reverted.events.length;
+  const forked = await service.fork({ key: 'ses_acp-fake_r1' });
+  void forked.session.id;
+  void service.hasNativeSession('fake', 'native-1');
+  const terminal = await manager.authTerminal('fake');
+  void terminal.command;
+  void terminal.args.length;
+  void terminal.methodId;
+  const turn: number | null = projector.turnNumberOf('msg_1');
+  void turn;
 }

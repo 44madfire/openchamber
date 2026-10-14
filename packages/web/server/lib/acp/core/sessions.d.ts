@@ -9,8 +9,9 @@ import type { AcpSessionIndex } from './session-index.js';
 export declare const POST_CANCEL_SETTLE_MS: number;
 export declare const POST_CANCEL_WATCHDOG_MS: number;
 export declare const MAX_LIST_PAGES: number;
-export declare const DEFAULT_MAX_INACTIVE_PROJECTIONS: number;
-export declare const DEFAULT_IDLE_EVICT_MS: number;
+export declare const CHECKPOINT_START_BUDGET_MS: number;
+export declare const EMPTY_TREE_ID: string;
+export declare const REVERT_NOTE_PREFIX: (turn: number) => string;
 
 export declare class AcpSessionError extends Error {
   code?: string;
@@ -40,6 +41,24 @@ export interface AcpPromptInputPart {
   filename?: string;
 }
 
+/** One file of a turn diff (D14), in the DiffView `FileDiffInfo` shape. */
+export interface AcpTurnDiff {
+  file: string;
+  patch: string;
+  additions: number;
+  deletions: number;
+  status: 'added' | 'deleted' | 'modified';
+}
+
+/** File restore outcome (D13) plus the session to continue in. */
+export interface AcpRevertResult {
+  restored: string[];
+  removed: string[];
+  skipped: Array<{ file: string; reason: string }>;
+  session: AcpSessionRecord;
+  events: AcpSyncEvent[];
+}
+
 export interface AcpSessionService {
   events: EventEmitter;
   hooksForBackend(backendId: string, generation?: number): AcpConnectionHooks;
@@ -56,6 +75,11 @@ export interface AcpSessionService {
   }>;
   prompt(options: { key: string; messageId: string; parts: AcpPromptInputPart[] }): Promise<AcpSyncEvent[]>;
   cancel(options: { key: string }): Promise<boolean>;
+  checkpoints(options: { key: string }): Promise<Array<{ turn: number; complete: boolean }>>;
+  diff(options: { key: string; turn: number }): Promise<AcpTurnDiff[]>;
+  revert(options: { key: string; turn: number }): Promise<AcpRevertResult>;
+  fork(options: { key: string }): Promise<{ session: AcpSessionRecord; events: AcpSyncEvent[] }>;
+  hasNativeSession(backendId: string, nativeId: string): boolean;
   config(options: { key: string; configId: string; value: string | number | boolean }): Promise<void>;
   delete(options: { key: string }): Promise<boolean>;
   rename(options: { key: string; title: string }): Promise<{ session: AcpSessionRecord; events: AcpSyncEvent[] }>;
@@ -76,10 +100,25 @@ export declare function createAcpSessionService(options?: {
   manager: AcpBackendManager;
   index: AcpSessionIndex;
   registry?: AcpBackendRegistry | null;
+  checkpoints?: AcpCheckpointStoreLike | null;
+  checkpointStartBudgetMs?: number;
   now?: () => number;
   settleMs?: number;
   watchdogMs?: number;
   maxInactiveProjections?: number;
   idleEvictMs?: number;
   sleep?: (ms: number) => Promise<void>;
+  createProjector?: (options: { key: string; backendId: string; directory: string; index?: unknown; now?: () => number }) => AcpProjector;
 }): AcpSessionService;
+
+/** The checkpoint-store surface the session service consumes (D12–D14). */
+export interface AcpCheckpointStoreLike {
+  snapshot(args: { cwd: string; sessionKey: string; turn: number; phase: 'start' | 'end' }): Promise<{ tree: string }>;
+  diff(args: { cwd: string; from: string; to: string }): Promise<AcpTurnDiff[]>;
+  restore(args: { cwd: string; tree: string; current?: string }): Promise<{
+    restored: string[];
+    removed: string[];
+    skipped: Array<{ file: string; reason: string }>;
+  }>;
+  gc(args: { sessionKey: string; cwd?: string }): Promise<{ deletedRefs: number }>;
+}
