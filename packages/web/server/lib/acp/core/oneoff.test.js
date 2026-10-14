@@ -444,24 +444,30 @@ describe('acp one-off generation', () => {
   });
 
   it('cancels the turn on hard timeout and still cleans up', async () => {
-    // Deterministic by construction: the rejection handler attaches
-    // immediately (no unhandled-rejection window), and the mid-turn phase
-    // is proven by an explicit ENTERED acknowledgement — the fixture's
-    // prompt handler started, so the turn is parked at the agent, not
-    // merely created. The deadline (2 s) then fires mid-turn while the
-    // park (30 s) holds; the cancel/delete echoes are poll-awaited.
+    // Fully deterministic: a controllable deadline timer replaces the
+    // wall-clock setTimeout, so startup speed cannot race the deadline.
+    // The rejection handler attaches immediately; the test fires the
+    // deadline only AFTER the explicit ENTERED acknowledgement proves
+    // the turn is parked at the agent mid-turn.
+    let fireDeadline = null;
+    const createDeadlineTimer = (callback) => {
+      if (fireDeadline) throw new Error('unexpected second deadline timer');
+      fireDeadline = callback;
+      return { unref() {} };
+    };
     const { oneOff, manager } = await setup({
       entry: {
         env: {
           ONEOFF_FIX_PROMPT_SCRIPT: JSON.stringify([{ holdForCancel: 30_000 }]),
         },
       },
-      oneOffOptions: { timeoutMs: 2000 },
+      oneOffOptions: { timeoutMs: 2000, createDeadlineTimer },
     });
     const pending = oneOff.generate({ backendId: 'fixture', instruction: 'Hi.', input: 'x' });
     const rejected = expect(pending).rejects.toMatchObject({ code: 'ACP_ONEOFF_TIMEOUT' });
     pending.catch(() => {});
     await stderrWith(manager, 'ENTERED:oneoff-session-1');
+    fireDeadline();
     await rejected;
     expect(await stderrWith(manager, 'CANCELLED:oneoff-session-1')).toContain('CANCELLED:oneoff-session-1');
     expect(await stderrWith(manager, 'DELETE:oneoff-session-1')).toContain('DELETE:oneoff-session-1');
@@ -551,43 +557,55 @@ describe('acp one-off generation', () => {
   });
 
   it('serializes calls per backend while different backends overlap', async () => {
-    // Ordered event stream, not wall-clock margins and not a negative
-    // stderr snapshot: every lifecycle event lands in ONE array in the
-    // order observed, and the final assertion is a strict ordering over
-    // it. Same-backend second admission must come strictly after first
-    // completion; the other backend completes before first release.
+    // Admission recorded AT the boundary itself: the test wraps the
+    // manager's acquire so each lease grant pushes synchronously into
+    // the shared event stream — independent of the test's sequential
+    // awaits. The final assertion is a strict ordering over that
+    // stream: second admission follows first release, fast done
+    // precedes it. Fixture cleanup assertions stay on the real agent.
     const hold = JSON.stringify([{ holdForCancel: 30_000 }]);
     const slow = fixtureEntry({ id: 'slow', env: { ONEOFF_FIX_PROMPT_SCRIPT: hold } });
     const fast = fixtureEntry({ id: 'fast', env: { ONEOFF_FIX_PROMPT_SCRIPT: JSON.stringify([]) } });
-    const { oneOff, manager } = await setup({ entries: [slow, fast], oneOffOptions: { timeoutMs: 30_000 } });
     const events = [];
     const note = (name) => events.push(name);
+    const handle = await setup({ entries: [slow, fast], oneOffOptions: { timeoutMs: 30_000 } });
+    const { oneOff, manager } = handle;
+    // Wrap AFTER oneOff construction: generateOne calls manager.acquire
+    // per attempt, so every admission — including a concurrent one a
+    // broken gate would allow — is recorded at grant time.
+    const realAcquire = manager.acquire.bind(manager);
+    let slowAdmissions = 0;
+    manager.acquire = async (backendId) => {
+      const lease = await realAcquire(backendId);
+      if (backendId === 'slow') {
+        slowAdmissions += 1;
+        note(slowAdmissions === 1 ? 'first-admitted' : 'second-admitted');
+        const realRelease = lease.release.bind(lease);
+        lease.release = () => { note(slowAdmissions === 1 ? 'first-released' : 'second-released'); realRelease(); };
+      }
+      return lease;
+    };
     const cancelAt = (backendId, sessionId) =>
       manager.ensureReady(backendId).then(({ connection }) => connection.cancel({ sessionId }));
-    // Admission/completion observed at the fixture boundary (stderr pipe,
-    // poll-awaited) and at the generate() promise: same stream, one order.
-    const first = oneOff.generate({ backendId: 'slow', instruction: 'A.', input: 'a' })
-      .then((result) => { note('first-done'); return result; });
+    const first = oneOff.generate({ backendId: 'slow', instruction: 'A.', input: 'a' });
     first.catch(() => {});
+    // First turn parked at the agent (holding the per-backend slot).
     await stderrWith(manager, 'ENTERED:oneoff-session-1', 'slow');
-    note('first-admitted');
-    const second = oneOff.generate({ backendId: 'slow', instruction: 'B.', input: 'b' })
-      .then((result) => { note('second-done'); return result; });
+    const second = oneOff.generate({ backendId: 'slow', instruction: 'B.', input: 'b' });
     second.catch(() => {});
     const other = await oneOff.generate({ backendId: 'fast', instruction: 'C.', input: 'c' });
     expect(other.text).toBe('');
     note('fast-done');
     // Release the parked first turn; the queued sibling is admitted only
-    // after the first COMPLETES (slot release), then release it too.
+    // after the first RELEASES (slot release), then release it too.
     await cancelAt('slow', 'oneoff-session-1');
     const firstResult = await first;
     expect(firstResult.sessionCleanup).toBe('deleted');
-    await stderrWith(manager, 'NEW:oneoff-session-2', 'slow');
-    note('second-admitted');
+    await stderrWith(manager, 'ENTERED:oneoff-session-2', 'slow');
     await cancelAt('slow', 'oneoff-session-2');
     const secondResult = await second;
     expect(secondResult.sessionCleanup).toBe('deleted');
-    expect(events).toEqual(['first-admitted', 'fast-done', 'first-done', 'second-admitted', 'second-done']);
+    expect(events).toEqual(['first-admitted', 'fast-done', 'first-released', 'second-admitted', 'second-released']);
   });
 
   it('holds a lease so idle reap cannot kill the backend mid-turn', async () => {

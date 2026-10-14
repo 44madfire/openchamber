@@ -351,13 +351,15 @@ describe('acp checkpoint wiring', () => {
     // The next prompt carries the note; the agent sees it first. Wait until
     // THREE complete parseable PROMPT records have landed: the note prefixes
     // the third prompt's text, so matching any PROMPT line (or the bare
-    // text) would return the already-delivered first two.
+    // text) would return the already-delivered first two. Only
+    // newline-terminated records count: the pipe appends raw chunks, so
+    // the trailing fragment may be a torn JSON prefix that must not parse.
     await service.prompt({ key: session.id, messageId: 'msg-3', parts: [{ type: 'text', text: 'three' }] });
     await untilIdle(frames);
-    const promptLines = async () => (await manager.status('fake')).stderrTail
-      .split('\n').filter((line) => line.startsWith('PROMPT:'));
+    const completePrompts = async () => (await manager.status('fake')).stderrTail
+      .split('\n').slice(0, -1).filter((line) => line.startsWith('PROMPT:'));
     const prompts = await until(async () => {
-      const lines = await promptLines();
+      const lines = await completePrompts();
       return lines.length >= 3 ? lines.map((line) => JSON.parse(line.slice('PROMPT:'.length))) : null;
     });
     expect(prompts).toHaveLength(3);

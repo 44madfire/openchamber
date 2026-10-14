@@ -91,4 +91,5 @@ export declare function createOneOff(options?: {
   timeoutMs?: number;
   cleanupTimeoutMs?: number;
   cancelSettleMs?: number;
+  createDeadlineTimer?: (callback: () => void, ms: number) => { unref?(): void };
 }): AcpOneOffService;
