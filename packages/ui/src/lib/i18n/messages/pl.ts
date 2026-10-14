@@ -3792,4 +3792,7 @@ export const dict: Record<I18nKey, string> = {
   'sessions.scheduledTasks.dialog.toast.alreadyRunning': 'To zadanie już trwa',
   'sessions.scheduledTasks.dialog.toast.alreadyQueued': 'To zadanie już czeka w kolejce i uruchomi się, gdy zwolni się miejsce',
   'chat.modelControls.agentFavoriteAdd': 'Dodaj do ulubionych. Gdy są ulubione, Tab przełącza tylko między nimi',
+  'acp.oneoff.failed': 'Agent nie mógł ukończyć tej czynności',
+  'acp.oneoff.failedDescription': '{detail} — wybierz działający model w Ustawienia → Agenci (ACP) → {backend} → Model pomocniczy.',
+  'acp.oneoff.unknownBackend': 'backend',
 } as const;

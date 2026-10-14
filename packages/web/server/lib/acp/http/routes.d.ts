@@ -445,6 +445,8 @@ export interface AcpForkResponse {
  * `POST /api/acp/oneoff` — generate one completion on a resolved backend.
  * Validation failures → 400 `ACP_INVALID_REQUEST`; unknown backend → 404
  * `ACP_BACKEND_UNKNOWN`; no usable backend → 503 `ACP_BACKEND_UNAVAILABLE`;
+ * agent failure → 500 `ACP_ONEOFF_FAILED` (message carries the agent's
+ * error text; `backendId`/`agentCode` name it for the helper-model toast);
  * generation timeout → 504 `ACP_ONEOFF_TIMEOUT`.
  */
 export interface AcpOneOffRequest {

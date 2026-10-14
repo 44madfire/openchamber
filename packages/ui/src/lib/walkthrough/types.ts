@@ -136,10 +136,12 @@ export interface WalkthroughReadiness {
 }
 
 export class WalkthroughError extends Error {
-  readonly code?: WalkthroughBlockedState | 'invalid-walkthrough' | 'github-not-connected' | 'no-github-remote';
+  readonly code?: WalkthroughBlockedState | 'invalid-walkthrough' | 'github-not-connected' | 'no-github-remote' | 'ACP_ONEOFF_FAILED' | 'ACP_ONEOFF_TIMEOUT';
   readonly model?: WalkthroughModel;
   readonly requiredChars?: number;
   readonly availableChars?: number;
+  /** The one-off backend for `ACP_ONEOFF_*` failures, when the server named it. */
+  readonly backendId?: string;
 
   constructor(
     message: string,
@@ -148,6 +150,7 @@ export class WalkthroughError extends Error {
       model?: WalkthroughModel;
       requiredChars?: number;
       availableChars?: number;
+      backendId?: string;
     } = {}
   ) {
     super(message);
@@ -156,5 +159,6 @@ export class WalkthroughError extends Error {
     this.model = details.model;
     this.requiredChars = details.requiredChars;
     this.availableChars = details.availableChars;
+    this.backendId = details.backendId;
   }
 }

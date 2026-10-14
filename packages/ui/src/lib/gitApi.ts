@@ -4,6 +4,7 @@ import { mapWithConcurrency } from './concurrency';
 import { opencodeClient } from './opencode/client';
 import { renderMagicPrompt } from './magicPrompts';
 import { isAcpSessionId } from '@/lib/acp/session-key';
+import { AcpApiError } from '@/lib/acp/client';
 import { requestSmallModel } from './smallModelRequest';
 import { materializeOpenDraftSession, useSessionUIStore } from '@/sync/session-ui-store';
 import { useSelectionStore } from '@/sync/selection-store';
@@ -41,6 +42,26 @@ const requestChatForceScrollBottom = (sessionId: string) => {
   }));
 };
 
+/**
+ * A commit/PR generation failure that names the ACP one-off backend
+ * behind it, so the toast can point at the helper model setting.
+ */
+export type GitGenerationError = Error & { code?: string; backendId?: string };
+
+const gitGenerationError = (message: string, payload: { code?: unknown; backendId?: unknown } | null): GitGenerationError => {
+  const failure: GitGenerationError = new Error(message);
+  if (typeof payload?.code === 'string') failure.code = payload.code;
+  if (typeof payload?.backendId === 'string') failure.backendId = payload.backendId;
+  return failure;
+};
+
+/** Rethrows `AcpApiError` one-off failures with their code/backend intact. */
+const rethrowSessionFailure = (error: unknown): never => {
+  if (error instanceof AcpApiError) {
+    throw gitGenerationError(error.detail || error.message, { code: error.code, backendId: error.backendId });
+  }
+  throw error;
+};
 const extractJsonObject = (value: string): Record<string, unknown> | null => {
   const text = value.trim();
   const fenced = text.match(/```(?:json)?\s*([\s\S]*?)```/i);
@@ -311,10 +332,10 @@ export async function generateCommitMessage(
       return result;
     }
 
-    const payload = await response.json().catch(() => null) as { text?: unknown; error?: unknown } | null;
+    const payload = await response.json().catch(() => null) as { text?: unknown; error?: unknown; code?: unknown; backendId?: unknown } | null;
     if (!response.ok || typeof payload?.text !== 'string') {
       const message = typeof payload?.error === 'string' ? payload.error : `HTTP ${response.status}`;
-      throw new Error(message);
+      throw gitGenerationError(message, payload);
     }
 
     const result = { message: parseCommitStructured(extractJsonObject(payload.text)) };
@@ -525,10 +546,10 @@ export async function generatePullRequestDescription(
       return result;
     }
 
-    const payload = await response.json().catch(() => null) as { text?: unknown; error?: unknown } | null;
+    const payload = await response.json().catch(() => null) as { text?: unknown; error?: unknown; code?: unknown; backendId?: unknown } | null;
     if (!response.ok || typeof payload?.text !== 'string') {
       const message = typeof payload?.error === 'string' ? payload.error : `HTTP ${response.status}`;
-      throw new Error(message);
+      throw gitGenerationError(message, payload);
     }
 
     const result = parsePrStructured(extractJsonObject(payload.text));
@@ -683,11 +704,18 @@ const runStructuredGenerationInActiveSession = async ({
 
   // v2 generates in the session's own context and answers with the text, so
   // the generation no longer lands in the transcript as a prompt/reply pair.
-  const assistantText = await opencodeClient.generateSessionText(
-    generationSession.sessionId,
-    prompt,
-    trimmedDirectory.length > 0 ? trimmedDirectory : undefined,
-  );
+  // For ACP sessions this is a one-off throwaway whose failures carry the
+  // agent's error: keep their code/backend so the toast can name them.
+  let assistantText: string;
+  try {
+    assistantText = await opencodeClient.generateSessionText(
+      generationSession.sessionId,
+      prompt,
+      trimmedDirectory.length > 0 ? trimmedDirectory : undefined,
+    );
+  } catch (error) {
+    throw rethrowSessionFailure(error);
+  }
 
   const parsedOutput = extractJsonObject(assistantText);
   if (!parsedOutput) {

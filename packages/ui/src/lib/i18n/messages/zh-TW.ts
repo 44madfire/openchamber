@@ -3787,4 +3787,7 @@ export const dict: Record<I18nKey, string> = {
   'sessions.scheduledTasks.dialog.toast.alreadyRunning': '此任務已有一次執行正在進行',
   'sessions.scheduledTasks.dialog.toast.alreadyQueued': '此任務已在佇列中等待，有空位時就會執行',
   'chat.modelControls.agentFavoriteAdd': '加入最愛。有最愛時，Tab 只在最愛之間切換',
+  'acp.oneoff.failed': '代理程式無法完成此動作',
+  'acp.oneoff.failedDescription': '{detail}——請在「設定 → 代理程式 (ACP) → {backend} → 輔助模型」中選擇可用的模型。',
+  'acp.oneoff.unknownBackend': '該後端',
 };

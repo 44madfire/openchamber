@@ -19,7 +19,9 @@ export declare const ONEOFF_CANCEL_SETTLE_MS: number;
 export declare class AcpOneOffError extends Error {
   code?: string;
   backendId?: string;
-  constructor(message: string, options?: { code?: string; backendId?: string; cause?: unknown });
+  /** The agent's JSON-RPC code for `ACP_ONEOFF_FAILED`, when it had one. */
+  agentCode?: unknown;
+  constructor(message: string, options?: { code?: string; backendId?: string; cause?: unknown; agentCode?: unknown });
 }
 
 export type AcpOneOffCleanup = 'deleted' | 'closed' | 'left';
@@ -47,6 +49,12 @@ export interface AcpOneOffGenerateOptions {
   instruction: string;
   input: string;
   maxChars?: number;
+  /**
+   * The calling ACP session, when there is one. Its index `lastConfig`
+   * supplies the model/effort fallback for ids the backend leaves
+   * unconfigured in `helper.config`.
+   */
+  sessionKey?: string | null;
 }
 
 export interface AcpOneOffHooksOptions {

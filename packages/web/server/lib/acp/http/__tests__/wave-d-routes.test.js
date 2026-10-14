@@ -252,6 +252,7 @@ describe('wave-d oneoff route', () => {
       instruction: 'summarize',
       input: 'diff text',
       maxChars: 100,
+      sessionKey: 'sess-1',
     }]);
   });
 

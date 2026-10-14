@@ -8,6 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Textarea } from '@/components/ui/textarea';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { generatePullRequestDescription, getGitLog } from '@/lib/gitApi';
+import { toastOneOffError } from '@/lib/acp/oneoff-error';
 import { openExternalUrl } from '@/lib/url';
 import { useRuntimeAPIs } from '@/hooks/useRuntimeAPIs';
 import { useDeviceInfo } from '@/lib/device';
@@ -712,8 +713,10 @@ export const PullRequestSection: React.FC<{
       }
       onGeneratedDescription?.();
     } catch (e) {
-      const message = e instanceof Error ? e.message : String(e);
-      toast.error(t('gitView.pr.toast.generateDescriptionFailed'), { description: message });
+      toastOneOffError(e, () => {
+        const message = e instanceof Error ? e.message : String(e);
+        toast.error(t('gitView.pr.toast.generateDescriptionFailed'), { description: message });
+      });
     } finally {
       setIsGenerating(false);
     }

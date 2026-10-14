@@ -64,18 +64,38 @@ const generateViaAcpOneOff = async ({ provider, prompt, system, maxOutputTokens,
     ...(typeof backendId === 'string' && backendId ? { backendId } : {}),
     ...(typeof sessionKey === 'string' && sessionKey ? { sessionKey } : {}),
   });
-  const generated = await provider.generate({
-    backendId: backend,
-    instruction: typeof system === 'string' && system.trim() ? system : ACP_ONEOFF_SYSTEM,
-    input: prompt.trim(),
-    maxChars: fallbackOutputChars(maxOutputTokens),
-  });
-  return {
-    text: typeof generated?.text === 'string' ? generated.text.trim() : '',
-    source: 'acp-oneoff',
-    backendId: backend,
-    ...(Array.isArray(generated?.warnings) ? { warnings: generated.warnings } : {}),
-  };
+  try {
+    const generated = await provider.generate({
+      backendId: backend,
+      instruction: typeof system === 'string' && system.trim() ? system : ACP_ONEOFF_SYSTEM,
+      input: prompt.trim(),
+      maxChars: fallbackOutputChars(maxOutputTokens),
+      ...(typeof sessionKey === 'string' && sessionKey ? { sessionKey } : {}),
+    });
+    return {
+      text: typeof generated?.text === 'string' ? generated.text.trim() : '',
+      source: 'acp-oneoff',
+      backendId: backend,
+      ...(Array.isArray(generated?.warnings) ? { warnings: generated.warnings } : {}),
+    };
+  } catch (error) {
+    // One-off failures keep their shape (code/backendId/agentCode) so the
+    // route can surface the agent's error text with the helper-model
+    // pointer instead of the generic small-model message; the status
+    // mirrors the ACP route's mapping for a failed generation.
+    if (error?.code === 'ACP_ONEOFF_FAILED' || error?.code === 'ACP_ONEOFF_TIMEOUT') {
+      throw Object.assign(
+        new Error(error.message),
+        {
+          statusCode: error.code === 'ACP_ONEOFF_TIMEOUT' ? 504 : 502,
+          code: error.code,
+          ...(typeof error.backendId === 'string' && error.backendId ? { backendId: error.backendId } : {}),
+          ...(error.agentCode !== undefined ? { agentCode: error.agentCode } : {}),
+        },
+      );
+    }
+    throw error;
+  }
 };
 
 const OPENCHAMBER_SETTINGS_FILE = path.join(

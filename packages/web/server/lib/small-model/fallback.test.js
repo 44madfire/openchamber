@@ -204,6 +204,7 @@ describe('ACP one-off routing', () => {
       instruction: 'be terse',
       input: 'hello acp',
       maxChars: 400,
+      sessionKey: 'ses_acp-omp_rnative-1',
     }]);
     expect(result).toEqual({
       text: 'fallback text',
@@ -229,6 +230,7 @@ describe('ACP one-off routing', () => {
       input: 'hi',
       maxChars: 2000,
     });
+    expect('sessionKey' in (calls.generate[0] ?? {})).toBe(false);
     expect(result).toMatchObject({ text: 'fallback text', source: 'acp-oneoff', backendId: 'acp-backend' });
     expect(lastGenerate()).toBeUndefined();
   });
@@ -312,6 +314,36 @@ describe('ACP one-off routing', () => {
     setAcpOneOffFallback(provider);
 
     await expect(generateSmallModelText({ prompt: 'hi', backendId: 'omp' })).rejects.toBe(failure);
+  });
+
+  it('maps one-off agent failures to a coded 502 with backend context', async () => {
+    const failure = Object.assign(
+      new Error('one-off generation on omp failed: out of funds'),
+      { code: 'ACP_ONEOFF_FAILED', backendId: 'omp', agentCode: -32603 },
+    );
+    const { provider } = stubProvider({ generate: async () => { throw failure; } });
+    setAcpOneOffFallback(provider);
+
+    const seen = await generateSmallModelText({ prompt: 'hi', backendId: 'omp' }).catch((error) => error);
+    expect(seen).toMatchObject({
+      statusCode: 502,
+      code: 'ACP_ONEOFF_FAILED',
+      backendId: 'omp',
+      agentCode: -32603,
+    });
+    expect(seen.message).toBe('one-off generation on omp failed: out of funds');
+  });
+
+  it('maps one-off timeouts to 504', async () => {
+    const failure = Object.assign(
+      new Error('one-off generation timed out after 1000 ms'),
+      { code: 'ACP_ONEOFF_TIMEOUT', backendId: 'omp' },
+    );
+    const { provider } = stubProvider({ generate: async () => { throw failure; } });
+    setAcpOneOffFallback(provider);
+
+    await expect(generateSmallModelText({ prompt: 'hi', backendId: 'omp' }))
+      .rejects.toMatchObject({ statusCode: 504, code: 'ACP_ONEOFF_TIMEOUT', backendId: 'omp' });
   });
 
   it('ignores a non-string sessionKey for backend selection', async () => {
@@ -437,5 +469,29 @@ describe('ACP routing routes', () => {
     configureOpenCodeRuntimeProviders(null);
 
     expect(await describeSmallModel({ directory: '/proj' })).toBeNull();
+  });
+
+  it('surfaces one-off agent text with backend context on POST /api/small-model/generate', async () => {
+    const handlers = mountRoutes({
+      generateSmallModelText: async () => {
+        throw Object.assign(
+          new Error('one-off generation on omp failed: out of funds'),
+          { statusCode: 502, code: 'ACP_ONEOFF_FAILED', backendId: 'omp', agentCode: -32603 },
+        );
+      },
+    });
+
+    const { status, payload } = await runHandler(
+      handlers['POST /api/small-model/generate'],
+      { body: { prompt: 'hi', sessionKey: 'ses_acp-omp_rnative-1' } },
+    );
+
+    expect(status).toBe(502);
+    expect(payload).toEqual({
+      error: 'one-off generation on omp failed: out of funds',
+      code: 'ACP_ONEOFF_FAILED',
+      backendId: 'omp',
+      agentCode: -32603,
+    });
   });
 });

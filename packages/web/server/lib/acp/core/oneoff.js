@@ -64,11 +64,12 @@ export const ONEOFF_CLEANUP_TIMEOUT_MS = 5_000;
 export const ONEOFF_CANCEL_SETTLE_MS = 1_000;
 
 export class AcpOneOffError extends Error {
-  constructor(message, { code, backendId, cause } = {}) {
+  constructor(message, { code, backendId, cause, agentCode } = {}) {
     super(message, cause === undefined ? undefined : { cause });
     this.name = 'AcpOneOffError';
     if (code !== undefined) this.code = code;
     if (backendId !== undefined) this.backendId = backendId;
+    if (agentCode !== undefined) this.agentCode = agentCode;
   }
 }
 
@@ -156,9 +157,9 @@ const selectValuesOf = (option) => {
 };
 
 /**
- * Coerce a registry helper value (always a string per the schema) to the
- * wire shape of the advertised option: booleans take `{ type: 'boolean',
- * value }`; selects take the value id as a string.
+ * Coerce a helper value (a registry string, or a session value of any
+ * scalar type) to the wire shape of the advertised option: booleans take
+ * `{ type: 'boolean', value }`; selects take the value id as a string.
  * Returns `{ request, warning }`: `request` is null when the value cannot
  * apply to this option (unknown id handled by the caller). A select value
  * is accepted ONLY when it is actually listed: an empty or missing options
@@ -167,6 +168,9 @@ const selectValuesOf = (option) => {
  */
 const coerceHelperValue = (option, rawValue) => {
   const type = option?.type;
+  if (typeof rawValue === 'boolean' && (type === 'boolean' || type === undefined)) {
+    return { request: { type: 'boolean', value: rawValue }, warning: null };
+  }
   if (type === 'boolean') {
     const normalized = String(rawValue).trim().toLowerCase();
     if (normalized === 'true' || normalized === '1' || normalized === 'yes' || normalized === 'on') {
@@ -196,6 +200,51 @@ const advertisedOptionsOf = (configOptions) => {
     if (option && typeof option.id === 'string') advertised.set(option.id, option);
   }
   return advertised;
+};
+
+/**
+ * The SDK wraps agent-thrown errors as `internalError({ details })`: the
+ * message degrades to "Internal error" while the agent's text hides in
+ * `data.details`. Unwrap it so the caller sees what the agent said.
+ */
+const oneOffErrorDetails = (error) => {
+  if (!error || typeof error !== 'object') return { message: 'one-off generation failed', code: undefined };
+  const data = error.data;
+  const details = data && typeof data === 'object' ? data.details : undefined;
+  const detailText = typeof details === 'string'
+    ? details
+    : (details && typeof details.message === 'string' ? details.message : undefined);
+  const generic = typeof error.message !== 'string' || /^(internal error|acp connection closed)$/i.test(error.message);
+  return {
+    message: (generic && detailText) ? detailText : (error.message ?? 'one-off generation failed'),
+    code: error.code,
+  };
+};
+
+/**
+ * Resolve the helper settings for a throwaway session: explicit
+ * `helper.config` entries first, then — for `model`/`effort` only — the
+ * calling session's own current values from the index `lastConfig`
+ * (agent defaults last, by simply not setting them). Other session ids
+ * never carry over: a stale `mode` or provider flag could change what
+ * the helper is allowed to do. Returns `configId → { value, from }`.
+ */
+const resolveHelperConfig = ({ entry, sessionConfig }) => {
+  const explicit = entry?.helper?.config ?? {};
+  const fallback = sessionConfig && typeof sessionConfig === 'object' ? sessionConfig : {};
+  const config = {};
+  for (const [id, value] of Object.entries(explicit)) {
+    if (typeof id !== 'string' || !id) continue;
+    config[id] = { value: String(value), from: 'helper' };
+  }
+  for (const id of ['model', 'effort']) {
+    if (id in config) continue;
+    const value = fallback[id];
+    if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') {
+      config[id] = { value, from: 'session' };
+    }
+  }
+  return config;
 };
 
 const FENCE_RE = /^```[a-zA-Z0-9_-]*\s*\n?([\s\S]*?)\n?```$/;
@@ -427,7 +476,7 @@ export const createOneOff = ({
     return withSettleCap(attempt, cleanupTimeoutMs, false);
   };
 
-  const generateOne = async ({ backendId, instruction, input, maxChars }) => {
+  const generateOne = async ({ backendId, instruction, input, maxChars, sessionKey = null }) => {
     if (typeof backendId !== 'string' || !backendId) {
       throw new AcpOneOffError('one-off generation requires a backendId', { code: 'ACP_ONEOFF_INVALID' });
     }
@@ -438,6 +487,11 @@ export const createOneOff = ({
     }
     if (typeof input !== 'string') {
       throw new AcpOneOffError('one-off generation requires an input string', {
+        code: 'ACP_ONEOFF_INVALID', backendId,
+      });
+    }
+    if (sessionKey !== null && sessionKey !== undefined && (typeof sessionKey !== 'string' || !sessionKey)) {
+      throw new AcpOneOffError('one-off sessionKey must be a non-empty string', {
         code: 'ACP_ONEOFF_INVALID', backendId,
       });
     }
@@ -607,9 +661,11 @@ export const createOneOff = ({
       }
       live.add(record);
 
-      // Helper config (§3.1): apply `{ configId: value }` only for ids the
-      // session advertises. Unknown ids, uncoercible values and agent
-      // rejections warn in the result — they never fail the call.
+      // Helper config: explicit `helper.config` entries first, then the
+      // calling session's own model/effort (both known to work for the
+      // user), then the agent default for everything unset. Applied only
+      // for ids the session advertises: unknown ids, uncoercible values
+      // and agent rejections warn in the result, never fail the call.
       //
       // Model first: switching models can reset dependent settings
       // (effort/thinking), so `model` applies before everything else.
@@ -618,7 +674,14 @@ export const createOneOff = ({
       // a value that stops being advertised (or was only ever advertised
       // under another model) warns instead of sending a stale id.
       const warnings = [];
-      const helper = entry.helper?.config ?? {};
+      let sessionConfig = null;
+      if (typeof sessionKey === 'string' && sessionKey && typeof index?.get === 'function') {
+        const session = await index.get(sessionKey).catch(() => null);
+        if (session?.backendId === backendId && session.lastConfig && typeof session.lastConfig === 'object') {
+          sessionConfig = session.lastConfig;
+        }
+      }
+      const helper = resolveHelperConfig({ entry, sessionConfig });
       const helperIds = Object.keys(helper);
       const modelFirst = (ids) => ids.sort((a, b) => {
         if (a === 'model' && b !== 'model') return -1;
@@ -631,7 +694,7 @@ export const createOneOff = ({
           warnings.push(`helper config "${configId}" ignored: not advertised by this session`);
           continue;
         }
-        const { request, warning } = coerceHelperValue(option, helper[configId]);
+        const { request, warning } = coerceHelperValue(option, helper[configId].value);
         if (!request) {
           warnings.push(warning);
           continue;
@@ -670,8 +733,18 @@ export const createOneOff = ({
           // cancelled turn a beat to settle, then report the timeout.
           await cancelSession(connected, sessionId);
           await withSettleCap(promptPromise.catch(() => null), cancelSettleMs, null);
+          throw error;
         }
-        throw error;
+        // The agent's failure is the actionable part: keep its text (and
+        // JSON-RPC code) under a stable one-off code so the UI toast can
+        // name the agent's error and point at the helper model setting.
+        if (error instanceof AcpOneOffError) throw error;
+        const { message, code } = oneOffErrorDetails(error);
+        const wrapped = new AcpOneOffError(
+          `one-off generation on ${backendId} failed: ${message}`,
+          { code: 'ACP_ONEOFF_FAILED', backendId, cause: error, ...(code !== undefined ? { agentCode: code } : {}) },
+        );
+        throw wrapped;
       }
 
       // Draft-RFD prompt usage fills gaps the usage_update stream left.

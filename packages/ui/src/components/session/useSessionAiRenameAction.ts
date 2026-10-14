@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import { isAcpSessionId } from '@/lib/acp/session-key';
+import { toastOneOffError } from '@/lib/acp/oneoff-error';
 import { isVSCodeRuntime } from '@/lib/desktop';
 import { useI18n } from '@/lib/i18n';
 import { subscribeRuntimeEndpointWillChange } from '@/lib/runtime-switch';
@@ -47,7 +48,9 @@ export function useSessionAiRenameAction(sessionID: string, directory: string | 
           : availability === 'empty' ? t('sessions.aiRename.noCompletedTurns')
             : t('sessions.sidebar.session.menuHint.aiRename');
   const run = useCallback(() => {
-    void rename().catch(() => toast.error(t('sessions.aiRename.failed')));
+    void rename().catch((error: unknown) => {
+      toastOneOffError(error, () => toast.error(t('sessions.aiRename.failed')));
+    });
   }, [rename, t]);
 
   return { pending, disabled, hint, run };

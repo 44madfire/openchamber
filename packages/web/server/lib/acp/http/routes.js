@@ -94,6 +94,10 @@ const sendError = (res, error) => {
   if (error instanceof AcpBackendError || typeof error?.code === 'string') {
     const payload = { error: error.message, code: error.code ?? 'ACP_ERROR' };
     if (Array.isArray(error.issues)) payload.issues = error.issues;
+    // One-off failures name their backend (and the agent's code) so the
+    // UI toast can point at the right helper model setting.
+    if (typeof error.backendId === 'string' && error.backendId) payload.backendId = error.backendId;
+    if (error.agentCode !== undefined) payload.agentCode = error.agentCode;
     res.status(statusForError(error)).json(payload);
     return;
   }
@@ -512,6 +516,9 @@ export const registerAcpRoutes = (app, { registry, manager, sessions = null, one
         instruction,
         input,
         ...(maxChars === undefined ? {} : { maxChars }),
+        // The session's own model/effort becomes the helper fallback; the
+        // helper ignores it for sessions of another backend.
+        ...(typeof sessionKey === 'string' && sessionKey ? { sessionKey } : {}),
       });
       res.json({ ...result, backendId: resolvedBackendId });
     } catch (error) {

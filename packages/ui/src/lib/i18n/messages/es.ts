@@ -3788,4 +3788,7 @@ export const dict: Record<I18nKey, string> = {
   'sessions.scheduledTasks.dialog.toast.alreadyRunning': 'Esta tarea ya tiene una ejecución en curso',
   'sessions.scheduledTasks.dialog.toast.alreadyQueued': 'Esta tarea ya está en la cola y se ejecutará cuando haya un hueco libre',
   'chat.modelControls.agentFavoriteAdd': 'Añadir a favoritos. Con favoritos, Tab alterna solo entre ellos',
+  'acp.oneoff.failed': 'El agente no pudo completar esta acción',
+  'acp.oneoff.failedDescription': '{detail}: elige un modelo que funcione en Ajustes → Agentes (ACP) → {backend} → Modelo auxiliar.',
+  'acp.oneoff.unknownBackend': 'el backend',
 };

@@ -68,7 +68,7 @@ export type AcpCommandInfo = z.infer<typeof commandSchema>
 /** One filled-in form: every field the agent declared, keyed by field key. */
 export type AcpFormAnswer = Record<string, string | number | boolean | string[]>
 
-const errorBodySchema = z.looseObject({ error: z.unknown(), message: z.unknown(), code: z.unknown() })
+const errorBodySchema = z.looseObject({ error: z.unknown(), message: z.unknown(), code: z.unknown(), backendId: z.unknown(), agentCode: z.unknown() })
 
 const acpBackendEntrySchema = z.looseObject({
   id: z.string(),
@@ -209,13 +209,19 @@ export class AcpApiError extends Error {
   readonly code?: string
   /** The server's raw error message, without the operation/status prefix in `message`. */
   readonly detail: string
+  /** The one-off backend for `ACP_ONEOFF_*` failures, when the server named it. */
+  readonly backendId?: string
+  /** The agent's JSON-RPC code for `ACP_ONEOFF_FAILED`, when it had one. */
+  readonly agentCode?: unknown
 
-  constructor(operation: string, status: number, message: string, options?: { code?: string; cause?: unknown }) {
+  constructor(operation: string, status: number, message: string, options?: { code?: string; cause?: unknown; backendId?: string; agentCode?: unknown }) {
     super(`${operation} failed (${status}): ${message}`, { cause: options?.cause })
     this.name = "AcpApiError"
     this.status = status
     this.code = options?.code
     this.detail = message
+    this.backendId = options?.backendId
+    this.agentCode = options?.agentCode
   }
 }
 
@@ -241,7 +247,9 @@ const throwForStatus = async (operation: string, response: Response): Promise<vo
   const detail = body.success ? (body.data.error ?? body.data.message) : null
   const message = typeof detail === "string" && detail ? detail : response.statusText || "request failed"
   const code = body.success && typeof body.data.code === "string" ? body.data.code : undefined
-  throw new AcpApiError(operation, response.status, message, code ? { code } : undefined)
+  const backendId = body.success && typeof body.data.backendId === "string" ? body.data.backendId : undefined
+  const agentCode = body.success && body.data.agentCode !== undefined ? body.data.agentCode : undefined
+  throw new AcpApiError(operation, response.status, message, { ...(code ? { code } : {}), ...(backendId ? { backendId } : {}), ...(agentCode !== undefined ? { agentCode } : {}) })
 }
 
 const readJson = async (operation: string, response: Response): Promise<unknown> => {

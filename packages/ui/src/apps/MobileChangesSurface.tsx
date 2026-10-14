@@ -58,6 +58,7 @@ import { SubmoduleDiffSummary } from '@/components/views/SubmoduleDiffSummary';
 import { changeRequestCopy } from '@/lib/source-control/changeRequestCopy';
 import { useI18n } from '@/lib/i18n';
 import { generateCommitMessage, stageGitFile, stageGitFiles, unstageGitFile, unstageGitFiles } from '@/lib/gitApi';
+import { toastOneOffError } from '@/lib/acp/oneoff-error';
 import type { GitRemote } from '@/lib/gitApi';
 import { getLanguageFromExtension, isImageFile } from '@/lib/toolHelpers';
 import {
@@ -740,7 +741,9 @@ export const MobileChangesPane: React.FC<MobileChangesPaneProps> = ({ rootDirect
       setCommitMessage(message.subject?.trim() ?? '');
       setGeneratedHighlights(Array.isArray(message.highlights) ? message.highlights : []);
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : t('gitView.toast.generateCommitMessageFailed'));
+      toastOneOffError(error, () => {
+        toast.error(error instanceof Error ? error.message : t('gitView.toast.generateCommitMessageFailed'));
+      });
     } finally {
       setIsGeneratingMessage(false);
     }

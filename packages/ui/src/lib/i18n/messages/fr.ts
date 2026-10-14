@@ -3786,4 +3786,7 @@ export const dict = {
   'sessions.scheduledTasks.dialog.toast.alreadyRunning': 'Cette tâche a déjà une exécution en cours',
   'sessions.scheduledTasks.dialog.toast.alreadyQueued': 'Cette tâche attend déjà dans la file et s’exécutera dès qu’une place se libère',
   'chat.modelControls.agentFavoriteAdd': 'Ajouter aux favoris. Avec des favoris, Tab ne passe que par eux',
+  'acp.oneoff.failed': 'L’agent n’a pas pu terminer cette action',
+  'acp.oneoff.failedDescription': '{detail} — choisissez un modèle fonctionnel dans Réglages → Agents (ACP) → {backend} → Modèle auxiliaire.',
+  'acp.oneoff.unknownBackend': 'le backend',
 } as const;

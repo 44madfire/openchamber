@@ -64,11 +64,20 @@ export function registerSmallModelRoutes(app, { getSmallModelService }) {
       if (statusCode >= 500) {
         console.error('Small model generation failed:', error);
       }
+      // ACP one-off failures carry the agent's own error text: surface it
+      // with the backend/agent codes so the UI toast can name the agent's
+      // error and point at the helper model setting. Every other failure
+      // keeps the historical small-model message.
+      const isOneOffFailure = error?.code === 'ACP_ONEOFF_FAILED' || error?.code === 'ACP_ONEOFF_TIMEOUT';
       res.status(statusCode).json({
         error: statusCode === 404 || error?.code === 'small-model-unavailable'
           ? (error.message || 'No small model is available')
-          : 'The selected Small Model could not complete this action. Choose another model in Settings → Sessions → Small Model and try again.',
+          : isOneOffFailure
+            ? (error.message || 'The ACP helper could not complete this action.')
+            : 'The selected Small Model could not complete this action. Choose another model in Settings → Sessions → Small Model and try again.',
         ...(error?.code ? { code: error.code } : {}),
+        ...(isOneOffFailure && typeof error.backendId === 'string' && error.backendId ? { backendId: error.backendId } : {}),
+        ...(isOneOffFailure && error.agentCode !== undefined ? { agentCode: error.agentCode } : {}),
       });
     }
   });
