@@ -252,6 +252,7 @@ describe('wave-d oneoff route', () => {
       instruction: 'summarize',
       input: 'diff text',
       maxChars: 100,
+      sessionKey: 'sess-1',
     }]);
   });
 
@@ -347,6 +348,25 @@ describe('wave-d oneoff route', () => {
     const { statusCode, payload } = await call('POST', '/api/acp/oneoff', { body: baseBody });
     expect(statusCode).toBe(504);
     expect(payload.code).toBe('ACP_ONEOFF_TIMEOUT');
+  });
+
+  it('maps agent failure to 502 with backend context', async () => {
+    const failure = Object.assign(new Error('one-off generation on backend-a failed: boom'), {
+      code: 'ACP_ONEOFF_FAILED', backendId: 'backend-a', agentCode: -32603,
+    });
+    const oneOff = {
+      resolveBackend: async () => 'backend-a',
+      generate: async () => { throw failure; },
+    };
+    const { call } = setup({ oneOff });
+    const { statusCode, payload } = await call('POST', '/api/acp/oneoff', { body: baseBody });
+    expect(statusCode).toBe(502);
+    expect(payload).toEqual({
+      error: 'one-off generation on backend-a failed: boom',
+      code: 'ACP_ONEOFF_FAILED',
+      backendId: 'backend-a',
+      agentCode: -32603,
+    });
   });
 });
 

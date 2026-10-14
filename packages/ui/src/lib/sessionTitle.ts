@@ -5,6 +5,12 @@ import { readContextPart } from './messages/contextParts';
 import { excerptMarkdown, formatContextMessage, formatMessageText } from './messages/messageMarkdown';
 import { runtimeFetch } from './runtime-fetch';
 
+/**
+ * A small-model failure that names the ACP one-off backend behind it, so
+ * the rename toast can point at the helper model setting. Plain `Error`
+ * otherwise, so non-ACP callers keep their historical handling.
+ */
+export type SessionTitleError = Error & { code?: string; backendId?: string };
 type MessageRecord = { info: Message; parts: Part[] };
 type TitleTurn = {
   user: MessageRecord;
@@ -148,6 +154,14 @@ export async function generateSessionTitle(input: {
     signal: input.signal,
     body: JSON.stringify(body),
   });
-  if (!response.ok) throw new Error('Session title generation failed');
+  if (!response.ok) {
+    const payload = (await response.json().catch(() => null)) as { error?: unknown; code?: unknown; backendId?: unknown } | null;
+    const failure: SessionTitleError = new Error(
+      typeof payload?.error === 'string' && payload.error ? payload.error : 'Session title generation failed',
+    );
+    if (typeof payload?.code === 'string') failure.code = payload.code;
+    if (typeof payload?.backendId === 'string') failure.backendId = payload.backendId;
+    throw failure;
+  }
   return generatedSessionTitleSchema.parse(await response.json());
 }

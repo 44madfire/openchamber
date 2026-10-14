@@ -603,6 +603,14 @@ async function runGeneration({ directory, source, repoRoot, key, force, explicit
     if (error?.code === 'no-provider-login') {
       return fail(error.message, 401, { code: 'no-provider-login', model });
     }
+    if (error?.code === 'ACP_ONEOFF_FAILED' || error?.code === 'ACP_ONEOFF_TIMEOUT') {
+      return fail(error.message, error.code === 'ACP_ONEOFF_TIMEOUT' ? 504 : 502, {
+        code: error.code,
+        model,
+        ...(typeof error.backendId === 'string' && error.backendId ? { backendId: error.backendId } : {}),
+        ...(error.agentCode !== undefined ? { agentCode: error.agentCode } : {}),
+      });
+    }
     return null;
   };
 

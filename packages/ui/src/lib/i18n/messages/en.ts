@@ -3787,6 +3787,9 @@ export const dict = {
   'sessions.scheduledTasks.dialog.toast.alreadyRunning': 'This task already has a run in progress',
   'sessions.scheduledTasks.dialog.toast.alreadyQueued': 'This task is already waiting in the queue and will run when a slot frees up',
   'chat.modelControls.agentFavoriteAdd': 'Add to favorites. With favorites, Tab cycles through them only',
+  'acp.oneoff.failed': 'The agent could not complete this action',
+  'acp.oneoff.failedDescription': '{detail} — pick a working model in Settings → Agents (ACP) → {backend} → Helper model.',
+  'acp.oneoff.unknownBackend': 'the backend',
 } as const;
 
 export type I18nKey = keyof typeof dict;

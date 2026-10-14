@@ -82,6 +82,7 @@ import type { GitRemote } from '@/lib/gitApi';
 import { getRootBranch } from '@/lib/worktrees/worktreeStatus';
 import { cn } from '@/lib/utils';
 import { generateCommitMessage as generateSessionCommitMessage, getGitWorktreeBootstrapStatus } from '@/lib/gitApi';
+import { toastOneOffError } from '@/lib/acp/oneoff-error';
 import { sessionEvents } from '@/lib/sessionEvents';
 import { useI18n } from '@/lib/i18n';
 import { BoundGitNetworkOperationError, GitOperationResultError, runBoundGitNetworkOperation, runContributorAwarePush, describeGitSyncOutcome, type GitSyncOutcome } from '@/lib/boundGitNetworkOperation';
@@ -1421,9 +1422,11 @@ export const GitView: React.FC<GitViewProps> = ({ isActive }) => {
         message: error instanceof Error ? error.message : String(error),
         error,
       });
-      const message =
-        error instanceof Error ? error.message : t('gitView.toast.generateCommitMessageFailed');
-      toast.error(message);
+      toastOneOffError(error, () => {
+        const message =
+          error instanceof Error ? error.message : t('gitView.toast.generateCommitMessageFailed');
+        toast.error(message);
+      });
     } finally {
       setIsGeneratingMessage(false);
     }

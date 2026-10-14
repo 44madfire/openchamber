@@ -67,7 +67,9 @@ const setup = async ({ entry = {}, entries = null, oneOffOptions = {}, managerOp
     }),
   });
   managers.push(manager);
-  const oneOff = createOneOff({ manager, registry, ...oneOffOptions });
+  const { createAcpSessionIndex } = await import('./session-index.js');
+  const index = createAcpSessionIndex({ dataDir: await tempDir('acp-oneoff-idx-') });
+  const oneOff = createOneOff({ manager, registry, index, ...oneOffOptions });
   holder.current = oneOff;
   const drainRequests = () => {
     for (const request of pendingRequests.splice(0)) {
@@ -76,7 +78,7 @@ const setup = async ({ entry = {}, entries = null, oneOffOptions = {}, managerOp
         : { action: 'cancel' });
     }
   };
-  return { oneOff, manager, registry, passthrough, pendingRequests, drainRequests, known };
+  return { oneOff, manager, registry, index, passthrough, pendingRequests, drainRequests, known };
 };
 
 const stderrOf = async (manager, backendId = 'fixture') =>
@@ -226,6 +228,44 @@ describe('acp one-off generation', () => {
     expect(result.warnings).toEqual([
       'helper config "effort" ignored: "none" is not an advertised value',
     ]);
+  });
+
+  it('keeps model-override state across a later config change in the fixture', async () => {
+    // The override response (model + dependent thinking) becomes the
+    // fixture's live state: a second generate's session/new must report
+    // the selected model and the dependent option, proving the override
+    // was retained rather than reverting to the pre-override set.
+    const afterModel = [
+      {
+        id: 'model', name: 'Model', type: 'select', currentValue: 'helper-model',
+        options: [{ value: 'helper-model', name: 'Helper' }],
+      },
+      {
+        id: 'thinking', name: 'Thinking', type: 'select', currentValue: 'minimal',
+        options: [{ value: 'minimal', name: 'Minimal' }, { value: 'max', name: 'Max' }],
+      },
+    ];
+    const { oneOff, manager } = await setup({
+      entry: {
+        helper: { config: { model: 'helper-model' } },
+        env: {
+          ONEOFF_FIX_SET_CONFIG_RESPONSE: JSON.stringify({ model: afterModel }),
+          ONEOFF_FIX_RECORD_PROMPTS: '1',
+        },
+      },
+    });
+    await oneOff.generate({ backendId: 'fixture', instruction: 'Hi.', input: 'x' });
+    // Second call, no helper config left to apply: its session/new must
+    // still report the override state — but session/new traffic is not
+    // recorded, so assert via the manager's live connection instead.
+    const connected = await manager.ensureReady('fixture');
+    const created = await connected.connection.newSession({ cwd: await tempDir('acp-oneoff-override-'), mcpServers: [] });
+    try {
+      const ids = Object.fromEntries((created.configOptions ?? []).map((option) => [option.id, option.currentValue]));
+      expect(ids).toMatchObject({ model: 'helper-model', thinking: 'minimal' });
+    } finally {
+      await connected.connection.deleteSession({ sessionId: created.sessionId }).catch(() => {});
+    }
   });
 
   it('collects only agent_message_chunk text and skips thoughts and tools', async () => {
@@ -651,6 +691,10 @@ describe('acp one-off generation', () => {
       .rejects.toMatchObject({ code: 'ACP_ONEOFF_INVALID' });
     await expect(oneOff.generate({ backendId: 'fixture', instruction: 'x', input: 'y', maxChars: -1 }))
       .rejects.toMatchObject({ code: 'ACP_ONEOFF_INVALID' });
+    await expect(oneOff.generate({ backendId: 'fixture', instruction: 'x', input: 'y', sessionKey: '' }))
+      .rejects.toMatchObject({ code: 'ACP_ONEOFF_INVALID' });
+    await expect(oneOff.generate({ backendId: 'fixture', instruction: 'x', input: 'y', sessionKey: 42 }))
+      .rejects.toMatchObject({ code: 'ACP_ONEOFF_INVALID' });
   });
 
   it('uses a fresh empty cwd per call', async () => {
@@ -666,6 +710,143 @@ describe('acp one-off generation', () => {
     for (const cwd of cwds) {
       await expect(stat(cwd)).rejects.toMatchObject({ code: 'ENOENT' });
     }
+  });
+
+  it('falls back to the calling session model/effort when no helper.config is set', async () => {
+    const { oneOff, manager, index } = await setup();
+    await index.upsert('ses_acp-fixture_rnative-1', {
+      backendId: 'fixture',
+      nativeId: 'native-1',
+      cwd: await tempDir('acp-oneoff-cwd-'),
+      title: '',
+      created: Date.now(),
+      updated: Date.now(),
+      lastConfig: { model: 'helper-model', effort: 'none' },
+    });
+    const result = await oneOff.generate({
+      backendId: 'fixture',
+      instruction: 'Hi.',
+      input: 'x',
+      sessionKey: 'ses_acp-fixture_rnative-1',
+    });
+    expect(result.text).toBe('fixture-reply');
+    expect(await configLines(manager)).toEqual([
+      { sessionId: 'oneoff-session-1', configId: 'model', value: 'helper-model', type: null },
+      { sessionId: 'oneoff-session-1', configId: 'effort', value: 'none', type: null },
+    ]);
+    expect(result.warnings ?? []).toEqual([]);
+  });
+
+  it('lets explicit helper.config win over the calling session values', async () => {
+    const { oneOff, manager, index } = await setup({
+      entry: { helper: { config: { model: 'helper-model' } } },
+    });
+    await index.upsert('ses_acp-fixture_rnative-1', {
+      backendId: 'fixture',
+      nativeId: 'native-1',
+      cwd: await tempDir('acp-oneoff-cwd-'),
+      title: '',
+      created: Date.now(),
+      updated: Date.now(),
+      lastConfig: { model: 'default-model', effort: 'none' },
+    });
+    await oneOff.generate({
+      backendId: 'fixture',
+      instruction: 'Hi.',
+      input: 'x',
+      sessionKey: 'ses_acp-fixture_rnative-1',
+    });
+    // Explicit model wins; effort still falls back to the session.
+    expect(await configLines(manager)).toEqual([
+      { sessionId: 'oneoff-session-1', configId: 'model', value: 'helper-model', type: null },
+      { sessionId: 'oneoff-session-1', configId: 'effort', value: 'none', type: null },
+    ]);
+  });
+
+  it('ignores the session fallback for other backends and non-model ids', async () => {
+    const { oneOff, manager, index } = await setup({
+      entries: [
+        fixtureEntry({ id: 'a' }),
+        fixtureEntry({ id: 'b' }),
+      ],
+    });
+    await index.upsert('ses_acp-a_rnative-1', {
+      backendId: 'a',
+      nativeId: 'native-1',
+      cwd: await tempDir('acp-oneoff-cwd-'),
+      title: '',
+      created: Date.now(),
+      updated: Date.now(),
+      lastConfig: { model: 'helper-model', effort: 'none', mode: 'plan', turbo: true },
+    });
+    // Same backend: model/effort carry over, mode/turbo never do.
+    await oneOff.generate({ backendId: 'a', instruction: 'Hi.', input: 'x', sessionKey: 'ses_acp-a_rnative-1' });
+    expect(await configLines(manager, 'a')).toEqual([
+      { sessionId: 'oneoff-session-1', configId: 'model', value: 'helper-model', type: null },
+      { sessionId: 'oneoff-session-1', configId: 'effort', value: 'none', type: null },
+    ]);
+    // Other backend: the session is ignored entirely (agent defaults).
+    await oneOff.generate({ backendId: 'b', instruction: 'Hi.', input: 'x', sessionKey: 'ses_acp-a_rnative-1' });
+    expect(await configLines(manager, 'b')).toEqual([]);
+    // Unknown session: likewise no fallback, still succeeds.
+    const result = await oneOff.generate({ backendId: 'a', instruction: 'Hi.', input: 'x', sessionKey: 'ses_acp-a_rnope' });
+    expect(result.text).toBe('fixture-reply');
+  });
+
+  it('warns (never fails) when the session fallback is no longer advertised', async () => {
+    const { oneOff, index } = await setup();
+    await index.upsert('ses_acp-fixture_rnative-1', {
+      backendId: 'fixture',
+      nativeId: 'native-1',
+      cwd: await tempDir('acp-oneoff-cwd-'),
+      title: '',
+      created: Date.now(),
+      updated: Date.now(),
+      lastConfig: { model: 'gone-model', effort: 'none' },
+    });
+    const result = await oneOff.generate({
+      backendId: 'fixture',
+      instruction: 'Hi.',
+      input: 'x',
+      sessionKey: 'ses_acp-fixture_rnative-1',
+    });
+    expect(result.text).toBe('fixture-reply');
+    expect(result.warnings).toEqual([
+      'helper config "model" ignored: "gone-model" is not an advertised value',
+    ]);
+  });
+
+  it('wraps agent prompt failures with their text under ACP_ONEOFF_FAILED', async () => {
+    const { oneOff } = await setup({
+      entry: {
+        env: { ONEOFF_FIX_PROMPT_SCRIPT: JSON.stringify([{ error: { message: 'out of funds', code: -32603 } }]) },
+      },
+    });
+    const failure = await oneOff.generate({ backendId: 'fixture', instruction: 'Hi.', input: 'x' }).catch((error) => error);
+    expect(failure).toMatchObject({
+      code: 'ACP_ONEOFF_FAILED',
+      backendId: 'fixture',
+      agentCode: -32603,
+    });
+    expect(failure.message).toBe('one-off generation on fixture failed: out of funds');
+  });
+
+  it('keeps the agent text the SDK wraps as internalError details', async () => {
+    // A plain agent throw crosses the wire as internalError with the text
+    // in `data.details`; the client unwraps it instead of showing
+    // "Internal error".
+    const { oneOff } = await setup({
+      entry: {
+        env: {
+          ONEOFF_FIX_PROMPT_SCRIPT: JSON.stringify([{
+            error: { message: 'quota exhausted for model x' },
+          }]),
+        },
+      },
+    });
+    const failure = await oneOff.generate({ backendId: 'fixture', instruction: 'Hi.', input: 'x' }).catch((error) => error);
+    expect(failure).toMatchObject({ code: 'ACP_ONEOFF_FAILED' });
+    expect(failure.message).toBe('one-off generation on fixture failed: quota exhausted for model x');
   });
 });
 

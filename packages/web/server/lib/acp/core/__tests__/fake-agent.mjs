@@ -63,6 +63,9 @@
  * - `FAKE_ACP_CONFIG_SILENT_KEEP` — when `true`, `set_config_option` answers
  *   success while keeping the old `currentValue` (the omp/pi-acp
  *   cross-provider silent-keep, D4).
+ * - `FAKE_ACP_CONFIG_RESETS` — JSON `{ "<configId>": { "<optionId>": <currentValue> } }`:
+ *   setting the key also resets the named dependents in the response (a
+ *   model switch resetting effort agent-side).
  * - `FAKE_ACP_UNSOLICITED_UPDATES` — JSON array of update bodies sent after
  *   every `session/new` response (pi-acp startup-banner shape, D2);
  *   `FAKE_ACP_UNSOLICITED_DELAY_MS` delays them (default 50).
@@ -136,8 +139,16 @@ const UNSOLICITED_UPDATES = readJson(process.env.FAKE_ACP_UNSOLICITED_UPDATES, [
 const UNSOLICITED_DELAY_MS = Number(process.env.FAKE_ACP_UNSOLICITED_DELAY_MS ?? 50);
 
 const cancelledSessions = new Set();
+// Live per-agent config state: set_config_option mutates it, and every
+// response reports it — like a real agent, sequential changes accumulate.
+const liveOptions = new Map();
+const optionsFor = () => {
+  if (!CONFIG_OPTIONS) return null;
+  if (!liveOptions.has('options')) liveOptions.set('options', structuredClone(CONFIG_OPTIONS));
+  return liveOptions.get('options');
+};
 const sessionOptions = () => ({
-  ...(CONFIG_OPTIONS ? { configOptions: CONFIG_OPTIONS } : {}),
+  ...(optionsFor() ? { configOptions: structuredClone(optionsFor()) } : {}),
   ...(MODES ? { modes: MODES } : {}),
 });
 
@@ -323,13 +334,19 @@ const agent = new AgentSideConnection((client) => ({
     // value (the omp/pi-acp cross-provider silent-keep, D4). The caller must
     // detect the mismatch from `currentValue`, not from the RPC status.
     const silentKeep = process.env.FAKE_ACP_CONFIG_SILENT_KEEP === 'true';
-    const options = CONFIG_OPTIONS ?? [];
-    const next = (Array.isArray(options) ? options : []).map((option) => (
-      silentKeep && option?.id === params?.configId
-        ? option
-        : (option?.id === params?.configId ? { ...option, currentValue: params?.value ?? option?.currentValue } : option)
-    ));
-    return { configOptions: next };
+    const resets = readJson(process.env.FAKE_ACP_CONFIG_RESETS, {});
+    const dependent = resets?.[params?.configId];
+    const options = optionsFor() ?? [];
+    const next = (Array.isArray(options) ? options : []).map((option) => {
+      if (silentKeep && option?.id === params?.configId) return option;
+      if (option?.id === params?.configId) return { ...option, currentValue: params?.value ?? option?.currentValue };
+      if (dependent && typeof dependent === 'object' && option?.id in dependent) {
+        return { ...option, currentValue: dependent[option.id] };
+      }
+      return option;
+    });
+    if (optionsFor()) liveOptions.set('options', next);
+    return { configOptions: structuredClone(next) };
   },
   setSessionMode: async (params) => {
     process.stderr.write(`MODE:${JSON.stringify({ sessionId: params?.sessionId, modeId: params?.modeId })}\n`);

@@ -386,6 +386,44 @@ describe('acp session service', () => {
       event.type === 'session.patched' && event.properties.patch.metadata !== undefined))).toBe(true);
   });
 
+  it('keeps sequential model→effort changes in lastConfig (one-off inherits both)', async () => {
+    const { service, index } = await setup({
+      entry: {
+        env: {
+          FAKE_ACP_CONFIG_OPTIONS: JSON.stringify([
+            { id: 'model', name: 'Model', type: 'select', currentValue: 'm1' },
+            { id: 'effort', name: 'Effort', type: 'select', currentValue: 'low' },
+          ]),
+        },
+      },
+    });
+    const { session } = await service.create({ backendId: 'fake', directory: 'C:\\work' });
+    await service.config({ key: session.id, configId: 'model', value: 'm2' });
+    await service.config({ key: session.id, configId: 'effort', value: 'high' });
+    // The second change merges against the live entry, not the creation
+    // snapshot: the model must not roll back to m1.
+    await expect(index.get(session.id)).resolves.toMatchObject({ lastConfig: { model: 'm2', effort: 'high' } });
+  });
+
+  it('snapshots agent-side dependent resets from set_config_option responses', async () => {
+    const { service, index } = await setup({
+      entry: {
+        env: {
+          FAKE_ACP_CONFIG_OPTIONS: JSON.stringify([
+            { id: 'model', name: 'Model', type: 'select', currentValue: 'm1' },
+            { id: 'effort', name: 'Effort', type: 'select', currentValue: 'high' },
+          ]),
+          FAKE_ACP_CONFIG_RESETS: JSON.stringify({ model: { effort: 'default' } }),
+        },
+      },
+    });
+    const { session } = await service.create({ backendId: 'fake', directory: 'C:\\work' });
+    await service.config({ key: session.id, configId: 'model', value: 'm2' });
+    // The response reset effort agent-side: lastConfig carries the reset,
+    // not the stale pre-switch value.
+    await expect(index.get(session.id)).resolves.toMatchObject({ lastConfig: { model: 'm2', effort: 'default' } });
+  });
+
   it('surfaces prompt errors as session.error', async () => {
     const { service } = await setup({
       entry: {

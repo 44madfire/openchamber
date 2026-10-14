@@ -941,7 +941,12 @@ export const WalkthroughView = ({ directory: rootDirectory, visible = true }: Wa
           {/* Provider errors arrive as raw JSON bodies. Show a readable amount
               and keep the rest reachable rather than filling the panel. */}
           <span className="typography-meta line-clamp-2 text-foreground" title={entry.error.message}>
-            {entry.error.message}
+            {entry.error.code === 'ACP_ONEOFF_FAILED' || entry.error.code === 'ACP_ONEOFF_TIMEOUT'
+              ? t('acp.oneoff.failedDescription', {
+                  detail: entry.error.message,
+                  backend: entry.error.backendId ?? t('acp.oneoff.unknownBackend'),
+                })
+              : entry.error.message}
           </span>
         </div>
       )}

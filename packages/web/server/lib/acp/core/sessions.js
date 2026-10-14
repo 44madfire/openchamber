@@ -160,6 +160,27 @@ const promptErrorDetails = (error) => {
     code: error.code,
   };
 };
+/**
+ * Snapshot `{ configId: currentValue }` from an agent config-options array
+ * (session/new/load/resume), for the index `lastConfig`. Only scalar
+ * current values qualify; null/undefined/object values carry no settable
+ * state and are skipped. Returns null when nothing qualifies, so callers
+ * can omit the field.
+ */
+const lastConfigOfOptions = (configOptions) => {
+  if (!Array.isArray(configOptions)) return null;
+  const snapshot = {};
+  for (const option of configOptions) {
+    const id = option?.id;
+    const value = option?.currentValue;
+    if (typeof id !== 'string' || !id) continue;
+    if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') {
+      snapshot[id] = value;
+    }
+  }
+  return Object.keys(snapshot).length > 0 ? snapshot : null;
+};
+
 
 export const createAcpSessionService = ({
   manager,
@@ -435,6 +456,23 @@ export const createAcpSessionService = ({
     record.entry = { ...record.entry, title };
     index.upsert(record.key, { title, updated: now() }).catch(() => {});
   };
+  /**
+   * Merge an agent config-options array into the session's `lastConfig`
+   * (best-effort, like the other persists). The projector already applied
+   * the update; this keeps the index snapshot in step so the one-off
+   * helper reads live values. Skips the write when nothing changed.
+   */
+  const persistSessionConfig = (record, configOptions) => {
+    if (!record?.entry) return;
+    const snapshot = lastConfigOfOptions(configOptions);
+    if (!snapshot) return;
+    const merged = { ...(record.entry.lastConfig ?? {}), ...snapshot };
+    const changed = Object.entries(snapshot).some(([id, value]) => record.entry.lastConfig?.[id] !== value);
+    if (!changed && record.entry.lastConfig) return;
+    record.entry = { ...record.entry, lastConfig: merged };
+    index.upsert(record.key, { lastConfig: merged, updated: now() }).catch(() => {});
+  };
+
 
   /**
    * Persist the live transcript's message ids so a later rebuild (after
@@ -606,9 +644,12 @@ export const createAcpSessionService = ({
       record.lastUpdateAt = now();
       touch(record);
       persistAgentTitle(record);
-      // Config updates refresh the D9 cache; the picker reads it pre-session.
+      // Config updates refresh the D9 cache (the picker reads it
+      // pre-session) and the session's own lastConfig (the one-off
+      // helper reads it): an agent-side switch is live session state.
       if (params?.update?.sessionUpdate === 'config_option_update') {
         refreshConfigCache(backendId, currentConfigOptions(record));
+        persistSessionConfig(record, params?.update?.configOptions);
       }
       // Announcements and agent notices add transcript messages outside any
       // turn; their ids persist so post-restart rebuilds can remove them.
@@ -1575,12 +1616,18 @@ export const createAcpSessionService = ({
     }
     const key = encode(backendId, nativeId);
     const created = now();
+    // The one-off helper falls back to the calling session's current
+    // model/effort, so the index carries the agent's own starting values
+    // from birth: a session the user never reconfigured still resolves
+    // to values known to work for them.
+    const lastConfig = lastConfigOfOptions(response?.configOptions);
     const entry = await index.upsert(key, {
       backendId,
       nativeId,
       cwd,
       title: '',
       ...(typeof title === 'string' && title ? { userTitle: title } : {}),
+      ...(lastConfig ? { lastConfig } : {}),
       created,
       updated: created,
     });
@@ -1788,6 +1835,11 @@ export const createAcpSessionService = ({
           mcpServers: [],
         });
         existing.projector.seed(response, capsOf(connected));
+        const resumeConfig = lastConfigOfOptions(response?.configOptions);
+        if (resumeConfig) {
+          existing.entry = { ...existing.entry, lastConfig: { ...(existing.entry.lastConfig ?? {}), ...resumeConfig } };
+          await index.upsert(key, { lastConfig: existing.entry.lastConfig, updated: now() }).catch(() => {});
+        }
         return { session: existing.projector.session(), events: [] };
       }
       // Fall through to a full `load` replay below.
@@ -1863,6 +1915,12 @@ export const createAcpSessionService = ({
     projector.seed(response, caps);
     const { parentReplacement, parentBuffered } = endReplayTree(record);
     record.entry = { ...record.entry, messageIds: record.projector.transcriptIds().slice(-5000) };
+    // The load response re-reports the agent's current values: persist them
+    // so the one-off helper reads this session's live model/effort even
+    // when the user changed them in the TUI or on another client.
+    const loadConfig = lastConfigOfOptions(response?.configOptions);
+    const configPatch = loadConfig ? { lastConfig: { ...(record.entry.lastConfig ?? {}), ...loadConfig } } : {};
+    if (loadConfig) record.entry = { ...record.entry, ...configPatch };
     // The replay re-canonicalized the revert boundary (fresh ids): persist
     // the live boundary message id so cold list rows serve it too. The
     // pending note needs no restore — it lives in the entry already and
@@ -1870,11 +1928,11 @@ export const createAcpSessionService = ({
     const liveBoundary = record.projector.session().revert?.messageID;
     if (typeof liveBoundary === 'string' && liveBoundary && liveBoundary !== record.entry.revertMessageID) {
       record.entry = { ...record.entry, revertMessageID: liveBoundary };
-      await index.upsert(key, { revertMessageID: liveBoundary, messageIds: record.entry.messageIds, updated: now() }).catch(() => {});
+      await index.upsert(key, { revertMessageID: liveBoundary, messageIds: record.entry.messageIds, updated: now(), ...configPatch }).catch(() => {});
     } else if (projector.session().title && projector.session().title !== entry.title && !entry.userTitle) {
-      await index.upsert(key, { title: projector.session().title, messageIds: record.entry.messageIds, updated: now() }).catch(() => {});
+      await index.upsert(key, { title: projector.session().title, messageIds: record.entry.messageIds, updated: now(), ...configPatch }).catch(() => {});
     } else {
-      await index.upsert(key, { messageIds: record.entry.messageIds, updated: now() }).catch(() => {});
+      await index.upsert(key, { messageIds: record.entry.messageIds, updated: now(), ...configPatch }).catch(() => {});
     }
     const events = [...parentReplacement, ...parentBuffered];
     emitSync(cwd, events);
@@ -2061,9 +2119,10 @@ export const createAcpSessionService = ({
         update: { sessionUpdate: 'current_mode_update', currentModeId: value },
       });
       emitSync(record.directory, syncEvents);
+      record.entry = { ...record.entry, lastConfig: { ...(record.entry.lastConfig ?? {}), [configId]: value } };
       await index.upsert(key, {
         updated: now(),
-        lastConfig: { ...(record.entry.lastConfig ?? {}), [configId]: value },
+        lastConfig: record.entry.lastConfig,
       }).catch(() => {});
       touch(record);
       return;
@@ -2106,12 +2165,30 @@ export const createAcpSessionService = ({
       emitSync(record.directory, syncEvents);
       refreshConfigCache(record.backendId, currentConfigOptions(record));
     }
+    // Session state follows the agent, not the request: a silent keep
+    // persists the agent's value so reopen/reconcile cannot resurrect
+    // the rejected one. Only ids the response actually reports snapshot
+    // in — untouched ids keep the entry's values, and a model switch
+    // that resets dependents (effort) agent-side carries those resets.
+    const lastConfig = { ...(record.entry.lastConfig ?? {}) };
+    if (Array.isArray(response?.configOptions)) {
+      for (const option of response.configOptions) {
+        const id = option?.id;
+        const current = option?.currentValue;
+        if (typeof id !== 'string' || !id) continue;
+        if (typeof current === 'string' || typeof current === 'number' || typeof current === 'boolean') {
+          lastConfig[id] = current;
+        }
+      }
+      // This op's own id always lands, even when the response omits it.
+      lastConfig[configId] = applied ?? value;
+    } else {
+      lastConfig[configId] = applied ?? value;
+    }
+    record.entry = { ...record.entry, lastConfig };
     await index.upsert(key, {
       updated: now(),
-      // Session state follows the agent, not the request: a silent keep
-      // persists the agent's value so reopen/reconcile cannot resurrect
-      // the rejected one.
-      lastConfig: { ...(record.entry.lastConfig ?? {}), [configId]: applied ?? value },
+      lastConfig,
     }).catch(() => {});
     touch(record);
     if (mismatch) {
@@ -2469,12 +2546,19 @@ export const createAcpSessionService = ({
     const forkKey = encode(record.backendId, nativeId);
     const created = now();
     const sourceEntry = record.entry;
+    // The fork keeps the source's transcript, so it keeps the source's
+    // config too; the fork reply's own values win per-field when present.
+    const forkConfig = {
+      ...(sourceEntry?.lastConfig ?? {}),
+      ...(lastConfigOfOptions(forked?.configOptions) ?? {}),
+    };
     const entry = await index.upsert(forkKey, {
       backendId: record.backendId,
       nativeId,
       cwd: record.directory,
       title: sourceEntry.title ?? '',
       ...(sourceEntry.userTitle ? { userTitle: sourceEntry.userTitle } : {}),
+      ...(Object.keys(forkConfig).length > 0 ? { lastConfig: forkConfig } : {}),
       ...(typeof pendingRevertNote === 'string' && pendingRevertNote ? { pendingRevertNote } : {}),
       created,
       updated: created,
@@ -2560,7 +2644,12 @@ export const createAcpSessionService = ({
     forkedRecord.replaying = false;
     forkedRecord.replayBuffer = null;
     forkedRecord.entry = { ...forkedRecord.entry, messageIds: forkedRecord.projector.transcriptIds().slice(-5000) };
-    await index.upsert(forkedRecord.key, { messageIds: forkedRecord.entry.messageIds, updated: now() }).catch(() => {});
+    const forkLoadConfig = lastConfigOfOptions(response?.configOptions);
+    const forkConfigPatch = forkLoadConfig
+      ? { lastConfig: { ...(forkedRecord.entry.lastConfig ?? {}), ...forkLoadConfig } }
+      : {};
+    if (forkLoadConfig) forkedRecord.entry = { ...forkedRecord.entry, ...forkConfigPatch };
+    await index.upsert(forkedRecord.key, { messageIds: forkedRecord.entry.messageIds, updated: now(), ...forkConfigPatch }).catch(() => {});
     if (opening.get(forkedRecord.key) === gate) opening.delete(forkedRecord.key);
     releaseOpening();
     const events = [...replacement, ...buffered];

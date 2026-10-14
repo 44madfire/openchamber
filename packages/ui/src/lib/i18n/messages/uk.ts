@@ -3788,4 +3788,7 @@ export const dict: Record<I18nKey, string> = {
   'sessions.scheduledTasks.dialog.toast.alreadyRunning': 'Ця задача вже виконується',
   'sessions.scheduledTasks.dialog.toast.alreadyQueued': 'Ця задача вже чекає в черзі й запуститься, щойно звільниться місце',
   'chat.modelControls.agentFavoriteAdd': 'Додати в обрані. Коли є обрані, Tab перемикає лише між ними',
+  'acp.oneoff.failed': 'Агент не зміг завершити цю дію',
+  'acp.oneoff.failedDescription': '{detail} — виберіть робочу модель у Налаштування → Агенти (ACP) → {backend} → Допоміжна модель.',
+  'acp.oneoff.unknownBackend': 'бекенд',
 };

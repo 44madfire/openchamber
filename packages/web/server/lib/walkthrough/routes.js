@@ -29,6 +29,8 @@ export function registerWalkthroughRoutes(app, { getWalkthroughService, validate
       ...(error?.model ? { model: error.model } : {}),
       ...(Number.isFinite(error?.requiredChars) ? { requiredChars: error.requiredChars } : {}),
       ...(Number.isFinite(error?.availableChars) ? { availableChars: error.availableChars } : {}),
+      ...(typeof error?.backendId === 'string' && error.backendId ? { backendId: error.backendId } : {}),
+      ...(error?.agentCode !== undefined ? { agentCode: error.agentCode } : {}),
     });
   };
 

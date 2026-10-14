@@ -3787,4 +3787,7 @@ export const dict = {
   'sessions.scheduledTasks.dialog.toast.alreadyRunning': 'Deze taak heeft al een run bezig',
   'sessions.scheduledTasks.dialog.toast.alreadyQueued': 'Deze taak staat al in de wachtrij en draait zodra er plek vrijkomt',
   'chat.modelControls.agentFavoriteAdd': 'Toevoegen aan favorieten. Met favorieten wisselt Tab alleen daartussen',
+  'acp.oneoff.failed': 'De agent kon deze actie niet voltooien',
+  'acp.oneoff.failedDescription': '{detail} — kies een werkend model in Instellingen → Agents (ACP) → {backend} → Helpermodel.',
+  'acp.oneoff.unknownBackend': 'de backend',
 } as const;

@@ -17,6 +17,7 @@ interface ErrorPayload {
   model?: unknown;
   requiredChars?: unknown;
   availableChars?: unknown;
+  backendId?: unknown;
 }
 
 const isJsonResponse = (response: Response): boolean =>
@@ -49,6 +50,7 @@ const throwFromResponse = async (response: Response, fallback: string): Promise<
     model: (payload?.model as WalkthroughResult['model']) ?? undefined,
     requiredChars: typeof payload?.requiredChars === 'number' ? payload.requiredChars : undefined,
     availableChars: typeof payload?.availableChars === 'number' ? payload.availableChars : undefined,
+    backendId: typeof payload?.backendId === 'string' ? payload.backendId : undefined,
   });
 };
 

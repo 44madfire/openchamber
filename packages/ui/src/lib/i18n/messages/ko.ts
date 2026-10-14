@@ -3787,4 +3787,7 @@ export const dict: Record<I18nKey, string> = {
   'sessions.scheduledTasks.dialog.toast.alreadyRunning': '이 작업은 이미 실행 중입니다',
   'sessions.scheduledTasks.dialog.toast.alreadyQueued': '이 작업은 이미 대기열에 있으며 자리가 나면 실행됩니다',
   'chat.modelControls.agentFavoriteAdd': '즐겨찾기에 추가. 즐겨찾기가 있으면 Tab은 그 안에서만 전환합니다',
+  'acp.oneoff.failed': '에이전트가 이 작업을 완료하지 못했습니다',
+  'acp.oneoff.failedDescription': '{detail} — 설정 → 에이전트(ACP) → {backend} → 헬퍼 모델에서 작동하는 모델을 선택하세요.',
+  'acp.oneoff.unknownBackend': '백엔드',
 };

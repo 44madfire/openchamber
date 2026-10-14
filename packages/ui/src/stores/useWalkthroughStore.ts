@@ -31,6 +31,7 @@ interface WalkthroughEntry {
     model?: WalkthroughModel;
     requiredChars?: number;
     availableChars?: number;
+    backendId?: string;
   } | null;
 }
 
@@ -79,6 +80,7 @@ const toError = (error: unknown): WalkthroughEntry['error'] => {
       model: error.model,
       requiredChars: error.requiredChars,
       availableChars: error.availableChars,
+      backendId: error.backendId,
     };
   }
   return { message: error instanceof Error ? error.message : 'Something went wrong' };

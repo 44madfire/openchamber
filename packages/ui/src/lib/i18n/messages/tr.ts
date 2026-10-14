@@ -3785,4 +3785,7 @@ export const dict = {
   'sessions.scheduledTasks.dialog.toast.alreadyRunning': 'Bu görevin bir çalıştırması zaten sürüyor',
   'sessions.scheduledTasks.dialog.toast.alreadyQueued': 'Bu görev zaten kuyrukta bekliyor; yer açılınca çalışacak',
   'chat.modelControls.agentFavoriteAdd': 'Favorilere ekle. Favori varsa Tab yalnızca onlar arasında geçiş yapar',
+  'acp.oneoff.failed': 'Aracı bu işlemi tamamlayamadı',
+  'acp.oneoff.failedDescription': '{detail} — Ayarlar → Aracılar (ACP) → {backend} → Yardımcı model bölümünden çalışan bir model seçin.',
+  'acp.oneoff.unknownBackend': 'arka uç',
 };
