@@ -1,4 +1,5 @@
 import React from 'react';
+import { isAcpUnsupported } from '@/lib/acp/capabilities';
 import type { Part } from '@/lib/opencode/model';
 import { isQuestionTool } from '@/lib/opencode/tools';
 
@@ -2230,7 +2231,7 @@ const AssistantMessageBody = React.memo(({
                 onSelect: () => { onToggleContextPin(); },
             });
         }
-        if (!isMiniChatSurface && !isReviewSessionView) {
+        if (!isMiniChatSurface && !isReviewSessionView && !isAcpUnsupported(sessionId, 'fork')) {
             actions.push({
                 id: 'fork-from-here',
                 label: t('chat.messageBody.actions.fork'),
@@ -2343,10 +2344,12 @@ const AssistantMessageBody = React.memo(({
                         <TooltipContent sideOffset={6}>{t('chat.messageBody.actions.branchMenu')}</TooltipContent>
                     </Tooltip>
                     <DropdownMenuContent align="end" onPointerDown={(event) => event.stopPropagation()}>
+                        {isAcpUnsupported(sessionId, 'fork') ? null : (
                         <DropdownMenuItem className="typography-meta" onSelect={handleForkFromHere}>
                             <Icon name="git-branch" className="h-3.5 w-3.5" />
                             {t('chat.messageBody.actions.fork')}
                         </DropdownMenuItem>
+                        )}
                         <DropdownMenuItem className="typography-meta" onSelect={() => handleForkClick()}>
                             <Icon name="chat-new" className="h-3.5 w-3.5" />
                             {t('chat.messageBody.actions.startNewSession')}

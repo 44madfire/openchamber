@@ -17,6 +17,8 @@ const createApp = () => {
       get: (routePath, handler) => { routes.set(`GET ${routePath}`, handler); },
       put: (routePath, ...handlers) => { routes.set(`PUT ${routePath}`, handlers.at(-1)); },
       post: (routePath, ...handlers) => { routes.set(`POST ${routePath}`, handlers.at(-1)); },
+      patch: (routePath, ...handlers) => { routes.set(`PATCH ${routePath}`, handlers.at(-1)); },
+      delete: (routePath, handler) => { routes.set(`DELETE ${routePath}`, handler); },
     },
     call: async (method, routePath, { params = {}, body } = {}) => {
       const handler = routes.get(`${method} ${routePath}`);

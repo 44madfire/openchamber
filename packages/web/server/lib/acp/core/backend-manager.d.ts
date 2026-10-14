@@ -55,7 +55,7 @@ export declare function createAcpBackendManager(options?: {
   connectAgent?: typeof connectAcpAgent;
   idleReapMs?: number;
   now?: () => number;
-  connectionHooks?: AcpConnectionHooks;
+  connectionHooks?: AcpConnectionHooks | ((backendId: string, generation: number) => AcpConnectionHooks);
   timeouts?: { earlyExitMs?: number; initializeMs?: number };
   clientInfo?: { name?: string; version?: string };
   onConnect?: (info: AcpConnectInfo) => void;

@@ -1,0 +1,8 @@
+{"sessionUpdate":"available_commands_update","availableCommands":[{"name":"compact","description":"Compact the session"}]}
+{"sessionUpdate":"session_info_update","title":"Exact reply request: HISTORY-MARKER-1","updatedAt":"2026-10-11T20:55:38.508Z"}
+{"sessionUpdate":"agent_thought_chunk","messageId":"msg_12cbff4b4001rhCcp34kbrC2H1:reasoning:0","content":{"type":"text","text":"The user hasn't given a"}}
+{"sessionUpdate":"agent_thought_chunk","messageId":"msg_12cbff4b4001rhCcp34kbrC2H1:reasoning:0","content":{"type":"text","text":" new instruction beyond the checkpoint."}}
+{"sessionUpdate":"agent_message_chunk","messageId":"msg_12cbff4b4001rhCcp34kbrC2H1","content":{"type":"text","text":"Ready when you are."}}
+{"sessionUpdate":"usage_update","used":9426,"size":1000000,"cost":{"amount":0.0008955,"currency":"USD"}}
+{"sessionUpdate":"session_info_update","title":"Exact reply request: HISTORY-MARKER-1","updatedAt":"2026-10-11T20:55:39.000Z"}
+{"sessionUpdate":"__result__","stopReason":"end_turn","usage":{"inputTokens":6,"outputTokens":72,"totalTokens":18821,"cachedReadTokens":18594,"cachedWriteTokens":149}}

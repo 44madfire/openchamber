@@ -25,8 +25,30 @@
  *   `session/request_permission` with that body and records the outcome on
  *   stderr as `PERMISSION:<json>`; `{ elicitation }` sends
  *   `elicitation/create` and records `ELICITATION:<json>`; `{ notify: { method,
- *   params } }` sends a raw notification (extension traffic).
+ *   params } }` sends a raw notification (extension traffic); `{ holdForCancel:
+ *   ms }` waits up to `ms` for a `session/cancel` and then finishes with
+ *   `cancelled` (records `CANCELLED:<sessionId>`); `{ error: { code, message }
+ *   }` throws a JSON-RPC error out of the prompt.
  *   `{ stopReason }` as the last step overrides the prompt result.
+ * - `FAKE_ACP_SESSIONS` — JSON array of `{ sessionId, cwd, title?, updatedAt?
+ *   }` pre-seeded for `session/list` (filtering by `cwd` when given).
+ * - `FAKE_ACP_LOAD_REPLAY` — JSON array of `session/update` bodies replayed
+ *   (in order) on every `session/load` before it responds.
+ * - `FAKE_ACP_CONFIG_OPTIONS` — JSON array answered as `configOptions` from
+ *   `session/new`, `session/load` and `session/resume`.
+ * - `FAKE_ACP_MODES` — JSON `{ currentModeId, availableModes }` answered as
+ *   `modes` from `session/new`, `session/load` and `session/resume`.
+ * - `FAKE_ACP_DELETE` — when `true`, `session/delete` removes the session and
+ *   records `DELETE:<sessionId>`; otherwise it throws method-not-found.
+ * - `FAKE_ACP_CLOSE` — when `true`, `session/close` records
+ *   `CLOSE:<sessionId>`; otherwise it throws method-not-found.
+ * - `FAKE_ACP_RESUME` — when `true`, `session/resume` answers with the
+ *   configured options/modes and records `RESUME:<sessionId>`; otherwise it
+ *   throws method-not-found.
+ * - `FAKE_ACP_LOAD_ERROR` — JSON `{ code, message }`: `session/load` throws
+ *   it instead of replaying.
+ * - `FAKE_ACP_PROMPT_RECORD` — when set, every prompt's `{ sessionId, prompt
+ *   }` is recorded on stderr as `PROMPT:<json>`.
  * - `FAKE_ACP_AUTHENTICATE` — JSON object: when set, `authenticate` stores
  *   the received `methodId` on stderr as `AUTHENTICATE:<methodId>` and
  *   answers `{}`; otherwise `authenticate` throws method-not-found.
@@ -79,9 +101,29 @@ if (process.env.FAKE_ACP_EXIT_CODE !== undefined && process.env.FAKE_ACP_EXIT_CO
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 const sessions = new Map();
+for (const seed of readJson(process.env.FAKE_ACP_SESSIONS, [])) {
+  if (seed && typeof seed.sessionId === 'string') sessions.set(seed.sessionId, { ...seed });
+}
 let nextSession = 1;
+const LOAD_REPLAY = readJson(process.env.FAKE_ACP_LOAD_REPLAY, []);
+const CONFIG_OPTIONS = readJson(process.env.FAKE_ACP_CONFIG_OPTIONS, null);
+const MODES = readJson(process.env.FAKE_ACP_MODES, null);
+const SUPPORTS_DELETE = process.env.FAKE_ACP_DELETE === 'true';
+const SUPPORTS_CLOSE = process.env.FAKE_ACP_CLOSE === 'true';
+const SUPPORTS_RESUME = process.env.FAKE_ACP_RESUME === 'true';
+const LOAD_ERROR = readJson(process.env.FAKE_ACP_LOAD_ERROR, null);
+const RECORD_PROMPTS = process.env.FAKE_ACP_PROMPT_RECORD !== undefined && process.env.FAKE_ACP_PROMPT_RECORD !== '';
 
-const runPromptScript = async (agent, sessionId) => {
+const cancelledSessions = new Set();
+const sessionOptions = () => ({
+  ...(CONFIG_OPTIONS ? { configOptions: CONFIG_OPTIONS } : {}),
+  ...(MODES ? { modes: MODES } : {}),
+});
+
+const runPromptScript = async (agent, sessionId, prompt) => {
+  if (RECORD_PROMPTS) {
+    process.stderr.write(`PROMPT:${JSON.stringify({ sessionId, prompt: prompt ?? null })}\n`);
+  }
   let stopReason = 'end_turn';
   for (const step of PROMPT_SCRIPT) {
     if (!step || typeof step !== 'object') continue;
@@ -99,6 +141,22 @@ const runPromptScript = async (agent, sessionId) => {
     }
     if (step.notify) {
       await agent.notify(step.notify.method, { sessionId, ...(step.notify.params ?? {}) });
+    }
+    if (typeof step.holdForCancel === 'number') {
+      const deadline = Date.now() + step.holdForCancel;
+      while (!cancelledSessions.has(sessionId) && Date.now() < deadline) {
+        await sleep(10);
+      }
+      if (cancelledSessions.has(sessionId)) {
+        process.stderr.write(`CANCELLED:${sessionId}\n`);
+        return { stopReason: 'cancelled' };
+      }
+    }
+    if (step.error) {
+      const failure = new Error(step.error.message ?? 'fake prompt error');
+      if (step.error.code !== undefined) failure.code = step.error.code;
+      if (step.error.data !== undefined) failure.data = step.error.data;
+      throw failure;
     }
     if (typeof step.stopReason === 'string') stopReason = step.stopReason;
   }
@@ -130,15 +188,74 @@ const agent = new AgentSideConnection((client) => ({
     process.stderr.write(`AUTHENTICATE:${params?.methodId ?? ''}\n`);
     return {};
   },
-  newSession: async () => {
+  newSession: async (params) => {
     const sessionId = `fake-session-${nextSession++}`;
-    sessions.set(sessionId, { created: Date.now() });
-    return { sessionId };
+    sessions.set(sessionId, { sessionId, cwd: params?.cwd ?? null, title: '' });
+    return { sessionId, ...sessionOptions() };
   },
-  loadSession: async () => ({}),
-  listSessions: async () => ({ sessions: [] }),
-  prompt: async (params) => runPromptScript(client, params.sessionId),
-  cancel: async () => {},
+  loadSession: async (params) => {
+    if (LOAD_ERROR) {
+      const failure = new Error(LOAD_ERROR.message ?? 'fake load error');
+      if (LOAD_ERROR.code !== undefined) failure.code = LOAD_ERROR.code;
+      throw failure;
+    }
+    const sessionId = params?.sessionId;
+    for (const update of LOAD_REPLAY) {
+      await client.sessionUpdate({ sessionId, update });
+    }
+    return { ...sessionOptions() };
+  },
+  listSessions: async (params) => {
+    const rows = [...sessions.values()]
+      .filter((row) => !params?.cwd || row.cwd === params.cwd)
+      .map((row) => ({
+        sessionId: row.sessionId,
+        cwd: row.cwd ?? params?.cwd ?? 'C:\\fake',
+        ...(row.title !== undefined ? { title: row.title } : {}),
+        ...(row.updatedAt !== undefined ? { updatedAt: row.updatedAt } : {}),
+      }));
+    return { sessions: rows };
+  },
+  deleteSession: async (params) => {
+    if (!SUPPORTS_DELETE) {
+      const error = new Error('Method not found: session/delete');
+      error.code = -32601;
+      throw error;
+    }
+    sessions.delete(params?.sessionId);
+    process.stderr.write(`DELETE:${params?.sessionId ?? ''}\n`);
+    return {};
+  },
+  closeSession: async (params) => {
+    if (!SUPPORTS_CLOSE) {
+      const error = new Error('Method not found: session/close');
+      error.code = -32601;
+      throw error;
+    }
+    process.stderr.write(`CLOSE:${params?.sessionId ?? ''}\n`);
+    return {};
+  },
+  resumeSession: async (params) => {
+    if (!SUPPORTS_RESUME) {
+      const error = new Error('Method not found: session/resume');
+      error.code = -32601;
+      throw error;
+    }
+    process.stderr.write(`RESUME:${params?.sessionId ?? ''}\n`);
+    return { ...sessionOptions() };
+  },
+  setSessionConfigOption: async (params) => {
+    process.stderr.write(`CONFIG:${JSON.stringify({ sessionId: params?.sessionId, configId: params?.configId, value: params?.value })}\n`);
+    return { configOptions: CONFIG_OPTIONS ?? [] };
+  },
+  setSessionMode: async (params) => {
+    process.stderr.write(`MODE:${JSON.stringify({ sessionId: params?.sessionId, modeId: params?.modeId })}\n`);
+    return {};
+  },
+  prompt: async (params) => runPromptScript(client, params.sessionId, params?.prompt),
+  cancel: async (params) => {
+    if (params?.sessionId) cancelledSessions.add(params.sessionId);
+  },
 }), stream);
 
 await agent.closed;

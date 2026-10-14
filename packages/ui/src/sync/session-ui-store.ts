@@ -401,6 +401,8 @@ export type NewSessionDraftState = {
   directoryOverride: string | null
   /** Chosen with the composer's shield button; absent means the new session takes the default from Settings. */
   permissionMode?: PermissionMode
+  /** ACP backend the new session runs on; absent/null means the default OpenCode agent. */
+  acpBackendId?: string | null
   pendingWorktreeRequestId?: string | null
   bootstrapPendingDirectory?: string | null
   preserveDirectoryOverride?: boolean
@@ -453,6 +455,7 @@ export type SessionUIState = {
   setNewSessionDraftTarget: (target: { projectId?: string | null; selectedProjectId?: string | null; directoryOverride?: string | null }, options?: { force?: boolean }) => void
   setDraftPreserveDirectoryOverride: (value: boolean) => void
   setDraftPermissionMode: (mode: PermissionMode) => void
+  setDraftAcpBackendId: (backendId: string | null) => void
   setDraftProjectContextPin: (kind: "note" | "plan", id: string, pinned: boolean) => void
   acknowledgeSessionAbort: (sessionId: string) => void
   clearAbortPrompt: () => void
@@ -1052,6 +1055,7 @@ export async function materializeOpenDraftSession(selection: {
     {
       model: { providerID: selection.providerID, id: selection.modelID, variant: selection.variant },
       agent: trimmedAgent,
+      ...(draft.acpBackendId ? { acpBackendId: draft.acpBackendId } : {}),
     },
   )
   if (!created?.id) {
@@ -1621,6 +1625,12 @@ export const useSessionUIStore = create<SessionUIState>()((set, get) => ({
     set((s) => {
       if (!s.newSessionDraft?.open) return s
       return { newSessionDraft: { ...s.newSessionDraft, permissionMode: mode } }
+    }),
+
+  setDraftAcpBackendId: (backendId) =>
+    set((s) => {
+      if (!s.newSessionDraft?.open) return s
+      return { newSessionDraft: { ...s.newSessionDraft, acpBackendId: backendId } }
     }),
 
   setDraftProjectContextPin: (kind, id, pinned) =>

@@ -10,6 +10,7 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { useSessionUIStore } from '@/sync/session-ui-store';
 import { useSessionMessageRecords } from '@/sync/sync-context';
+import { isAcpUnsupported } from '@/lib/acp/capabilities';
 import { useChatSessionSelection } from './chatColumnSession';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { Icon } from "@/components/icon/Icon";
@@ -110,6 +111,8 @@ const TimelineDialogBody: React.FC<TimelineDialogBodyProps> = ({
     const messages = useSessionMessageRecords(currentSessionId, currentSessionDirectory);
     const revertToMessage = useSessionUIStore((state) => state.revertToMessage);
     const forkFromMessage = useSessionUIStore((state) => state.forkFromMessage);
+    const revertHidden = isAcpUnsupported(currentSessionId, "revert");
+    const forkHidden = isAcpUnsupported(currentSessionId, "fork");
     const { isMobile, isTablet } = useDeviceInfo();
     const alwaysShowActions = isMobile || isTablet;
 
@@ -402,6 +405,7 @@ const TimelineDialogBody: React.FC<TimelineDialogBodyProps> = ({
 
                                         <div className="flex-shrink-0 h-5 flex items-center mr-2">
                                             <div className={cn("gap-1", alwaysShowActions ? "flex" : "hidden group-hover:flex")}>
+                                                {revertHidden ? null : (
                                                 <Tooltip>
                                                     <TooltipTrigger asChild>
                                                         <button
@@ -418,7 +422,9 @@ const TimelineDialogBody: React.FC<TimelineDialogBodyProps> = ({
                                                     </TooltipTrigger>
                                                     <TooltipContent sideOffset={6}>{t('chat.timeline.actions.revertFromHere')}</TooltipContent>
                                                 </Tooltip>
+                                                )}
 
+                                                {forkHidden ? null : (
                                                 <Tooltip>
                                                     <TooltipTrigger asChild>
                                                         <button
@@ -439,6 +445,7 @@ const TimelineDialogBody: React.FC<TimelineDialogBodyProps> = ({
                                                     </TooltipTrigger>
                                                     <TooltipContent sideOffset={6}>{t('chat.timeline.actions.forkFromHere')}</TooltipContent>
                                                 </Tooltip>
+                                                )}
                                             </div>
                                         </div>
                                     </div>

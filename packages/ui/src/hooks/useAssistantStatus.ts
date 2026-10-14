@@ -1,5 +1,6 @@
 import React from 'react';
 import { useChatSessionSelection } from '@/components/chat/chatColumnSession';
+import { isAcpUnsupported } from '@/lib/acp/capabilities';
 import type { Message, ModelRef, Part, ReasoningPart, TextPart, ToolPart } from '@/lib/opencode/model';
 import { executeToolCalls, isExecuteTool, isShellTool, isSubagentTool } from '@/lib/opencode/tools';
 
@@ -503,9 +504,9 @@ export function useAssistantStatus(): AssistantStatusSnapshot {
             lastCompletionId: null,
             isComplete: false,
             retryInfo,
-            canBackground: isWorking && parsedStatus.canBackground,
+            canBackground: isWorking && parsedStatus.canBackground && !isAcpUnsupported(currentSessionId, "background"),
         };
-    }, [activityPhase, isPhaseWorking, parsedStatus, abortState, sessionRetryAttempt, sessionRetryNext, assistantRetry]);
+    }, [activityPhase, isPhaseWorking, parsedStatus, abortState, sessionRetryAttempt, sessionRetryNext, assistantRetry, currentSessionId]);
 
     const forming = React.useMemo<FormingSummary>(() => {
         const isActive = isPhaseWorking && parsedStatus.activePartType === 'text';

@@ -244,10 +244,16 @@ export const createAcpBackendManager = ({
         args: entry.args ?? [],
         env: entry.env,
       });
+      // `connectionHooks` may be a factory: each connection generation gets
+      // hooks bound to its backend, so agent→client traffic can never be
+      // attributed to another backend's session by payload inspection.
+      const hooks = typeof connectionHooks === 'function'
+        ? connectionHooks(backendId, generation)
+        : connectionHooks;
       connected = await connectAgent({
         child: spawned.child,
         getStderrTail: () => spawned.getStderrTail(),
-        hooks: connectionHooks,
+        hooks,
         timeouts,
         clientName: clientInfo?.name,
         clientVersion: clientInfo?.version,
@@ -291,11 +297,18 @@ export const createAcpBackendManager = ({
     }
 
     record.spawned = spawned;
+    // The connection's generation, for generation-bound agent→client hooks:
+    // callbacks stamped with an older generation must not reach records
+    // adopted after a restart.
+    try {
+      connected.generation = generation;
+    } catch {
+      // A frozen test double: generation binding degrades to identity checks.
+    }
     record.connected = connected;
     record.state = 'ready';
     record.lastError = null;
     record.entry = entry;
-    touch(backendId, record);
     const status = snapshot(backendId, record);
     events.emit('backend-ready', { backendId, status });
     if (typeof onConnect === 'function') {

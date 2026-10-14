@@ -3349,3 +3349,104 @@ describe("setSessionWorkState", () => {
     expect(globalUpsertedSessions).toHaveLength(0)
   })
 });
+
+describe("ACP session guards", () => {
+  beforeEach(() => {
+    replyCalls.length = 0
+  })
+
+  test("move, revert, and fork fail fast for ACP sessions without any SDK call", async () => {
+    const { AcpUnsupportedError } = await import("@/lib/acp/client")
+    const { forkAfterMessage, forkFromMessage, moveSessionToDirectory, revertToMessage, setActionRefs } = await import("./session-actions")
+    setActionRefs(createChildStores([]), () => "/source")
+
+    const session = { id: "ses_acp-omp_r1", directory: "/source" } as Session
+    await expect(moveSessionToDirectory(session, "/source", "/destination")).rejects.toBeInstanceOf(AcpUnsupportedError)
+    await expect(revertToMessage("ses_acp-omp_r1", "msg_1")).rejects.toBeInstanceOf(AcpUnsupportedError)
+    await expect(forkAfterMessage("ses_acp-omp_r1", "msg_1")).rejects.toBeInstanceOf(AcpUnsupportedError)
+    await expect(forkFromMessage("ses_acp-omp_r1", "msg_1")).rejects.toBeInstanceOf(AcpUnsupportedError)
+    expect(replyCalls).toHaveLength(0)
+  })
+
+  test("an ACP send inserts one folded optimistic user record, reconciled by the echo", async () => {
+    const targetStore = createStore({})
+    const childStores = createChildStores([["/target/project", targetStore]])
+    const shadow = new Map<string, { message: Message; parts: Part[] }>()
+    let sentMessageID = ""
+    let sentContext: Array<{ id?: string; text: string }> = []
+
+    const { optimisticSend, setActionRefs, setOptimisticRefs } = await import("./session-actions")
+    const { applyDirectoryEvent } = await import("./event-reducer")
+    const { mergeOptimisticPage } = await import("./optimistic")
+    const { partIds } = await import("@/lib/opencode/model")
+    setActionRefs(childStores, () => "/target/project")
+    setOptimisticRefs(
+      (input) => {
+        shadow.set(input.message.id, { message: input.message, parts: input.parts })
+        targetStore.setState((state) => ({
+          message: { ...state.message, [input.sessionID]: [...(state.message[input.sessionID] ?? []), input.message] },
+          part: { ...state.part, [input.message.id]: input.parts },
+        }))
+      },
+      (input) => {
+        shadow.delete(input.messageID)
+        targetStore.setState((state) => ({
+          message: {
+            ...state.message,
+            [input.sessionID]: (state.message[input.sessionID] ?? []).filter((message) => message.id !== input.messageID),
+          },
+        }))
+      },
+      (input) => shadow.delete(input.messageID),
+    )
+
+    await optimisticSend({
+      sessionId: "ses_acp-omp_r1",
+      directory: "/target/project",
+      content: "question",
+      context: [{ text: "context one" }, { text: "   " }, { text: "context two" }],
+      leadingContext: Promise.resolve({ text: "knowledge" }),
+      send: async (messageID, context) => {
+        sentMessageID = messageID
+        sentContext = context
+      },
+    })
+
+    // One user record, folded identically to the transport; no synthetics linger.
+    const folded = "knowledge\n\ncontext one\n\ncontext two\n\nquestion"
+    expect(sentContext.map((item) => item.text)).toEqual(["knowledge", "context one", "context two"])
+    expect([...shadow.keys()]).toEqual([sentMessageID])
+    expect(targetStore.getState().message["ses_acp-omp_r1"].map((message) => message.id)).toEqual([sentMessageID])
+    const optimisticText = targetStore.getState().part[sentMessageID].find((part) => part.type === "text")
+    expect(optimisticText).toMatchObject({ id: partIds.userText(sentMessageID), text: folded })
+
+    // The server echo (same id, same fold) replaces the optimistic record in place.
+    const draft = targetStore.getState()
+    applyDirectoryEvent(draft, {
+      type: "message.updated",
+      properties: { info: { id: sentMessageID, role: "user", sessionID: "ses_acp-omp_r1", time: { created: 1 } } },
+    })
+    applyDirectoryEvent(draft, {
+      type: "message.parts.replaced",
+      properties: {
+        sessionID: "ses_acp-omp_r1",
+        messageID: sentMessageID,
+        parts: [{ id: partIds.userText(sentMessageID), sessionID: "ses_acp-omp_r1", messageID: sentMessageID, type: "text", text: folded }],
+      },
+    })
+    targetStore.setState({ message: draft.message, part: draft.part })
+    expect(targetStore.getState().message["ses_acp-omp_r1"].map((message) => message.id)).toEqual([sentMessageID])
+
+    // A history page carrying the echo confirms the shadow: nothing re-adds.
+    const merged = mergeOptimisticPage(
+      {
+        session: targetStore.getState().message["ses_acp-omp_r1"],
+        part: [{ id: sentMessageID, part: targetStore.getState().part[sentMessageID] }],
+        complete: true,
+      },
+      [...shadow.values()],
+    )
+    expect(merged.confirmed).toEqual([sentMessageID])
+    expect(merged.session.map((message) => message.id)).toEqual([sentMessageID])
+  })
+});

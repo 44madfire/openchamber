@@ -1,5 +1,6 @@
 import React from 'react';
 import { modelVariantNames } from '@/lib/modelVariants';
+import { isAcpUnsupported } from '@/lib/acp/capabilities';
 import { findCatalogModel, type Message, type Part } from '@/lib/opencode/model';
 import { useShallow } from 'zustand/react/shallow';
 
@@ -186,6 +187,11 @@ const ChatMessage: React.FC<ChatMessageProps> = ({
     const showStickyInlineHoverRow = isUser && !isMobile && stickyUserHeader && !useExternalUserActionsRow;
 
     const sessionId = message.info.sessionID;
+    // ACP sessions have no staged revert, and fork only when the backend
+    // advertises it (M1: none does). The buttons hide instead of failing.
+    const sessionForCapabilities = useGlobalSessionsStore((state) => (sessionId ? state.entityById.get(sessionId) : undefined));
+    const revertUnsupported = isAcpUnsupported(sessionId, "revert");
+    const forkUnsupported = isAcpUnsupported(sessionId, "fork", sessionForCapabilities);
 
     // Keep non-active-turn rows detached from context-store churn.
     const { currentContextAgent, savedSessionAgentSelection } = useContextStore(
@@ -823,8 +829,8 @@ const ChatMessage: React.FC<ChatMessageProps> = ({
                                                 copiedMessage={copiedMessage}
                                                 showReasoningTraces={showReasoningTraces}
                                                 agentMention={agentMention}
-                                                onRevert={handleRevert}
-                                                onFork={isUser ? handleFork : undefined}
+                                                onRevert={revertUnsupported ? undefined : handleRevert}
+                                                onFork={isUser && !forkUnsupported ? handleFork : undefined}
                                                 contextPinned={isPinnedIntoContext}
                                                 contextPinPending={pinPending}
                                                 onToggleContextPin={canPinIntoContext && messageCreatedAt ? handleToggleContextPin : undefined}
@@ -860,8 +866,8 @@ const ChatMessage: React.FC<ChatMessageProps> = ({
                                                 copiedMessage={copiedMessage}
                                                 showReasoningTraces={showReasoningTraces}
                                                 agentMention={agentMention}
-                                                onRevert={handleRevert}
-                                                onFork={isUser ? handleFork : undefined}
+                                                onRevert={revertUnsupported ? undefined : handleRevert}
+                                                onFork={isUser && !forkUnsupported ? handleFork : undefined}
                                                 contextPinned={isPinnedIntoContext}
                                                 contextPinPending={pinPending}
                                                 onToggleContextPin={canPinIntoContext && messageCreatedAt ? handleToggleContextPin : undefined}

@@ -147,9 +147,12 @@ describe("v2 status and cancellation HTTP boundary", () => {
     try {
       opencodeClient.setDirectory("c:\\")
       expect(await opencodeClient.getActiveSessionStatuses()).toEqual({ session: { type: "busy" } })
-      expect(requests).toHaveLength(1)
+      // The ACP merge read answers with the same fixture, which carries no
+      // "statuses" envelope, so it is ignored and OpenCode's map stands.
+      expect(requests).toHaveLength(2)
       expect(requests[0].pathname).toBe("/api/session/active")
       expect(requests[0].searchParams.has("directory")).toBe(false)
+      expect(requests[1].pathname).toBe("/api/acp/sessions/status")
     } finally {
       opencodeClient.setDirectory(undefined)
       fetch.mockRestore()

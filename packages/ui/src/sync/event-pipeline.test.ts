@@ -459,6 +459,29 @@ describe("classifyStreamPayload", () => {
     expect(classifyStreamPayload("text", undefined)).toEqual({ kind: "events", events: [] })
   })
 
+  test("routes an ACP sync frame's events to its directory unchanged", () => {
+    const delta = {
+      type: "message.part.delta",
+      properties: { sessionID: "ses_acp-omp_r1", messageID: "msg_1", partID: "prt_1", field: "text", delta: "hi" },
+    }
+    const classified = classifyStreamPayload(
+      { type: "openchamber:acp-sync", properties: { directory: "/repo", events: [delta] } },
+      "/frame",
+    )
+    expect(classified).toEqual({ kind: "events", events: [{ directory: "/repo", event: delta }] })
+  })
+
+  test("drops a malformed ACP sync frame whole", () => {
+    expect(classifyStreamPayload(
+      { type: "openchamber:acp-sync", properties: { directory: "/repo", events: [{ type: "message.part.delta", properties: {} }] } },
+      "/frame",
+    )).toEqual({ kind: "events", events: [] })
+    expect(classifyStreamPayload(
+      { type: "openchamber:acp-sync", properties: { events: [] } },
+      "/frame",
+    )).toEqual({ kind: "events", events: [] })
+  })
+
   // Each delta used to be tried against nine OpenChamber schemas before the
   // wire schema; failed zod parses build issue objects, so this cost ~37us per
   // delta (750ms for 20k on an M-series laptop). Dispatching on `type` brings

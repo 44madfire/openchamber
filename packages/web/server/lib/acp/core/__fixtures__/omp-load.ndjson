@@ -1,0 +1,4 @@
+{"sessionUpdate":"user_message_chunk","content":{"type":"text","text":"Reply with exactly this acknowledgement and nothing else: ACK OMP-REPLAY-T1"},"messageId":"c3a768d4-6023-46e6-a22f-f769201d6896"}
+{"sessionUpdate":"agent_message_chunk","content":{"type":"text","text":"ACK OMP-REPLAY-T1"},"messageId":"bb40aa77-55df-4ed7-953f-9d5d3d19c724"}
+{"sessionUpdate":"user_message_chunk","content":{"type":"text","text":"Reply with exactly this acknowledgement and nothing else: ACK OMP-REPLAY-T2"},"messageId":"ae5f7fc9-0696-4317-b3a2-701dd45a2d89"}
+{"sessionUpdate":"agent_message_chunk","content":{"type":"text","text":"ACK OMP-REPLAY-T2"},"messageId":"df36006c-a914-4030-98c6-1dccec8dc416"}

@@ -103,6 +103,7 @@ import {
   type LocationRelease,
 } from "./location-release"
 import { isChatDirectoryPath } from "@/lib/chatDirectories"
+import { isAcpSessionId } from "@/lib/acp/session-key"
 import type { State } from "./types"
 import {
   getSessionMaterializationRequestKey,
@@ -2218,6 +2219,17 @@ export function handleEvent(
     const { sessionID } = payload.properties
     getImperativeSessionMessageLoader()?.invalidateSession(
       { directory: resolvedDirectory, sessionID }, draft.message[sessionID] ?? [],
+    )
+  }
+  // An ACP rebuild replaces live ids with canonical ones: the removals lead
+  // the batch, so retire each removed identity from the loader as it lands —
+  // shadows, in-flight reads, prefetch, and pagination coverage — before a
+  // refresh or a pre-rebuild page can resurrect it beside its replacement.
+  // OpenCode never emits removals outside reverts; its path is unchanged.
+  if (payload.type === "message.removed" && isAcpSessionId(payload.properties.sessionID)) {
+    const { sessionID, messageID } = payload.properties
+    getImperativeSessionMessageLoader()?.retireRemovedMessages(
+      { directory: resolvedDirectory, sessionID }, [messageID],
     )
   }
   if (reducerChanged && (payload.type === "session.patched" || payload.type === "session.deleted")) {
