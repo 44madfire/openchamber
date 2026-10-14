@@ -419,6 +419,8 @@ export type NewSessionDraftState = {
   permissionMode?: PermissionMode
   /** ACP backend the new session runs on; absent/null means the default OpenCode agent. */
   acpBackendId?: string | null
+  /** Null backend that came from the picker's automatic fallback, not from a choice. Materialization must not persist it as an explicit OpenCode pick. */
+  acpBackendAutomatic?: boolean
   /** Pre-session ACP config values from the backend cache picker; reconciled onto the session after create. */
   acpConfig?: Record<string, string | number | boolean> | null
   pendingWorktreeRequestId?: string | null
@@ -1063,6 +1065,9 @@ export async function materializeOpenDraftSession(selection: {
   const draft = draftOverride ?? store.newSessionDraft
   if (!draft?.open) return null
   const draftPermissionMode = draft.permissionMode
+  // The runtime this send runs on: captured up front so a switch mid-flight
+  // cannot file this draft's backend under the newly active endpoint.
+  const draftRuntimeKey = getRuntimeKey()
 
   const trimmedAgent = typeof selection.agent === "string" && selection.agent.trim().length > 0
     ? selection.agent.trim()
@@ -1134,9 +1139,13 @@ export async function materializeOpenDraftSession(selection: {
   const createdDirectory = normalizePath(created.directory ?? draftDirectoryOverride ?? null)
 
   // The agent this draft ran on stays the default for the next one — keyed
-  // by the canonical directory the session actually landed in.
-  rememberDraftBackend(createdDirectory, draft.acpBackendId ?? null)
-
+  // by the canonical directory the session actually landed in, on the
+  // runtime the send started on. A null produced by the picker's automatic
+  // fallback is not an OpenCode choice and is never persisted: it would
+  // erase the remembered backend the entry may still need.
+  if (!draft.acpBackendAutomatic) {
+    rememberDraftBackend(draftRuntimeKey, createdDirectory, draft.acpBackendId ?? null)
+  }
   persistDraftTarget({
     projectId: draftProjectId,
     directory: createdDirectory,
@@ -1531,10 +1540,11 @@ export const useSessionUIStore = create<SessionUIState>()((set, get) => ({
       preparedChatDirectory: null,
       selectedProjectId: selectedProject?.id ?? null,
       directoryOverride: directory,
-      // A new draft reopens on the agent last picked here (or anywhere),
-      // not on the hardcoded OpenCode default. The picker still drops a
-      // remembered backend it can no longer offer; `null` stays OpenCode.
-      acpBackendId: options?.acpBackendId !== undefined ? options.acpBackendId : resolveDraftBackend(directory),
+      // A new draft reopens on the agent last picked here (or anywhere on
+      // this runtime), not on the hardcoded OpenCode default. The picker
+      // still drops a remembered backend it can no longer offer; `null`
+      // stays OpenCode.
+      acpBackendId: options?.acpBackendId !== undefined ? options.acpBackendId : resolveDraftBackend(directory, getRuntimeKey()),
       acpConfig: options?.acpConfig ?? null,
       pendingWorktreeRequestId: options?.pendingWorktreeRequestId ?? null,
       bootstrapPendingDirectory: normalizePath(options?.bootstrapPendingDirectory ?? null),
@@ -1703,13 +1713,16 @@ export const useSessionUIStore = create<SessionUIState>()((set, get) => ({
       if (!s.newSessionDraft?.open) return s
       // A different backend invalidates cached pre-session values.
       const acpConfig = backendId === s.newSessionDraft.acpBackendId ? s.newSessionDraft.acpConfig : null
+      const automatic = options?.remember === false
       // The choice outlives the draft: the next one defaults to it.
       // Automatic resets (a remembered backend the list no longer offers)
-      // must not erase the memory — the entry may come back next launch.
-      if (options?.remember !== false && backendId !== s.newSessionDraft.acpBackendId) {
-        rememberDraftBackend(s.newSessionDraft.directoryOverride, backendId)
+      // must not erase the memory — the entry may come back next launch —
+      // and the null they produce is marked so materialization does not
+      // persist it as an explicit OpenCode pick either.
+      if (!automatic && backendId !== s.newSessionDraft.acpBackendId) {
+        rememberDraftBackend(getRuntimeKey(), s.newSessionDraft.directoryOverride, backendId)
       }
-      return { newSessionDraft: { ...s.newSessionDraft, acpBackendId: backendId, acpConfig } }
+      return { newSessionDraft: { ...s.newSessionDraft, acpBackendId: backendId, acpBackendAutomatic: automatic ? true : undefined, acpConfig } }
     }),
 
   setDraftAcpConfig: (configId, value) =>
