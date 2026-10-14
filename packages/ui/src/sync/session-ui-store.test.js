@@ -4,7 +4,7 @@ import { opencodeClient } from '@/lib/opencode/client';
 import { useProjectsStore } from '@/stores/useProjectsStore';
 import { useDirectoryStore } from '@/stores/useDirectoryStore';
 import { useSessionWorktreeStore } from './session-worktree-store';
-import { expandSlashCommandGoalObjective, routeMessage, useSessionUIStore } from './session-ui-store';
+import { expandSlashCommandGoalObjective, materializeOpenDraftSession, routeMessage, useSessionUIStore } from './session-ui-store';
 import { reconcileDraftAcpConfig, shouldReconcileDraftAcpConfig } from './session-ui-store';
 import { acpClient } from '@/lib/acp/client';
 import { setActionRefs, setOptimisticRefs } from './session-actions';
@@ -13,7 +13,7 @@ import { useCommandsStore } from '@/stores/useCommandsStore';
 import { useSessionGoalArmStore } from '@/stores/useSessionGoalArmStore';
 import { useConfigStore } from '@/stores/useConfigStore';
 import { useSelectionStore } from './selection-store';
-import { getRuntimeKey } from '@/lib/runtime-switch';
+import { getRuntimeKey, initializeRuntimeEndpoint, switchRuntimeEndpoint } from '@/lib/runtime-switch';
 import { getDeferredSafeStorage } from '@/stores/utils/safeStorage';
 import { CHAT_DRAFT_PROJECT_ID } from '@/lib/chatDirectories';
 import { useSessionDisplayStore } from '@/stores/useSessionDisplayStore';
@@ -2272,5 +2272,222 @@ describe('reconcileDraftAcpConfig', () => {
     expect(shouldReconcileDraftAcpConfig(null)).toBe(false);
     expect(shouldReconcileDraftAcpConfig(undefined)).toBe(false);
     expect(shouldReconcileDraftAcpConfig('')).toBe(false);
+  });
+});
+
+describe('openNewSessionDraft backend default', () => {
+  const projectA = { id: 'proj-a', path: '/projects/alpha', label: 'Alpha' };
+  const projectB = { id: 'proj-b', path: '/projects/beta', label: 'Beta' };
+
+  const DRAFT_TARGET_KEY = 'oc.chatInput.lastDraftTarget';
+  const DRAFT_BACKEND_KEY = 'oc.draftBackend.v1';
+
+  beforeEach(() => {
+    // Backend memory is keyed by runtime; without an initialized endpoint the
+    // key is transient and nothing persists. This describe runs last in the
+    // file, so pinning the endpoint here leaks into no other suite.
+    initializeRuntimeEndpoint({ apiBaseUrl: 'http://f1-backend/', runtimeKey: 'f1-backend-runtime' });
+    getDeferredSafeStorage().removeItem(DRAFT_TARGET_KEY);
+    getDeferredSafeStorage().removeItem(DRAFT_BACKEND_KEY);
+    useSessionUIStore.setState({
+      currentSessionId: null,
+      currentSessionDirectory: null,
+      newSessionDraft: { open: false, directoryOverride: null, parentID: null },
+      availableWorktreesByProject: new Map(),
+    });
+    useProjectsStore.setState({
+      projects: [projectA, projectB],
+      activeProjectId: projectA.id,
+    });
+    useDirectoryStore.getState().setDirectory(projectB.path, { showOverlay: false });
+  });
+
+  afterEach(() => {
+    getDeferredSafeStorage().removeItem(DRAFT_TARGET_KEY);
+    getDeferredSafeStorage().removeItem(DRAFT_BACKEND_KEY);
+  });
+
+  test('defaults to OpenCode when nothing was ever picked', () => {
+    useSessionUIStore.getState().openNewSessionDraft({ selectedProjectId: projectA.id, directoryOverride: projectA.path });
+
+    expect(useSessionUIStore.getState().newSessionDraft.acpBackendId).toBeNull();
+  });
+
+  test('a picked agent is the next draft default in the same directory', () => {
+    useSessionUIStore.getState().openNewSessionDraft({ selectedProjectId: projectA.id, directoryOverride: projectA.path });
+    useSessionUIStore.getState().setDraftAcpBackendId('omp');
+    useSessionUIStore.getState().closeNewSessionDraft();
+
+    useSessionUIStore.getState().openNewSessionDraft({ selectedProjectId: projectA.id, directoryOverride: projectA.path });
+
+    expect(useSessionUIStore.getState().newSessionDraft.acpBackendId).toBe('omp');
+  });
+
+  test('each directory keeps its own agent; unseen directories take the last pick anywhere', () => {
+    useSessionUIStore.getState().openNewSessionDraft({ selectedProjectId: projectA.id, directoryOverride: projectA.path });
+    useSessionUIStore.getState().setDraftAcpBackendId('omp');
+    useSessionUIStore.getState().closeNewSessionDraft();
+    useSessionUIStore.getState().openNewSessionDraft({ selectedProjectId: projectB.id, directoryOverride: projectB.path });
+    useSessionUIStore.getState().setDraftAcpBackendId('pi-acp');
+    useSessionUIStore.getState().closeNewSessionDraft();
+
+    useProjectsStore.setState({ projects: [projectA, projectB, { id: 'proj-c', path: '/projects/gamma', label: 'Gamma' }] });
+    useSessionUIStore.getState().openNewSessionDraft({ selectedProjectId: 'proj-c', directoryOverride: '/projects/gamma' });
+    expect(useSessionUIStore.getState().newSessionDraft.acpBackendId).toBe('pi-acp');
+    useSessionUIStore.getState().closeNewSessionDraft();
+
+    useSessionUIStore.getState().openNewSessionDraft({ selectedProjectId: projectA.id, directoryOverride: projectA.path });
+    expect(useSessionUIStore.getState().newSessionDraft.acpBackendId).toBe('omp');
+    useSessionUIStore.getState().closeNewSessionDraft();
+
+    useSessionUIStore.getState().openNewSessionDraft({ selectedProjectId: projectB.id, directoryOverride: projectB.path });
+    expect(useSessionUIStore.getState().newSessionDraft.acpBackendId).toBe('pi-acp');
+  });
+
+  test('switching back to OpenCode clears the default for that directory', () => {
+    useSessionUIStore.getState().openNewSessionDraft({ selectedProjectId: projectA.id, directoryOverride: projectA.path });
+    useSessionUIStore.getState().setDraftAcpBackendId('omp');
+    useSessionUIStore.getState().setDraftAcpBackendId(null);
+    useSessionUIStore.getState().closeNewSessionDraft();
+
+    useSessionUIStore.getState().openNewSessionDraft({ selectedProjectId: projectA.id, directoryOverride: projectA.path });
+
+    expect(useSessionUIStore.getState().newSessionDraft.acpBackendId).toBeNull();
+  });
+
+  test('an automatic reset leaves the remembered agent for the next draft', () => {
+    useSessionUIStore.getState().openNewSessionDraft({ selectedProjectId: projectA.id, directoryOverride: projectA.path });
+    useSessionUIStore.getState().setDraftAcpBackendId('omp');
+    // The picker dropping an unlisted backend: this draft shows OpenCode,
+    // but the memory survives for a backend that comes back.
+    useSessionUIStore.getState().setDraftAcpBackendId(null, { remember: false });
+    expect(useSessionUIStore.getState().newSessionDraft.acpBackendId).toBeNull();
+    useSessionUIStore.getState().closeNewSessionDraft();
+
+    useSessionUIStore.getState().openNewSessionDraft({ selectedProjectId: projectA.id, directoryOverride: projectA.path });
+
+    expect(useSessionUIStore.getState().newSessionDraft.acpBackendId).toBe('omp');
+  });
+
+  test('an explicit backend option wins over the remembered one without erasing it', () => {
+    useSessionUIStore.getState().openNewSessionDraft({ selectedProjectId: projectA.id, directoryOverride: projectA.path });
+    useSessionUIStore.getState().setDraftAcpBackendId('omp');
+    useSessionUIStore.getState().closeNewSessionDraft();
+
+    useSessionUIStore.getState().openNewSessionDraft({ selectedProjectId: projectB.id, directoryOverride: projectB.path, acpBackendId: null });
+    expect(useSessionUIStore.getState().newSessionDraft.acpBackendId).toBeNull();
+    useSessionUIStore.getState().closeNewSessionDraft();
+
+    useSessionUIStore.getState().openNewSessionDraft({ selectedProjectId: projectB.id, directoryOverride: projectB.path });
+    expect(useSessionUIStore.getState().newSessionDraft.acpBackendId).toBe('omp');
+  });
+});
+
+describe('materializeOpenDraftSession backend memory', () => {
+  const project = { id: 'proj-a', path: '/projects/alpha', label: 'Alpha' };
+
+  const DRAFT_TARGET_KEY = 'oc.chatInput.lastDraftTarget';
+  const DRAFT_BACKEND_KEY = 'oc.draftBackend.v1';
+
+  let originalCreateSession;
+  let originalGetDirectoryAvailability;
+
+  const readBackendMemory = () => JSON.parse(getDeferredSafeStorage().getItem(DRAFT_BACKEND_KEY) ?? 'null');
+
+  beforeEach(() => {
+    initializeRuntimeEndpoint({ apiBaseUrl: 'http://f1-backend/', runtimeKey: 'f1-backend-runtime' });
+    getDeferredSafeStorage().removeItem(DRAFT_TARGET_KEY);
+    getDeferredSafeStorage().removeItem(DRAFT_BACKEND_KEY);
+    useSessionUIStore.setState({
+      currentSessionId: null,
+      currentSessionDirectory: null,
+      newSessionDraft: { open: false, directoryOverride: null, parentID: null },
+      availableWorktreesByProject: new Map(),
+    });
+    useProjectsStore.setState({ projects: [project], activeProjectId: project.id });
+    useDirectoryStore.getState().setDirectory(project.path, { showOverlay: false });
+    originalCreateSession = opencodeClient.createSession;
+    originalGetDirectoryAvailability = opencodeClient.getDirectoryAvailability;
+    opencodeClient.getDirectoryAvailability = async () => 'ok';
+  });
+
+  afterEach(() => {
+    opencodeClient.createSession = originalCreateSession;
+    opencodeClient.getDirectoryAvailability = originalGetDirectoryAvailability;
+    getDeferredSafeStorage().removeItem(DRAFT_TARGET_KEY);
+    getDeferredSafeStorage().removeItem(DRAFT_BACKEND_KEY);
+  });
+
+  const openProjectDraft = () => {
+    useSessionUIStore.getState().openNewSessionDraft({
+      target: 'project',
+      selectedProjectId: project.id,
+      directoryOverride: project.path,
+    });
+  };
+
+  test('materializing an automatically fallen-back draft keeps the remembered agent', async () => {
+    const createParams = [];
+    opencodeClient.createSession = async (params, directory) => {
+      createParams.push(params);
+      return { id: 'session-fallback', directory };
+    };
+    openProjectDraft();
+    useSessionUIStore.getState().setDraftAcpBackendId('omp');
+    // The picker dropping an unlisted backend: this draft runs on OpenCode,
+    // but the memory must survive the send that follows.
+    useSessionUIStore.getState().setDraftAcpBackendId(null, { remember: false });
+
+    const result = await materializeOpenDraftSession({ providerID: 'provider', modelID: 'model' });
+
+    expect(result?.sessionId).toBe('session-fallback');
+    expect(createParams[0].acpBackendId).toBeUndefined();
+    const memory = readBackendMemory().runtimes['f1-backend-runtime'];
+    expect(memory.byDirectory[project.path].backendId).toBe('omp');
+    expect(memory.global.backendId).toBe('omp');
+  });
+
+  test('materializing after an explicit OpenCode choice persists the null', async () => {
+    opencodeClient.createSession = async (params, directory) => ({ id: 'session-opencode', directory });
+    openProjectDraft();
+    useSessionUIStore.getState().setDraftAcpBackendId('omp');
+    useSessionUIStore.getState().setDraftAcpBackendId(null);
+
+    await materializeOpenDraftSession({ providerID: 'provider', modelID: 'model' });
+
+    const memory = readBackendMemory().runtimes['f1-backend-runtime'];
+    expect(memory.byDirectory[project.path].backendId).toBeNull();
+    expect(memory.global.backendId).toBeNull();
+    // And the next draft honors it.
+    openProjectDraft();
+    expect(useSessionUIStore.getState().newSessionDraft.acpBackendId).toBeNull();
+  });
+
+  test('a runtime switch mid-send files the backend under the originating runtime', async () => {
+    let releaseCreate;
+    const createGate = new Promise((resolve) => { releaseCreate = resolve; });
+    opencodeClient.createSession = async (params, directory) => {
+      await createGate;
+      return { id: 'session-switch', directory };
+    };
+    openProjectDraft();
+    useSessionUIStore.getState().setDraftAcpBackendId('omp');
+    // Isolate the materialization write from the pick-time one.
+    getDeferredSafeStorage().removeItem(DRAFT_BACKEND_KEY);
+
+    // The send starts on the test runtime; the endpoint switches before the
+    // creation call it awaits even starts. Materialization captured the
+    // originating runtime synchronously on entry, so the write lands there —
+    // reading the runtime at completion would file it under the new endpoint.
+    const materializing = materializeOpenDraftSession({ providerID: 'provider', modelID: 'model' });
+    switchRuntimeEndpoint({ apiBaseUrl: 'http://f1-other/', runtimeKey: 'f1-other-runtime' });
+    releaseCreate();
+    const result = await materializing;
+    switchRuntimeEndpoint({ apiBaseUrl: 'http://f1-backend/', runtimeKey: 'f1-backend-runtime' });
+
+    expect(result?.sessionId).toBe('session-switch');
+    const envelope = readBackendMemory();
+    expect(envelope.runtimes['f1-backend-runtime'].byDirectory[project.path].backendId).toBe('omp');
+    expect(envelope.runtimes['f1-other-runtime']).toBeUndefined();
   });
 });
