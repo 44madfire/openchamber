@@ -91,6 +91,10 @@ const DEFAULT_CONFIG_OPTIONS = [
 const CONFIG_OPTIONS = readJson(process.env.ONEOFF_FIX_CONFIG_OPTIONS, DEFAULT_CONFIG_OPTIONS);
 const SET_CONFIG_BEHAVIOUR = readJson(process.env.ONEOFF_FIX_SET_CONFIG_BEHAVIOUR, {});
 const SET_CONFIG_RESPONSE = readJson(process.env.ONEOFF_FIX_SET_CONFIG_RESPONSE, {});
+// Live config state: set_config_option mutates it, and every response
+// reports it — like a real agent, sequential changes accumulate.
+let liveOptions = CONFIG_OPTIONS ? structuredClone(CONFIG_OPTIONS) : null;
+const currentOptions = () => (liveOptions ? structuredClone(liveOptions) : null);
 const PROMPT_SCRIPT = readJson(process.env.ONEOFF_FIX_PROMPT_SCRIPT, [
   { update: { sessionUpdate: 'agent_message_chunk', content: { type: 'text', text: 'fixture-reply' } } },
 ]);
@@ -155,11 +159,11 @@ const agent = new AgentSideConnection((client) => ({
     }
     return {
       sessionId,
-      configOptions: CONFIG_OPTIONS ?? undefined,
+      configOptions: currentOptions() ?? undefined,
       ...(STARTUP_META ? { _meta: { piAcp: { startupInfo: STARTUP_META } } } : {}),
     };
   },
-  loadSession: async () => ({ configOptions: CONFIG_OPTIONS ?? undefined }),
+  loadSession: async () => ({ configOptions: currentOptions() ?? undefined }),
   listSessions: async (params) => ({ sessions: [], ...(params ? {} : {}) }),
   deleteSession: async (params) => {
     if (!CAPABILITIES?.sessionCapabilities?.delete) {
@@ -205,7 +209,16 @@ const agent = new AgentSideConnection((client) => ({
     if (behaviour === 'error') {
       throw new Error(`set_config_option failed for ${params?.configId}`);
     }
-    return { configOptions: SET_CONFIG_RESPONSE?.[params?.configId] ?? CONFIG_OPTIONS ?? [] };
+    const base = SET_CONFIG_RESPONSE?.[params?.configId] ?? (() => {
+      if (Array.isArray(liveOptions)) {
+        liveOptions = liveOptions.map((option) => (
+          option?.id === params?.configId ? { ...option, currentValue: params?.value ?? option?.currentValue } : option
+        ));
+        return liveOptions;
+      }
+      return CONFIG_OPTIONS ?? [];
+    })();
+    return { configOptions: structuredClone(base) };
   },
   prompt: async (params) => {
     if (RECORD_PROMPTS) {

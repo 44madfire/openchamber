@@ -2119,9 +2119,10 @@ export const createAcpSessionService = ({
         update: { sessionUpdate: 'current_mode_update', currentModeId: value },
       });
       emitSync(record.directory, syncEvents);
+      record.entry = { ...record.entry, lastConfig: { ...(record.entry.lastConfig ?? {}), [configId]: value } };
       await index.upsert(key, {
         updated: now(),
-        lastConfig: { ...(record.entry.lastConfig ?? {}), [configId]: value },
+        lastConfig: record.entry.lastConfig,
       }).catch(() => {});
       touch(record);
       return;
@@ -2164,12 +2165,30 @@ export const createAcpSessionService = ({
       emitSync(record.directory, syncEvents);
       refreshConfigCache(record.backendId, currentConfigOptions(record));
     }
+    // Session state follows the agent, not the request: a silent keep
+    // persists the agent's value so reopen/reconcile cannot resurrect
+    // the rejected one. Only ids the response actually reports snapshot
+    // in — untouched ids keep the entry's values, and a model switch
+    // that resets dependents (effort) agent-side carries those resets.
+    const lastConfig = { ...(record.entry.lastConfig ?? {}) };
+    if (Array.isArray(response?.configOptions)) {
+      for (const option of response.configOptions) {
+        const id = option?.id;
+        const current = option?.currentValue;
+        if (typeof id !== 'string' || !id) continue;
+        if (typeof current === 'string' || typeof current === 'number' || typeof current === 'boolean') {
+          lastConfig[id] = current;
+        }
+      }
+      // This op's own id always lands, even when the response omits it.
+      lastConfig[configId] = applied ?? value;
+    } else {
+      lastConfig[configId] = applied ?? value;
+    }
+    record.entry = { ...record.entry, lastConfig };
     await index.upsert(key, {
       updated: now(),
-      // Session state follows the agent, not the request: a silent keep
-      // persists the agent's value so reopen/reconcile cannot resurrect
-      // the rejected one.
-      lastConfig: { ...(record.entry.lastConfig ?? {}), [configId]: applied ?? value },
+      lastConfig,
     }).catch(() => {});
     touch(record);
     if (mismatch) {

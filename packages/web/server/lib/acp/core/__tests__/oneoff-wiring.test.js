@@ -159,6 +159,34 @@ describe('acp one-off wiring', () => {
     void session;
   });
 
+  it('one-off inherits sequential session changes through the service persistence path', async () => {
+    // End-to-end through the real persistence: create, then model→effort
+    // via service.config (no manual index seeding). The throwaway must
+    // apply both session values — the model must not roll back.
+    const { service, manager, oneOff } = await setup({ entries: [oneOffEntry('fixture')] });
+    const cwd = await tempDir('acp-ow-inherit-');
+    const { session } = await service.create({ backendId: 'fixture', directory: cwd });
+    await service.config({ key: session.id, configId: 'model', value: 'helper-model' });
+    await service.config({ key: session.id, configId: 'effort', value: 'none' });
+    const result = await oneOff.generate({
+      backendId: 'fixture',
+      instruction: 'Hi.',
+      input: 'x',
+      sessionKey: session.id,
+    });
+    expect(result.text).toBe('fixture-reply');
+    const stderr = (await manager.status('fixture')).stderrTail;
+    const applied = stderr.split('\n')
+      .filter((line) => line.startsWith('CONFIG:'))
+      .map((line) => JSON.parse(line.slice('CONFIG:'.length)));
+    // The throwaway session (oneoff-session-1) got both session values;
+    // earlier CONFIG lines belong to the service.config calls above.
+    expect(applied.filter((row) => row.sessionId === 'oneoff-session-1')).toEqual([
+      { sessionId: 'oneoff-session-1', configId: 'model', value: 'helper-model', type: null },
+      { sessionId: 'oneoff-session-1', configId: 'effort', value: 'none', type: null },
+    ]);
+  });
+
   it('authTerminal resolves terminal methods and never authenticates them', async () => {
     const { manager } = await setup({
       entries: [{
