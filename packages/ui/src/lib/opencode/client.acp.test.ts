@@ -50,6 +50,15 @@ mock.module("@/lib/runtime-url", () => ({
 mock.module("@/lib/runtime-switch", () => ({
   getRuntimeApiBaseUrl: mock(() => ""),
   getRuntimeKey: mock(() => runtimeKey),
+  // Full surface: bun shares mocked modules across test files in one
+  // process, and co-run suites import the rest (AcpPage needs subscribe).
+  isSshForwardedRuntime: mock(() => false),
+  MOBILE_DISCONNECTED_RUNTIME_KEY: "mobile-disconnected",
+  isTransientRuntimeKey: mock(() => false),
+  initializeRuntimeEndpoint: mock(() => undefined),
+  switchRuntimeEndpoint: mock(() => undefined),
+  subscribeRuntimeEndpointWillChange: mock(() => () => undefined),
+  subscribeRuntimeEndpointChanged: mock(() => () => undefined),
 }))
 
 mock.module("@/lib/runtime-fetch", () => ({
@@ -58,6 +67,10 @@ mock.module("@/lib/runtime-fetch", () => ({
 
 mock.module("@/lib/startupTrace", () => ({
   markStartupTrace: mock(() => undefined),
+  // Full surface: bun shares mocked modules across test files in one
+  // process, and co-run suites import the rest (AcpPage needs measure).
+  startupTraceEnabled: mock(() => false),
+  measureStartupTrace: mock(async (_name: string, run: () => unknown) => run()),
 }))
 
 // mock.module installs above must take effect before this module loads, so the import stays dynamic.
@@ -290,7 +303,8 @@ describe("OpencodeService ACP routing", () => {
       () => opencodeClient.stageRevert(ACP_ID, "msg_1", { directory: "/repo/app" }),
       () => opencodeClient.clearRevert(ACP_ID, "/repo/app"),
       () => opencodeClient.compactSession(ACP_ID, "/repo/app"),
-      () => opencodeClient.forkSession(ACP_ID, { directory: "/repo/app" }),
+      // ACP forks copy the whole transcript (T6): no fork-at-message.
+      () => opencodeClient.forkSession(ACP_ID, { before: "msg_1", directory: "/repo/app" }),
       () => opencodeClient.shellSession({ sessionId: ACP_ID, command: "ls", directory: "/repo/app" }),
       () => opencodeClient.backgroundSessionWork(ACP_ID, "/repo/app"),
       () => opencodeClient.moveSession(ACP_ID, "/other", {}),
@@ -301,6 +315,15 @@ describe("OpencodeService ACP routing", () => {
       await expect(run()).rejects.toBeInstanceOf(AcpUnsupportedError)
     }
     expect(requests).toHaveLength(0)
+  })
+
+  test("forkSession routes an ACP id to the whole-transcript fork route", async () => {
+    responses.push(json({ session: { id: "ses_acp-omp_fork1" } }))
+    const forked = await opencodeClient.forkSession(ACP_ID, { directory: "/repo/app" })
+    expect(forked.id).toBe("ses_acp-omp_fork1")
+    expect(requests).toHaveLength(1)
+    expect(requests[0].url.pathname).toBe(`/api/acp/sessions/${ACP_ID}/fork`)
+    expect(requests[0].method).toBe("POST")
   })
 
   test("getSessionTurnDiff resolves the newest complete checkpoint turn for ACP ids", async () => {

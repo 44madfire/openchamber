@@ -149,8 +149,10 @@ export const AcpGrid: React.FC = () => {
               const enabled = backend.enabled !== false;
               const target = backend.entry ? `${backend.entry.command} ${(backend.entry.args ?? []).join(' ')}`.trim() : '';
               return (
+                // `display: contents` keeps the grid layout on the card while
+                // exposing the row's backend for tests and automation.
+                <div key={backend.id} data-backend-id={backend.id} style={{ display: 'contents' }}>
                 <SettingsCard
-                  key={backend.id}
                   icon={<SettingsCardIcon name="robot-2" />}
                   title={backend.label || backend.id}
                   subtitle={target || undefined}
@@ -180,6 +182,7 @@ export const AcpGrid: React.FC = () => {
                     onSelect: () => setDeleteTarget(backend.id),
                   }]}
                 />
+                </div>
               );
             })}
           </div>

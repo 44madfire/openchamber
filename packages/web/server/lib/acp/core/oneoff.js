@@ -551,6 +551,22 @@ export const createOneOff = ({
       let text = '';
       let usage = null;
       let cost = null;
+      // pi-acp echoes its startup info inside `_meta` on the session/new
+      // response: retained here so a banner chunk that arrives AFTER the
+      // prompt dispatches (a setTimeout-0 race on the agent side, past
+      // every client-side gate) can still be recognized and stripped
+      // from the collected result. No other agent is keyed on.
+      const startupBanner = typeof created?._meta?.piAcp?.startupInfo === 'string'
+        && created._meta.piAcp.startupInfo
+        ? created._meta.piAcp.startupInfo
+        : null;
+      // Collection opens only once the prompt round-trip is actually
+      // dispatched (see below): some agents emit setup banners as
+      // `agent_message_chunk` AFTER `session/new` resolves (pi-acp posts
+      // its Skills/Extensions banner via setTimeout(...,0)), and those
+      // must be claimed yet never collected. The flag flips in the same
+      // synchronous block that sends `session/prompt`, so no await gap
+      // can interleave a banner between arming and dispatch.
       let turnStarted = false;
       let advertised = advertisedOptionsOf(created?.configOptions);
       record = {
@@ -637,7 +653,11 @@ export const createOneOff = ({
         { type: 'text', text: `Reply with exactly what is requested and nothing else. No preamble, no explanation, no quotes, no code fences.\n\n${instruction.trim()}` },
         { type: 'text', text: input },
       ];
-      // Any pre-prompt banner is already claimed above; start collecting.
+      // Open collection in the same synchronous block that dispatches the
+      // prompt: anything the agent emitted before this line (post-new
+      // setup banners, helper-config echoes) is claimed but dropped, and
+      // no await gap can interleave a banner between arming and dispatch.
+      text = '';
       turnStarted = true;
       const promptPromise = connected.connection.prompt({ sessionId, prompt: promptBlocks });
       promptPromise.then(() => {}, () => {});
@@ -669,8 +689,17 @@ export const createOneOff = ({
 
       const sessionCleanup = await cleanupSession(connected, sessionId);
       clearTimeout(timer);
+      // A setup banner that won the agent-side race lands inside the
+      // collected turn text (the gate cannot precede the response it
+      // follows). When the agent told us its exact banner bytes in the
+      // session/new `_meta`, strip that prefix verbatim: exact-match
+      // only, so genuine model output is never touched.
+      let collected = text;
+      if (startupBanner && collected.startsWith(startupBanner)) {
+        collected = collected.slice(startupBanner.length);
+      }
       return {
-        text: trimOneOffOutput(text, limit),
+        text: trimOneOffOutput(collected, limit),
         ...(usage ? { usage } : {}),
         ...(cost ? { cost } : {}),
         ...(warnings.length > 0 ? { warnings } : {}),

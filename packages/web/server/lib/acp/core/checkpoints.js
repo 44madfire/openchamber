@@ -232,6 +232,34 @@ export function createCheckpointStore({ dataDir, git = 'git', environment = proc
   // Attribute support is feature-tested once per store (see `requireAttrSupport`).
   let attrSupportPromise;
 
+  // In-flight operations, registered synchronously at call time so `dispose`
+  // can await them before removing owned temps. `disposeStarted` closes
+  // admission: new ops fail fast with ACP_CHECKPOINT_DISPOSED.
+  const activeOps = new Set();
+  let disposeStarted = false;
+  let disposePromise = null;
+
+  const disposedError = () => new AcpCheckpointsError(
+    'ACP_CHECKPOINT_DISPOSED',
+    'This checkpoints store is disposed.',
+  );
+
+  // Gate + track one store operation. The admission check and the `add`
+  // both run synchronously (before the work's first await), so an op that
+  // started pre-dispose is always awaited and cannot leak temps created
+  // post-dispose. Refused ops return a rejection, like every other store
+  // error, and are never tracked.
+  const runOp = (work) => {
+    if (disposeStarted) return Promise.reject(disposedError());
+    const op = work();
+    activeOps.add(op);
+    op.then(
+      () => activeOps.delete(op),
+      () => activeOps.delete(op),
+    );
+    return op;
+  };
+
   const hooksDir = () => {
     hooksDirPromise ??= fs.mkdtemp(path.join(os.tmpdir(), 'openchamber-acp-no-hooks-'));
     return hooksDirPromise;
@@ -809,7 +837,7 @@ export function createCheckpointStore({ dataDir, git = 'git', environment = proc
     return value;
   };
 
-  const snapshot = ({ cwd, sessionKey, turn, phase }) => (async () => {
+  const snapshot = ({ cwd, sessionKey, turn, phase }) => runOp(async () => {
     const root = await canonicalCwd(cwd);
     const ref = requireRef(sessionKey, turn, phase);
     await requireAttrSupport();
@@ -824,7 +852,7 @@ export function createCheckpointStore({ dataDir, git = 'git', environment = proc
       await git(['update-ref', ref, tree]);
       return { tree };
     }));
-  })();
+  });
 
   // Split one `git diff` run into per-file patches keyed by path. Rename
   // detection stays OFF (`--no-renames`), so the `a/` and `b/` paths are
@@ -852,7 +880,7 @@ export function createCheckpointStore({ dataDir, git = 'git', environment = proc
     return patches;
   };
 
-  const diff = ({ cwd, from, to }) => (async () => {
+  const diff = ({ cwd, from, to }) => runOp(async () => {
     const root = await canonicalCwd(cwd);
     requireTree(from, 'diff from');
     requireTree(to, 'diff to');
@@ -884,7 +912,7 @@ export function createCheckpointStore({ dataDir, git = 'git', environment = proc
         status: kind === 'A' ? 'added' : kind === 'D' ? 'deleted' : 'modified',
       })).sort((a, b) => (a.file < b.file ? -1 : a.file > b.file ? 1 : 0));
     }));
-  })();
+  });
 
   // Full membership of one tree: path → { mode, sha }. `ls-tree -r` lists
   // blobs (and the commit entries for gitlinks, which restore refuses).
@@ -1042,7 +1070,7 @@ export function createCheckpointStore({ dataDir, git = 'git', environment = proc
     return outputs;
   };
 
-  const restore = ({ cwd, tree, current }) => (async () => {
+  const restore = ({ cwd, tree, current }) => runOp(async () => {
     const root = await canonicalCwd(cwd);
     requireTree(tree, 'restore');
     if (current !== undefined) requireTree(current, 'restore current');
@@ -1057,7 +1085,7 @@ export function createCheckpointStore({ dataDir, git = 'git', environment = proc
         await fs.rm(scratchIndex, { force: true });
       }
     }));
-  })();
+  });
 
   const restoreInner = async ({ root, gitDir, indexFile, opts, git, excludesFile, opId, tree, current }) => {
       // Membership first, work tree second. The target tree decides what is
@@ -1440,7 +1468,7 @@ export function createCheckpointStore({ dataDir, git = 'git', environment = proc
     return lines.length;
   });
 
-  const gc = ({ sessionKey, cwd } = {}) => (async () => {
+  const gc = ({ sessionKey, cwd } = {}) => runOp(async () => {
     if (typeof sessionKey !== 'string' || !REF_SEGMENT.test(sessionKey)) {
       throw new AcpCheckpointsError('ACP_CHECKPOINT_INVALID_SESSION_KEY', `Not a checkpoint session key: ${JSON.stringify(sessionKey)}`);
     }
@@ -1474,7 +1502,56 @@ export function createCheckpointStore({ dataDir, git = 'git', environment = proc
       deletedRefs += await gcOneRepo(path.join(dataDir, 'checkpoints', entry.name), sessionKey);
     }
     return { deletedRefs };
-  })();
+  });
 
-  return { snapshot, diff, restore, gc };
+  /**
+   * Release store-owned temp resources (the no-hooks dir and the
+   * no-attributes dir). Closes admission first — new ops fail with
+   * ACP_CHECKPOINT_DISPOSED — then awaits in-flight operations before
+   * awaiting the in-flight creations and removing the dirs. Ops register
+   * synchronously at call time, so a snapshot that started pre-dispose is
+   * always awaited and cannot leak dirs created post-dispose. Idempotent
+   * and safe when temps were never created.
+   */
+  const dispose = () => {
+    if (!disposePromise) {
+      disposeStarted = true;
+      disposePromise = (async () => {
+        await Promise.allSettled([...activeOps]);
+        const [hooks, attrs] = await Promise.all([
+          hooksDirPromise?.catch(() => null),
+          emptyAttrs.promise?.catch(() => null),
+        ]);
+        await Promise.all([
+          hooks ? fs.rm(hooks, { recursive: true, force: true }).catch(() => {}) : null,
+          emptyAttrs.path ? fs.rm(path.dirname(emptyAttrs.path), { recursive: true, force: true }).catch(() => {}) : null,
+          attrs && attrs !== emptyAttrs.path
+            ? fs.rm(path.dirname(attrs), { recursive: true, force: true }).catch(() => {})
+            : null,
+        ]);
+      })();
+    }
+    return disposePromise;
+  };
+
+  // Testing hook: the exact temp dirs this store owns (the no-hooks dir
+  // and the no-attributes dir), so dispose tests assert on this store's
+  // own paths instead of scanning the process-global temp dir. Empty when
+  // temps were never created; still listed after dispose (now removed).
+  const __testOnly = {
+    ownedTempDirs: async () => {
+      const [hooks, attrs] = await Promise.all([
+        hooksDirPromise?.catch(() => null),
+        emptyAttrs.promise?.catch(() => null),
+      ]);
+      const dirs = [];
+      if (hooks) dirs.push(hooks);
+      const attrsFile = emptyAttrs.path ?? attrs;
+      if (attrsFile) dirs.push(path.dirname(attrsFile));
+      if (attrs && attrs !== emptyAttrs.path) dirs.push(path.dirname(attrs));
+      return [...new Set(dirs)];
+    },
+  };
+
+  return { snapshot, diff, restore, gc, dispose, __testOnly };
 }

@@ -8,6 +8,7 @@ import { createAcpBackendManager } from '../../core/backend-manager.js';
 import { createAcpBackendRegistry } from '../../core/registry.js';
 import { createAcpSessionIndex } from '../../core/session-index.js';
 import { createAcpSessionService } from '../../core/sessions.js';
+import { normalizeDirectory } from '../../core/directory-key.js';
 import { registerAcpRoutes } from '../routes.js';
 
 const FAKE_AGENT = fileURLToPath(new URL('../../core/__tests__/fake-agent.mjs', import.meta.url));
@@ -60,7 +61,7 @@ const setup = async ({ entry = {}, publishSyncFrame = null } = {}) => {
     connectionHooks: (backendId, generation) => holder.current?.hooksForBackend(backendId, generation) ?? {},
   });
   const index = createAcpSessionIndex({ dataDir: await mkdtemp(join(tmpdir(), 'acp-session-routes-idx-')) });
-  const service = createAcpSessionService({ manager, index, registry, settleMs: 5, watchdogMs: 500 });
+  const service = createAcpSessionService({ canonicalDirectory: async (d) => normalizeDirectory(d), manager, index, registry, settleMs: 5, watchdogMs: 500 });
   holder.current = service;
   const { app, call, order } = createApp();
   registerAcpRoutes(app, { registry, manager, sessions: service, publishSyncFrame });

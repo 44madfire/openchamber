@@ -126,6 +126,8 @@ export const createFeatureRoutesRuntime = (dependencies) => {
   const setAcpBackendManager = (manager) => { acpBackendManagerInstance = manager; };
   let acpSessionServiceInstance = null;
   const setAcpSessionService = (service) => { acpSessionServiceInstance = service; };
+  let acpCheckpointStoreInstance = null;
+  const setAcpCheckpointStore = (store) => { acpCheckpointStoreInstance = store; };
   const getWalkthroughService = async () => {
     if (!walkthroughService) {
       const [service, pullRequest] = await Promise.all([
@@ -357,6 +359,7 @@ export const createFeatureRoutesRuntime = (dependencies) => {
     });
     setAcpBackendManager(acpBackendManager);
     setAcpSessionService(acpSessionService);
+    setAcpCheckpointStore(acpCheckpointStore);
     registerAcpRoutes(app, {
       registry: acpBackendRegistry,
       manager: acpBackendManager,
@@ -824,10 +827,11 @@ export const createFeatureRoutesRuntime = (dependencies) => {
     getAcpBackendManager: () => acpBackendManagerInstance,
     /** The ACP session service owned by this runtime (null until routes register). */
     getAcpSessionService: () => acpSessionServiceInstance,
-    /** Stop all ACP agents. Awaited by server shutdown; safe before registration. */
+    /** Stop all ACP agents and release the checkpoint store. Awaited by server shutdown; safe before registration. */
     shutdownAcpBackends: async () => {
       acpSessionServiceInstance?.dispose();
       await acpBackendManagerInstance?.shutdown().catch(() => {});
+      await acpCheckpointStoreInstance?.dispose?.().catch(() => {});
     },
   };
 };

@@ -114,6 +114,16 @@ const policyFileSchema = z.object({
   jev: z.object({ url: optionalText, model: optionalText, apiKey: optionalText }).optional(),
   opencodeBinary: optionalText,
   hideBuiltinSkillCatalogs: z.boolean().optional(),
+  // ACP backends the administrator allows in enterprise mode: without an
+  // entry here a backend id may neither be saved nor launched. `args`,
+  // when given, pins the exact argv the backend must launch with; user
+  // `env` is always ignored under the allowlist (it could reroute
+  // provider credentials).
+  acpBackends: z.array(z.strictObject({
+    id: z.string().trim().min(1).max(64),
+    command: z.string().trim().min(1).max(1024),
+    args: z.array(z.string().max(4096)).max(64).optional(),
+  })).max(64).optional(),
 }).refine((policy) => !policy.jev || policy.jev.url || (!policy.jev.model && !policy.jev.apiKey), {
   message: '"jev" needs a "url"',
   path: ['jev'],
@@ -134,7 +144,7 @@ const parsePolicyFile = (text) => {
     const field = issue.path.length > 0 ? `"${issue.path.join('.')}": ` : '';
     throw new Error(`${field}${issue.message}`);
   }
-  const { enterpriseMode, organization, relayUrl, allowNetworkAccess, allowedExtensions, allowLocalExtensions, jev, opencodeBinary, hideBuiltinSkillCatalogs } = parsed.data;
+  const { enterpriseMode, organization, relayUrl, allowNetworkAccess, allowedExtensions, allowLocalExtensions, jev, opencodeBinary, hideBuiltinSkillCatalogs, acpBackends } = parsed.data;
   return {
     enterpriseMode: enterpriseMode === true,
     organization: organization ?? null,
@@ -145,6 +155,9 @@ const parsePolicyFile = (text) => {
     jev: jev?.url ? { url: jev.url, model: jev.model ?? null, apiKey: jev.apiKey ?? null } : undefined,
     opencodeBinary: opencodeBinary ?? null,
     hideBuiltinSkillCatalogs: hideBuiltinSkillCatalogs === true,
+    acpBackends: Array.isArray(acpBackends)
+      ? acpBackends.map((entry) => ({ id: entry.id, command: entry.command, ...(entry.args ? { args: [...entry.args] } : {}) }))
+      : undefined,
   };
 };
 
@@ -217,6 +230,7 @@ export const readEnterprisePolicy = (options = {}) => {
       opencodeBinary: null,
       // Fails closed like the rest: a broken policy offers no catalog it might have hidden.
       hideBuiltinSkillCatalogs: true,
+      acpBackends: null,
     };
   }
 
@@ -253,6 +267,9 @@ export const readEnterprisePolicy = (options = {}) => {
     opencodeBinary: fromFile?.opencodeBinary ?? null,
     // File only, in or out of enterprise mode, for the same reason.
     hideBuiltinSkillCatalogs: fromFile?.hideBuiltinSkillCatalogs === true,
+    // File only: a user-overridable ACP allowlist would authorize nothing.
+    // Null (absent) means no ACP backend is authorized in enterprise mode.
+    acpBackends: fromFile?.acpBackends ?? null,
   };
 };
 

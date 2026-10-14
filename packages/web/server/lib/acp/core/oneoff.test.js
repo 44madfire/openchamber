@@ -274,6 +274,70 @@ describe('acp one-off generation', () => {
     expect(passthrough).toEqual([]);
   });
 
+  it('drops post-new setup banners that land after the response resolves', async () => {
+    // pi-acp posts its Skills/Extensions banner via setTimeout 0 AFTER
+    // session/new resolves — the collector exists by then, so the
+    // creation claim cannot help; the pre-turn gate must refuse to
+    // collect it. Only the prompt round-trip's own chunks count.
+    const { oneOff, passthrough } = await setup({
+      entry: {
+        helper: { config: { model: 'helper-model' } },
+        env: {
+          ONEOFF_FIX_LATE_BANNERS: JSON.stringify([
+            { sessionUpdate: 'agent_message_chunk', content: { type: 'text', text: '## Skills\n## Extensions\n' } },
+          ]),
+          ONEOFF_FIX_CONFIG_DELAY_MS: '50',
+          ONEOFF_FIX_PROMPT_SCRIPT: JSON.stringify([
+            { update: { sessionUpdate: 'agent_message_chunk', content: { type: 'text', text: 'turn-text' } } },
+          ]),
+        },
+      },
+    });
+    const result = await oneOff.generate({ backendId: 'fixture', instruction: 'Hi.', input: 'x' });
+    expect(result.text).toBe('turn-text');
+    expect(passthrough).toEqual([]);
+  });
+
+  it('strips a banner that raced into the turn, recognized by session/new _meta', async () => {
+    // The gate cannot beat an agent-side race: a banner emitted between
+    // the new-response and the prompt round-trip may still land inside
+    // the collected turn text (pi-acp PONG probe). Here the prompt
+    // script itself leads with the banner bytes, exactly as pi-acp's
+    // session/new `_meta.piAcp.startupInfo` reports them: the client
+    // strips that verbatim prefix from the result.
+    const banner = '## Skills\n## Extensions\n';
+    const { oneOff, passthrough } = await setup({
+      entry: {
+        env: {
+          ONEOFF_FIX_STARTUP_META: banner,
+          ONEOFF_FIX_PROMPT_SCRIPT: JSON.stringify([
+            { update: { sessionUpdate: 'agent_message_chunk', content: { type: 'text', text: banner } } },
+            { update: { sessionUpdate: 'agent_message_chunk', content: { type: 'text', text: 'PONG' } } },
+          ]),
+        },
+      },
+    });
+    const result = await oneOff.generate({ backendId: 'fixture', instruction: 'Reply PONG.', input: 'ping' });
+    expect(result.text).toBe('PONG');
+    expect(passthrough).toEqual([]);
+  });
+
+  it('never strips model output that merely resembles no known banner', async () => {
+    // No `_meta.piAcp.startupInfo` on the new-response: even banner-like
+    // turn text passes through untouched. Exact-match only.
+    const { oneOff } = await setup({
+      entry: {
+        env: {
+          ONEOFF_FIX_PROMPT_SCRIPT: JSON.stringify([
+            { update: { sessionUpdate: 'agent_message_chunk', content: { type: 'text', text: '## Skills\n## Extensions\nPONG' } } },
+          ]),
+        },
+      },
+    });
+    const result = await oneOff.generate({ backendId: 'fixture', instruction: 'Reply PONG.', input: 'ping' });
+    expect(result.text).toBe('## Skills\n## Extensions\nPONG');
+  });
+
   it('still passes known normal-session traffic through during creation', async () => {
     // The creation claim must be narrow: an update for an indexed normal
     // session arriving mid-creation still reaches the session router.

@@ -935,6 +935,7 @@ const ChatMessage: React.FC<ChatMessageProps> = ({
                                 footerVariant={headerVariant}
                                 isDarkTheme={isDarkTheme}
                                 extraActions={guestMessageActions}
+                                forkUnsupported={forkUnsupported}
                             />
 
                         </div>

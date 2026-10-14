@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { toast } from 'sonner';
+import { isAcpSessionId } from '@/lib/acp/session-key';
 import { isVSCodeRuntime } from '@/lib/desktop';
 import { useI18n } from '@/lib/i18n';
 import { subscribeRuntimeEndpointWillChange } from '@/lib/runtime-switch';
@@ -21,8 +22,9 @@ export function useSessionAiRenameAction(sessionID: string, directory: string | 
   const [availability, setAvailability] = useState<'checking' | 'ready' | 'empty' | 'error'>('checking');
   const unsupported = isVSCodeRuntime();
   // Renaming runs on the small model; without one the item is disabled with
-  // the reason rather than failing after the click.
-  const smallModel = useSmallModelAvailability(resolvedDirectory, open && !unsupported);
+  // the reason rather than failing after the click. ACP sessions scope the
+  // availability answer to their own backend via the session key.
+  const smallModel = useSmallModelAvailability(resolvedDirectory, open && !unsupported, isAcpSessionId(sessionID) ? sessionID : undefined);
   const noSmallModel = smallModel === 'unavailable';
   useEffect(() => {
     if (!open || !resolvedDirectory || unsupported || pending) return;

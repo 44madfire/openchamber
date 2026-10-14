@@ -247,6 +247,27 @@ describe('AcpPage', () => {
     expect(useAcpBackendsStore.getState().backends).toEqual([backend]);
   });
 
+  test('opening a card binds the detail editor to that backend id', async () => {
+    const second = {
+      id: 'pi', label: 'pi', enabled: true, state: 'idle', protocolVersion: 1,
+      agentInfo: null, agentCapabilities: null, authMethods: [], lastError: null, stderrTail: '',
+      entry: { id: 'pi', label: 'pi', command: 'pi-mcp', args: [], enabled: true },
+    };
+    responses.push(json({ backends: [backend, second] }));
+    await render();
+    await act(async () => {});
+    const card = container.querySelector('[data-backend-id="pi"] button');
+    if (!card) throw new Error('Missing pi backend card');
+    await act(async () => { (card as HTMLButtonElement).click(); });
+    await act(async () => {});
+    // The detail root carries the opened id and the form hydrates from that
+    // backend's registry entry — not the first row's.
+    expect(document.body.querySelector('[data-backend-id="pi"]')).not.toBeNull();
+    const commandField = [...container.querySelectorAll('input')]
+      .find((input) => input.getAttribute('aria-label') === 'Command') as HTMLInputElement | undefined;
+    expect(commandField?.value).toBe('pi-mcp');
+  });
+
   test('every editor control has an accessible name', async () => {
     responses.push(json({ backends: [backend] }));
     await render();

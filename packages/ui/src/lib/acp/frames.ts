@@ -35,6 +35,7 @@ const messageRoleSchema = z.enum([
   "model-switched",
   "location-switched",
   "idle",
+  "agent-notice",
 ])
 
 const sessionSchema = z.looseObject({

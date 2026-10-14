@@ -274,6 +274,10 @@ export const createSessionProjector = ({ key, backendId, directory, index = null
     // The settled turn's assistant: trailing updates after the result land
     // here without reopening the turn or minting orphan messages.
     completedAssistantId: null,
+    // D2: the latest standalone agent notice still accepting idle chunks.
+    // Sealed (dropped) when the next prompt is accepted, so each burst of
+    // out-of-turn content becomes its own transcript message.
+    openNoticeId: null,
     // Compaction tracking: agent compaction id → projector message id of the
     // running compaction record. Standard updates key by `compactionId`; the
     // `_meta["opencode/compaction"]` fallback by its `messageId` (or a
@@ -422,7 +426,46 @@ export const createSessionProjector = ({ key, backendId, directory, index = null
     return part;
   };
 
-  const appendChunk = (events, kind, chunk) => {
+  /**
+   * D2 standalone agent notice: content chunks arriving with no prompt in
+   * flight land here — one sealed `agent-notice` transcript message per
+   * burst, never on a turn assistant. Consecutive idle chunks accumulate
+   * into the notice's `text` (re-emitted whole per chunk); the next
+   * `acceptPrompt` seals it (drops the accumulator) so a later burst
+   * mints a fresh message. The record carries no parts — like `system`,
+   * it renders from the record's own `text`.
+   */
+  const appendNotice = (events, kind, chunk) => {
+    const text = textOf(chunk?.content);
+    let noticeId = state.openNoticeId ?? null;
+    let notice = messageById(noticeId);
+    if (!notice || notice.role !== 'agent-notice' || state.turn || state.replaying) {
+      const { id, at } = allocate();
+      notice = { id, sessionID: key, role: 'agent-notice', time: { created: at }, text: '' };
+      recordMessage(notice);
+      state.openNoticeId = id;
+      noticeId = id;
+      touch();
+      events.push({ type: 'message.updated', properties: { info: JSON.parse(JSON.stringify(notice)) } });
+    }
+    if (kind === 'agent_thought_chunk') return;
+    notice.text = cappedText(`${notice.text ?? ''}${text}`);
+    touch();
+    events.push({ type: 'message.updated', properties: { info: JSON.parse(JSON.stringify(notice)) } });
+  };
+
+
+  const appendChunk = (events, kind, chunk, { agentTurn = false } = {}) => {
+    // D2: content for a session with NO prompt in flight and outside replay
+    // (a setup banner emitted after session/new, e.g. pi-acp's Skills /
+    // Extensions notice) must not merge into the next turn: it becomes a
+    // standalone sealed agent notice instead. `agentTurn` traffic (the
+    // agent's own subagent turn, routed by the session service) streams
+    // onto a live assistant like a client turn does.
+    if (!state.turn && !state.replaying && !agentTurn) {
+      appendNotice(events, kind, chunk);
+      return;
+    }
     const assistant = ensureAssistant(events);
     const text = textOf(chunk?.content);
     const startedAt = now();
@@ -431,25 +474,6 @@ export const createSessionProjector = ({ key, backendId, directory, index = null
       touch();
     }
     const type = kind === 'agent_thought_chunk' ? 'reasoning' : 'text';
-    // Settled-tail path (finding 8): the turn is over, so trailing chunks
-    // land in an immediately sealed part — never an open stream on an idle
-    // session, and never a reopened seal.
-    if (!state.turn && !state.replaying) {
-      const list = state.parts.get(assistant.id) ?? [];
-      const ordinal = list.filter((entry) => entry.type === type).length;
-      const tail = {
-        id: `${assistant.id}:${type}:${ordinal}`,
-        sessionID: key,
-        messageID: assistant.id,
-        type,
-        text: cappedText(text),
-        time: { start: startedAt, end: startedAt },
-      };
-      appendPart(assistant.id, tail);
-      events.push({ type: 'message.part.updated', properties: { sessionID: key, part: { ...tail } } });
-      touch();
-      return;
-    }
     let part = currentStreamingPart(assistant.id, type);
     if (!part) {
       // A kind switch seals the other stream's open part (reasoning `end`).
@@ -1415,6 +1439,9 @@ export const createSessionProjector = ({ key, backendId, directory, index = null
       state.busy = true;
       state.turn = { startedAt: now(), assistantId: null };
       state.completedAssistantId = null;
+      // D2: the new turn seals any open agent notice — later idle chunks
+      // start a fresh notice message instead of appending to this burst.
+      state.openNoticeId = null;
       state.replaying = false;
       state.replayAssistantId = null;
       state.status = { type: 'busy' };
@@ -1435,9 +1462,12 @@ export const createSessionProjector = ({ key, backendId, directory, index = null
     /**
      * Feed one `session/update` notification. `replay: true` switches chunk
      * handling to load-replay semantics (user chunks rebuild history grouped
-     * by agent id; agent chunks accumulate without deltas).
+     * by agent id; agent chunks accumulate without deltas). `agentTurn: true`
+     * marks traffic the agent pushed for its own turn (child-session
+     * updates): chunks stream onto a live assistant instead of becoming a
+     * standalone notice.
      */
-    applyUpdate(notification, { replay = false } = {}) {
+    applyUpdate(notification, { replay = false, agentTurn = false } = {}) {
       const events = [];
       const update = notification?.update;
       const kind = update?.sessionUpdate;
@@ -1445,10 +1475,10 @@ export const createSessionProjector = ({ key, backendId, directory, index = null
       switch (kind) {
         case 'agent_message_chunk':
           if (replay) applyAgentReplay(events, update);
-          else appendChunk(events, kind, update);
+          else appendChunk(events, kind, update, { agentTurn });
           break;
         case 'agent_thought_chunk':
-          appendChunk(events, kind, update);
+          appendChunk(events, kind, update, { agentTurn });
           break;
         case 'user_message_chunk':
           if (replay) applyUserReplay(events, update);
@@ -1548,6 +1578,7 @@ export const createSessionProjector = ({ key, backendId, directory, index = null
         completedAssistantId: state.completedAssistantId,
         compactions: new Map(state.compactions),
         userTurnIds: [...state.userTurnIds],
+        openNoticeId: state.openNoticeId,
       };
       state.messages = [];
       state.parts = new Map();
@@ -1555,6 +1586,7 @@ export const createSessionProjector = ({ key, backendId, directory, index = null
       state.busy = false;
       state.turn = null;
       state.completedAssistantId = null;
+      state.openNoticeId = null;
       state.compactions = new Map();
       state.status = { type: 'idle' };
       state.replaying = true;
@@ -1582,6 +1614,7 @@ export const createSessionProjector = ({ key, backendId, directory, index = null
       state.busy = snapshot.busy;
       state.status = snapshot.status;
       state.completedAssistantId = snapshot.completedAssistantId;
+      state.openNoticeId = snapshot.openNoticeId ?? null;
       state.compactions = snapshot.compactions ?? new Map();
     },
 

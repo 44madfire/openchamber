@@ -103,6 +103,20 @@ describe('session title context', () => {
     expect(context).not.toContain('returning after a break');
   });
 
+  test('D2: ignores standalone agent notices (setup banners)', () => {
+    const notice: RecordEntry = {
+      info: { id: 'notice-1', sessionID: 'session', role: 'agent-notice', time: { created: 0 }, text: '## Skills\n- /skills/a.md\n' },
+      parts: [],
+    };
+    const turns = collectSessionTitleTurns([notice, ...pair('one')]);
+    expect(turns.map((turn) => turn.user.info.id)).toEqual(['one']);
+    const context = formatSessionTitleContext(turns);
+    expect(context).not.toContain('Skills');
+    expect(context).toContain('Request one');
+    // A notice alone is not a turn.
+    expect(collectSessionTitleTurns([notice])).toEqual([]);
+  });
+
   test('bounds oversized turns without losing replies after large quoted sources', () => {
     const turns = collectSessionTitleTurns(['one', 'two', 'three'].flatMap((id) => [
       contextMessage({ kind: 'code-comment', source: 'file', fileLabel: 'big.ts', startLine: 1, endLine: 10000, language: 'ts', code: 'x'.repeat(100000), text: `Fix ${id}` }),

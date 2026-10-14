@@ -11,7 +11,16 @@ mock.module('@/lib/runtime-fetch', () => ({
   },
 }));
 mock.module('@/lib/runtime-switch', () => ({
+  // Full surface: bun shares mocked modules across test files in one
+  // process, and co-run suites import the rest.
   getRuntimeKey: () => 'runtime-a',
+  getRuntimeApiBaseUrl: () => '',
+  isSshForwardedRuntime: () => false,
+  MOBILE_DISCONNECTED_RUNTIME_KEY: 'mobile-disconnected',
+  isTransientRuntimeKey: () => false,
+  initializeRuntimeEndpoint: () => {},
+  switchRuntimeEndpoint: () => {},
+  subscribeRuntimeEndpointWillChange: () => () => {},
   subscribeRuntimeEndpointChanged: () => () => {},
 }));
 mock.module('@/lib/configSync', () => ({
@@ -50,7 +59,7 @@ describe('useSmallModelStore', () => {
     responses = [{ status: 200, body: { available: true } }];
     await useSmallModelStore.getState().ensureFresh('/p');
     useSmallModelStore.setState((state) => ({
-      byKey: { ...state.byKey, 'runtime-a::/p': { availability: 'available', fetchedAt: 0 } },
+      byKey: { ...state.byKey, 'runtime-a::/p::': { availability: 'available', fetchedAt: 0 } },
     }));
     responses = [{ status: 500, body: { error: 'down' } }];
     await useSmallModelStore.getState().ensureFresh('/p');
@@ -58,6 +67,21 @@ describe('useSmallModelStore', () => {
     responses = [{ status: 200, body: { available: 'yes' } }];
     await useSmallModelStore.getState().ensureFresh('/p');
     expect(selectSmallModelAvailability(useSmallModelStore.getState(), '/p')).toBe('available');
+  });
+
+  test('an ACP session key scopes the request and the cached answer', async () => {
+    responses = [
+      { status: 200, body: { available: false } },
+      { status: 200, body: { available: true } },
+    ];
+    await useSmallModelStore.getState().ensureFresh('/p');
+    await useSmallModelStore.getState().ensureFresh('/p', 'ses_acp-omp_r1');
+    expect(calls).toEqual([
+      '/api/small-model?directory=%2Fp',
+      '/api/small-model?directory=%2Fp&sessionKey=ses_acp-omp_r1',
+    ]);
+    expect(selectSmallModelAvailability(useSmallModelStore.getState(), '/p')).toBe('unavailable');
+    expect(selectSmallModelAvailability(useSmallModelStore.getState(), '/p', 'ses_acp-omp_r1')).toBe('available');
   });
 
   test('invalidate forgets every answer so the next reader fetches again', async () => {

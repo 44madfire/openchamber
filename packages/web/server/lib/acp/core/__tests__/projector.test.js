@@ -482,25 +482,45 @@ describe('acp projector turn rules', () => {
     expect(projector.page({ limit: 2, before: 'msg_nope' }).items).toEqual([]);
   });
 
-  it('trailing updates after the result land sealed on the settled assistant', () => {
+  it('trailing tool updates after the result land on the settled assistant', () => {
     const projector = projectorFor();
     projector.acceptPrompt('msg_1', [{ type: 'text', text: 'x' }]);
     projector.applyUpdate({ sessionId: 'n', update: { sessionUpdate: 'agent_message_chunk', content: { type: 'text', text: 'body' } } });
+    projector.applyUpdate({ sessionId: 'n', update: { sessionUpdate: 'tool_call', toolCallId: 't1', kind: 'execute', status: 'pending' } });
     projector.applyPromptResult({ stopReason: 'end_turn' });
     const assistantId = projector.page({ limit: 5 }).items[0].info.id;
-    projector.applyUpdate({ sessionId: 'n', update: { sessionUpdate: 'agent_message_chunk', content: { type: 'text', text: 'tail1' } } });
-    projector.applyUpdate({ sessionId: 'n', update: { sessionUpdate: 'agent_message_chunk', content: { type: 'text', text: 'tail2' } } });
+    // A trailing tool update for the settled turn's call lands on the same
+    // assistant message instead of minting an orphan.
+    projector.applyUpdate({ sessionId: 'n', update: { sessionUpdate: 'tool_call_update', toolCallId: 't1', status: 'completed' } });
     const page = projector.page({ limit: 5 });
     expect(page.items).toHaveLength(2);
     expect(page.items[0].info.id).toBe(assistantId);
-    // The tail stays on the same message instead of minting an orphan, and
-    // every part is sealed: no open streams on an idle session.
-    expect(page.items[0].parts.map((part) => part.text).join('')).toBe('bodytail1tail2');
-    for (const part of page.items[0].parts) {
-      expect(part.time.end).toBeDefined();
-    }
     expect(page.items[0].info.time.completed).toBeDefined();
     expect(projector.busy).toBe(false);
+  });
+
+  it('D2: idle chunks become a standalone sealed agent notice, never turn content', () => {
+    const projector = projectorFor();
+    // No prompt in flight: a setup banner burst (two chunks) arrives.
+    projector.applyUpdate({ sessionId: 'n', update: { sessionUpdate: 'agent_message_chunk', content: { type: 'text', text: '## Skills\n' } } });
+    projector.applyUpdate({ sessionId: 'n', update: { sessionUpdate: 'agent_message_chunk', content: { type: 'text', text: '- a\n' } } });
+    const page = projector.page({ limit: 5 });
+    expect(page.items).toHaveLength(1);
+    expect(page.items[0].info.role).toBe('agent-notice');
+    expect(page.items[0].info.text).toBe('## Skills\n- a\n');
+    expect(page.items[0].parts).toEqual([]);
+    expect(projector.busy).toBe(false);
+    // The next turn starts clean: the notice neither merges into it nor
+    // blocks it, and a later idle burst mints a FRESH notice message.
+    projector.acceptPrompt('msg_1', [{ type: 'text', text: 'hi' }]);
+    projector.applyUpdate({ sessionId: 'n', update: { sessionUpdate: 'agent_message_chunk', content: { type: 'text', text: 'reply' } } });
+    projector.applyPromptResult({ stopReason: 'end_turn' });
+    projector.applyUpdate({ sessionId: 'n', update: { sessionUpdate: 'agent_message_chunk', content: { type: 'text', text: 'late' } } });
+    const items = projector.page({ limit: 10 }).items;
+    expect(items.map((item) => item.info.role)).toEqual(['agent-notice', 'assistant', 'user', 'agent-notice']);
+    expect(items[1].parts.map((part) => part.text).join('')).toBe('reply');
+    expect(items[3].info.text).toBe('## Skills\n- a\n');
+    expect(items[0].info.text).toBe('late');
   });
 
   it('announcement ids never collide with assistant ids', () => {

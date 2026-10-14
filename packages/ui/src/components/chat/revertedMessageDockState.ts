@@ -1,4 +1,5 @@
 import type { Message, Part, SyntheticMessage, UserMessage } from '@/lib/opencode/model';
+import { acpRevertedFromTurnOf, resolveRevertBoundaryMessageID } from '@/lib/acp/revert';
 import { readSubagentRun } from '@/lib/opencode/subagent-run';
 import type { State } from '@/sync/types';
 import { findMessageIndex } from '@/sync/message-ordering';
@@ -47,12 +48,19 @@ export const buildRevertedMessageDockState = (
     }
 
     const session = state.session.find((item) => item.id === sessionId);
-    const revertMessageID = session?.revert?.messageID;
+    const messages = state.message[sessionId] ?? [];
+    // The server stamps the boundary with the turn's client-minted id, which
+    // the transcript does not always carry; ACP sessions fall back to the
+    // first message stamped at or after `revertedFromTurn`.
+    const revertMessageID = resolveRevertBoundaryMessageID(
+        messages,
+        session?.revert?.messageID,
+        session ? acpRevertedFromTurnOf(session) : null,
+    );
     if (!revertMessageID) {
         return EMPTY_REVERTED_MESSAGE_DOCK_STATE;
     }
 
-    const messages = state.message[sessionId] ?? [];
     const revertIndex = findMessageIndex(messages, revertMessageID);
     if (revertIndex < 0) {
         return EMPTY_REVERTED_MESSAGE_DOCK_STATE;

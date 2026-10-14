@@ -30,6 +30,7 @@ import { useSkillsStore } from '@/stores/useSkillsStore';
 import { useCommandsStore } from '@/stores/useCommandsStore';
 import { useAcpCommandsStore } from '@/stores/useAcpCommandsStore';
 import { useAgentsStore } from '@/stores/useAgentsStore';
+import { useAcpBackendsStore } from '@/stores/useAcpBackendsStore';
 import { useAgentMemoryStore } from '@/stores/useAgentMemoryStore';
 import { useUIStore } from '@/stores/useUIStore';
 import { useFilesViewTabsStore } from '@/stores/useFilesViewTabsStore';
@@ -90,8 +91,8 @@ export const resetAppForRuntimeEndpointChange = (detail: RuntimeEndpointChangedD
   useMultiRunStore.getState().resetForRuntimeSwitch();
   useSessionMultiSelectStore.getState().disable();
   useCommandsStore.getState().resetForRuntimeSwitch();
-  useAcpCommandsStore.getState().resetForRuntimeSwitch();
   useAgentsStore.getState().resetForRuntimeSwitch();
+  useAcpBackendsStore.getState().resetForRuntimeSwitch();
   replaceGlobalSessionStatusById(new Map());
   resetGlobalBlockingRequests();
   resetBackgroundShells();

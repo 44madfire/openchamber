@@ -24,7 +24,10 @@ export type AcpGatedOperation = "revert" | "compact" | "shell" | "background" | 
 /**
  * True when the session cannot do `operation`. Plain OpenCode sessions always
  * return false. Fork consults the session record when given: without it (or
- * without an advertised fork capability) fork counts as unsupported. Revert
+ * without an advertised fork capability) fork counts as unsupported. The
+ * projector copies the agent's initialize capabilities unchanged, so fork is
+ * read exactly the way the server reads it (`sessionCapabilities.fork`
+ * present and not null/false — a capability object, not a boolean). Revert
  * and diff are checkpoint-gated (see above) and always return false here.
  */
 export const isAcpUnsupported = (
@@ -35,6 +38,18 @@ export const isAcpUnsupported = (
   if (!sessionId || !isAcpSessionId(sessionId)) return false
   if (operation === "revert" || operation === "diff") return false
   if (operation !== "fork") return true
-  const capabilities = readAcpSessionMeta(session)?.capabilities
-  return capabilities?.fork !== true
+  return !hasAcpForkCapability(readAcpSessionMeta(session)?.capabilities)
+}
+
+/**
+ * Whether the projected agent capabilities advertise fork. Mirrors the
+ * server's `hasCap(sessionCaps(caps), "fork")`: the value only needs to be
+ * present and neither null nor false.
+ */
+export const hasAcpForkCapability = (capabilities: Record<string, unknown> | null | undefined): boolean => {
+  if (!capabilities || typeof capabilities !== "object") return false
+  const sessionCaps = (capabilities as { sessionCapabilities?: unknown }).sessionCapabilities
+  if (!sessionCaps || typeof sessionCaps !== "object") return false
+  const fork = (sessionCaps as Record<string, unknown>).fork
+  return fork !== undefined && fork !== null && fork !== false
 }

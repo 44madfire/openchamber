@@ -128,7 +128,7 @@ import { useI18n } from '@/lib/i18n';
 import { sessionEvents } from '@/lib/sessionEvents';
 import { fetchResponseStyleInstruction } from '@/lib/responseStyle';
 import { wrapSystemReminder } from '@/lib/systemReminder';
-import { getSyncMessages } from '@/sync/sync-refs';
+import { getAllSyncSessionMap, getSyncMessages } from '@/sync/sync-refs';
 import { useOpenCodeStartupStore } from '@/sync/opencode-startup-gate';
 import { eventMatchesShortcut, getEffectiveShortcutCombo, normalizeCombo } from '@/lib/shortcuts';
 import {
@@ -1847,7 +1847,8 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({
                 } else if (actionName === 'handoff-review') {
                     setReviewDialogOpen(true);
                 } else if (actionName === 'fork') {
-                    if (isAcpUnsupported(currentSessionId, 'fork')) {
+                    const forkSession = currentSessionId ? getAllSyncSessionMap().get(currentSessionId) ?? null : null;
+                    if (isAcpUnsupported(currentSessionId, 'fork', forkSession)) {
                         toast.error(t('chat.chatInput.toast.acpUnsupported'));
                         return;
                     }

@@ -8,6 +8,7 @@ import { createAcpBackendManager } from '../backend-manager.js';
 import { createAcpBackendRegistry } from '../registry.js';
 import { createAcpSessionIndex } from '../session-index.js';
 import { createAcpSessionService } from '../sessions.js';
+import { normalizeDirectory } from '../directory-key.js';
 
 const FAKE_AGENT = fileURLToPath(new URL('./fake-agent.mjs', import.meta.url));
 
@@ -48,7 +49,7 @@ const setup = async ({ entry = {}, entries = null, indexDir, serviceOptions = {}
     connectionHooks: (backendId, generation) => holder.current?.hooksForBackend(backendId, generation) ?? {},
   });
   managers.push(manager);
-  const service = createAcpSessionService({ manager, index, registry, settleMs: 5, watchdogMs: 200, ...serviceOptions });
+  const service = createAcpSessionService({ canonicalDirectory: async (d) => normalizeDirectory(d), manager, index, registry, settleMs: 5, watchdogMs: 200, ...serviceOptions });
   holder.current = service;
   services.push(service);
   return { service, manager, index, registry };
@@ -207,6 +208,96 @@ describe('acp session service', () => {
     await expect(closeOnly.service.delete({ key: created2.session.id })).resolves.toBe(true);
     await expect(closeOnly.index.get(created2.session.id)).resolves.toBeNull();
   });
+  it('does not resurrect a close-only delete via session/list', async () => {
+    const { service } = await setup({
+      entry: {
+        env: {
+          FAKE_ACP_CLOSE: 'true',
+          FAKE_ACP_CAPABILITIES: JSON.stringify({ sessionCapabilities: { close: {}, list: {} } }),
+        },
+      },
+    });
+    const { session } = await service.create({ backendId: 'fake', directory: 'C:\\work' });
+    await expect(service.delete({ key: session.id })).resolves.toBe(true);
+    // The agent's list still names the closed session (close is not delete);
+    // the listing must not resurrect it, and the index must stay clean.
+    const rows = await service.list({ directory: 'C:\\work' });
+    expect(rows.map((row) => row.id)).not.toContain(session.id);
+    await expect(service.open({ key: session.id })).rejects.toMatchObject({ code: 'ACP_SESSION_UNKNOWN' });
+  });
+
+  it('D2: pre-prompt agent chunks become a sealed agent notice, not turn content', async () => {
+    const { service } = await setup({
+      entry: {
+        env: {
+          FAKE_ACP_UNSOLICITED_UPDATES: JSON.stringify([
+            { sessionUpdate: 'agent_message_chunk', content: { type: 'text', text: '## Skills\n' } },
+            { sessionUpdate: 'agent_message_chunk', content: { type: 'text', text: '- a\n' } },
+          ]),
+          FAKE_ACP_PROMPT_SCRIPT: JSON.stringify([
+            { update: { sessionUpdate: 'agent_message_chunk', content: { type: 'text', text: 'reply' } } },
+          ]),
+        },
+      },
+    });
+    const frames = syncEvents(service);
+    const { session } = await service.create({ backendId: 'fake', directory: 'C:\\work' });
+    // The banner lands before any prompt: one sealed agent-notice message.
+    await until(() => frames.some((frame) => frame.events.some((event) =>
+      event.type === 'message.updated' && event.properties.info?.role === 'agent-notice')));
+    const pre = await service.messages({ key: session.id, limit: 5 });
+    expect(pre.items).toHaveLength(1);
+    expect(pre.items[0].info.role).toBe('agent-notice');
+    expect(pre.items[0].info.text).toBe('## Skills\n- a\n');
+    expect(pre.items[0].parts).toEqual([]);
+    // The first turn starts clean: the notice stays its own message and the
+    // assistant carries only turn output.
+    await service.prompt({ key: session.id, messageId: 'msg_1', parts: [{ type: 'text', text: 'hi' }] });
+    await until(() => frames.some((frame) =>
+      frame.events.some((event) => event.type === 'session.idle')));
+    const page = await service.messages({ key: session.id, limit: 10 });
+    expect(page.items.map((item) => item.info.role)).toEqual(['assistant', 'user', 'agent-notice']);
+    expect(page.items[0].parts.map((part) => part.text).join('')).toBe('reply');
+  });
+
+  it('D5: delete succeeds with a warning when the agent session is already gone', async () => {
+    const { service, index } = await setup({
+      entry: {
+        env: {
+          FAKE_ACP_DELETE: 'true',
+          FAKE_ACP_CAPABILITIES: JSON.stringify({ sessionCapabilities: { delete: {} } }),
+          FAKE_ACP_DELETE_ERROR: JSON.stringify({ message: 'ACP connection closed' }),
+        },
+      },
+    });
+    const frames = syncEvents(service);
+    const { session } = await service.create({ backendId: 'fake', directory: 'C:\\work' });
+    const outcome = await service.delete({ key: session.id });
+    expect(outcome).toEqual({ deleted: true, warning: expect.stringContaining('ACP connection closed') });
+    await expect(index.get(session.id)).resolves.toBeNull();
+    expect(frames.some((frame) => frame.events.some((event) =>
+      event.type === 'session.deleted' && event.properties.sessionID === session.id))).toBe(true);
+    // Unknown afterwards: no zombie on list or open.
+    expect((await service.list({ directory: 'C:\\work' })).map((row) => row.id)).not.toContain(session.id);
+    await expect(service.open({ key: session.id })).rejects.toMatchObject({ code: 'ACP_SESSION_UNKNOWN' });
+  });
+
+  it('D5: delete still throws when the agent session may be alive', async () => {
+    const { service, index } = await setup({
+      entry: {
+        env: {
+          FAKE_ACP_DELETE: 'true',
+          FAKE_ACP_CAPABILITIES: JSON.stringify({ sessionCapabilities: { delete: {} } }),
+          FAKE_ACP_DELETE_ERROR: JSON.stringify({ code: -32603, message: 'provider quota exceeded' }),
+        },
+      },
+    });
+    const { session } = await service.create({ backendId: 'fake', directory: 'C:\\work' });
+    // The SDK wraps agent-thrown text as "Internal error" (details in
+    // `data.details`); what matters is the delete throws and keeps state.
+    await expect(service.delete({ key: session.id })).rejects.toThrow('Internal error');
+    await expect(index.get(session.id)).resolves.not.toBeNull();
+  });
 
   it('merges session/list and drops other directories', async () => {
     const seeds = [
@@ -269,6 +360,30 @@ describe('acp session service', () => {
     expect(frames.some((frame) => frame.events.some((event) =>
       event.type === 'session.patched' && event.properties.patch.metadata !== undefined))).toBe(true);
     await expect(index.get(session.id)).resolves.toMatchObject({ lastConfig: { model: 'm2' } });
+  });
+
+  it('D4: errors (409) when the agent silently keeps the old config value', async () => {
+    const { service, index } = await setup({
+      entry: {
+        env: {
+          FAKE_ACP_CONFIG_OPTIONS: JSON.stringify([{ id: 'model', name: 'Model', type: 'select', currentValue: 'm1' }]),
+          FAKE_ACP_CONFIG_SILENT_KEEP: 'true',
+        },
+      },
+    });
+    const frames = syncEvents(service);
+    const { session } = await service.create({ backendId: 'fake', directory: 'C:\\work' });
+    // The RPC answers success but keeps m1: the caller gets
+    // ACP_CONFIG_NOT_APPLIED with the agent's resulting value.
+    await expect(service.config({ key: session.id, configId: 'model', value: 'm2' }))
+      .rejects.toMatchObject({ code: 'ACP_CONFIG_NOT_APPLIED', message: expect.stringContaining('m1') });
+    // Session state follows the agent, not the request: metadata shows m1
+    // and the index persists m1 (the rejected m2 must not resurrect).
+    const reopened = await service.open({ key: session.id });
+    expect(reopened.session.metadata.acp.configOptions.find((o) => o.id === 'model').current).toBe('m1');
+    await expect(index.get(session.id)).resolves.toMatchObject({ lastConfig: { model: 'm1' } });
+    expect(frames.some((frame) => frame.events.some((event) =>
+      event.type === 'session.patched' && event.properties.patch.metadata !== undefined))).toBe(true);
   });
 
   it('surfaces prompt errors as session.error', async () => {

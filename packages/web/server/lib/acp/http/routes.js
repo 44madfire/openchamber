@@ -42,11 +42,13 @@
 import express from 'express';
 
 import { AcpBackendError } from '../core/backend-manager.js';
+import { AcpEnterpriseError, enterpriseDecisionForBackend } from '../core/enterprise.js';
 
 const jsonBody = express.json({ limit: '256kb' });
 const promptBody = express.json({ limit: '4mb' });
 
 const statusForError = (error) => {
+  if (error?.code === 'ACP_ENTERPRISE_BLOCKED') return 403;
   switch (error?.code) {
     case 'ACP_BACKEND_UNKNOWN':
     case 'ACP_AUTH_UNKNOWN_METHOD':
@@ -59,7 +61,10 @@ const statusForError = (error) => {
     case 'ACP_BACKEND_DISABLED':
     case 'ACP_AUTH_TERMINAL':
     case 'ACP_SESSION_BUSY':
+    case 'ACP_CONFIG_NOT_APPLIED':
     case 'ACP_CHECKPOINT_BUSY':
+    case 'ACP_FORK_UNSUPPORTED':
+    case 'ACP_FORK_FAILED':
       return 409;
     case 'ACP_REGISTRY_INVALID':
     case 'ACP_REGISTRY_CORRUPT':
@@ -144,6 +149,15 @@ export const registerAcpRoutes = (app, { registry, manager, sessions = null, one
   app.put('/api/acp/backends', jsonBody, async (req, res) => {
     try {
       const backends = req.body?.backends ?? req.body;
+      // Enterprise gate: every entry must be allowlisted before it is
+      // saved. Launch re-checks independently (see resolveEntry), so a
+      // stale or out-of-band registry file cannot bypass this either.
+      for (const entry of Array.isArray(backends) ? backends : []) {
+        const decision = enterpriseDecisionForBackend(entry);
+        if (!decision.allowed) {
+          throw new AcpEnterpriseError(decision.error, { backendId: entry?.id });
+        }
+      }
       await registry.save(backends);
       const statuses = await manager.listStatuses();
       res.json({
@@ -256,8 +270,11 @@ export const registerAcpRoutes = (app, { registry, manager, sessions = null, one
   app.delete('/api/acp/sessions/:key', async (req, res) => {
     try {
       if (!requireSessions(res)) return;
-      await sessions.delete({ key: req.params.key });
-      res.json({ deleted: true });
+      // D5: idempotent delete returns `{ deleted: true, warning }` when the
+      // agent side was already gone; a plain `true` keeps the old shape.
+      const outcome = await sessions.delete({ key: req.params.key });
+      if (outcome && typeof outcome === 'object') res.json(outcome);
+      else res.json({ deleted: true });
     } catch (error) {
       sendError(res, error);
     }
@@ -453,6 +470,18 @@ export const registerAcpRoutes = (app, { registry, manager, sessions = null, one
     }
   });
 
+  app.post('/api/acp/sessions/:key/fork', async (req, res) => {
+    try {
+      if (!requireSessions(res)) return;
+      // Whole-transcript fork (§3.2, T6: no fork-at-message — the route
+      // takes no boundary). Capability-gated server-side on
+      // `agentCapabilities.sessionCapabilities.fork`; without it the
+      // service answers ACP_FORK_UNSUPPORTED.
+      res.json(await sessions.fork({ key: req.params.key }));
+    } catch (error) {
+      sendError(res, error);
+    }
+  });
   app.post('/api/acp/oneoff', promptBody, async (req, res) => {
     try {
       if (!requireOneOff(res)) return;

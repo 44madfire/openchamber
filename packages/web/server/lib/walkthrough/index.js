@@ -1,5 +1,6 @@
 import { isString } from '../shared/guards.js';
 import { getRepositoryRoot } from '../git/service.js';
+import { isAcpSessionKey } from '../acp/core/session-key.js';
 import { describeSmallModel, generateSmallModelText, getAcpOneOffFallback } from '../small-model/index.js';
 import { buildDigest } from './digest.js';
 import { indexHunks } from './hunks.js';
@@ -227,14 +228,26 @@ const ACP_FALLBACK_MODEL = Object.freeze({
   outputTokenLimit: null,
 });
 
-// The generate-level fallback only fires inside `generateSmallModelText`, past
-// a resolution this feature never reaches when OpenCode is down. So a null
-// OpenCode answer resolves to the synthetic ACP entry while the fallback is
-// wired; an explicit model choice still means OpenCode-or-nothing.
-const resolveModelWithFallback = async (directory, explicitModel, providerID, modelID) => {
-  const model = await resolveModel(directory, explicitModel, providerID, modelID);
-  if (model || explicitModel || readWalkthroughModelOverride()) return model;
-  return getAcpOneOffFallback() ? { ...ACP_FALLBACK_MODEL } : null;
+// ACP-scoped requests carry their selection here: an ACP session key or an
+// explicit backendId resolves to the synthetic ACP entry (ACP-first, no
+// OpenCode resolution) and outranks both the explicit per-review model and
+// the persisted walkthrough override — those are OpenCode-only knobs, so
+// honoring them here would route an ACP request away from ACP. Anything
+// else keeps OpenCode-only semantics and a null OpenCode answer stays null.
+const resolveModelWithFallback = async (directory, explicitModel, providerID, modelID, { sessionKey, backendId } = {}) => {
+  const wantsAcp = (typeof backendId === 'string' && backendId)
+    || (typeof sessionKey === 'string' && sessionKey && isAcpSessionKey(sessionKey));
+  if (!wantsAcp) return resolveModel(directory, explicitModel, providerID, modelID);
+  if (!getAcpOneOffFallback()) return null;
+  try {
+    await getAcpOneOffFallback().resolveBackend({
+      ...(typeof backendId === 'string' && backendId ? { backendId } : {}),
+      ...(typeof sessionKey === 'string' && sessionKey ? { sessionKey } : {}),
+    });
+  } catch {
+    return null;
+  }
+  return { ...ACP_FALLBACK_MODEL };
 };
 
 const isAcpFallbackModel = (model) => model?.source === 'acp-oneoff';
@@ -301,7 +314,7 @@ const serializeHunks = (files) => files.flatMap((file) => file.hunks.map((hunk) 
  * Read the last walkthrough for a source, resolved against the current diff.
  * Never generates and never spends tokens.
  */
-export async function getWalkthrough({ directory, source: rawSource, model: explicitModel, providerID, modelID, language: rawLanguage, readContext: rawReadContext }, deps = {}) {
+export async function getWalkthrough({ directory, source: rawSource, model: explicitModel, providerID, modelID, language: rawLanguage, readContext: rawReadContext, sessionKey, backendId }, deps = {}) {
   const source = parseSource(rawSource);
   const readContext = readContextForSource(source, rawReadContext);
   const repoRoot = await getRepositoryRoot(directory);
@@ -314,7 +327,7 @@ export async function getWalkthrough({ directory, source: rawSource, model: expl
   // the whole git pipeline twice.
   const [built, model] = await Promise.all([
     loadCurrentDiff(directory, source, deps, readContext),
-    resolveModelWithFallback(directory, explicitModel, providerID, modelID).catch(() => null),
+    resolveModelWithFallback(directory, explicitModel, providerID, modelID, { sessionKey, backendId }).catch(() => null),
   ]);
   const { files } = built;
   const hunkIndex = indexHunks(files);
@@ -439,7 +452,7 @@ function computeReadiness({ model, digest, files, fileCount, hunkCount, generate
  * which also means returning to a previous state of the working tree costs
  * nothing.
  */
-export async function generateWalkthrough({ directory, source: rawSource, force = false, model: explicitModel, providerID, modelID, language: rawLanguage, readContext: rawReadContext }, deps = {}) {
+export async function generateWalkthrough({ directory, source: rawSource, force = false, model: explicitModel, providerID, modelID, language: rawLanguage, readContext: rawReadContext, sessionKey, backendId }, deps = {}) {
   const source = parseSource(rawSource);
   const readContext = readContextForSource(source, rawReadContext);
   const repoRoot = await getRepositoryRoot(directory);
@@ -452,7 +465,7 @@ export async function generateWalkthrough({ directory, source: rawSource, force 
   if (existing) return existing.promise;
 
   const controller = new AbortController();
-  const promise = runGeneration({ directory, source, repoRoot, key, force, explicitModel, providerID, modelID, language, readContext, signal: controller.signal }, deps)
+  const promise = runGeneration({ directory, source, repoRoot, key, force, explicitModel, providerID, modelID, language, readContext, sessionKey, backendId, signal: controller.signal }, deps)
     .finally(() => {
       if (jobs.get(jobKey(repoRoot, key, readContext))?.controller === controller) {
         jobs.delete(jobKey(repoRoot, key, readContext));
@@ -463,9 +476,9 @@ export async function generateWalkthrough({ directory, source: rawSource, force 
   return promise;
 }
 
-async function runGeneration({ directory, source, repoRoot, key, force, explicitModel, providerID, modelID, language, readContext, signal }, deps) {
+async function runGeneration({ directory, source, repoRoot, key, force, explicitModel, providerID, modelID, language, readContext, sessionKey, backendId, signal }, deps) {
 
-  const model = await resolveModelWithFallback(directory, explicitModel, providerID, modelID);
+  const model = await resolveModelWithFallback(directory, explicitModel, providerID, modelID, { sessionKey, backendId });
   if (!model) {
     throw fail('No model is available — sign in to a provider first', 404, { code: 'no-model' });
   }
@@ -549,9 +562,11 @@ async function runGeneration({ directory, source, repoRoot, key, force, explicit
     system: options.system,
     directory,
     sessionID: `openchamber-walkthrough-${cacheKey}`,
-    // The synthetic ACP entry is not an OpenCode model: omit `model` so the
-    // generate-level fallback fires instead of resolving a literal provider.
+    // The synthetic ACP entry is not an OpenCode model: omit `model` and
+    // forward the ACP selection so the call routes ACP-first.
     ...(!acpFallback ? { model: `${model.providerID}/${model.modelID}` } : {}),
+    ...(acpFallback && typeof sessionKey === 'string' && sessionKey ? { sessionKey } : {}),
+    ...(acpFallback && typeof backendId === 'string' && backendId ? { backendId } : {}),
     // The one-off prompt already asks for bare JSON and its trimmer unwraps
     // fences, so the schema would only spend a wasted with-schema call.
     responseSchema: acpFallback ? undefined : options.responseSchema,

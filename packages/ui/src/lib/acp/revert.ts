@@ -65,3 +65,36 @@ export const revertDidFork = (sourceKey: string, response: AcpRevertResponse): b
 /** Human-readable lines for the response's skipped paths, for a toast/dialog. */
 export const skippedPathLines = (response: AcpRevertResponse): string[] =>
   response.skipped.map((entry) => `${entry.file} — ${entry.reason}`)
+
+/**
+ * The `metadata.acp.revertedFromTurn` stamp: the first undone turn after an
+ * in-place revert. Null for OpenCode sessions and never-reverted ones.
+ */
+export const acpRevertedFromTurnOf = (session: Pick<Message, "metadata"> | { metadata?: unknown } | null | undefined): number | null => {
+  const meta = (session?.metadata as Record<string, unknown> | undefined)?.acp as Record<string, unknown> | undefined
+  const turn = meta?.revertedFromTurn
+  return typeof turn === "number" && Number.isInteger(turn) && turn > 0 ? turn : null
+}
+
+/**
+ * The message id the revert marker cuts before. The server stamps the
+ * boundary with the turn's client-minted message id, which the transcript
+ * does not always carry (the projector mints its own ids) — so a boundary
+ * that names no loaded message falls back to the first stamped message of
+ * `revertedFromTurn`. No boundary at all means no cut, even with a stale
+ * turn stamp (sending after a revert clears the marker first). OpenCode
+ * sessions (no turn stamp) always keep their boundary untouched.
+ */
+export const resolveRevertBoundaryMessageID = (
+  messages: readonly Pick<Message, "id" | "metadata" | "role">[],
+  boundaryMessageID: string | undefined,
+  revertedFromTurn: number | null | undefined,
+): string | undefined => {
+  if (!boundaryMessageID) return undefined
+  if (messages.some((message) => message.id === boundaryMessageID)) return boundaryMessageID
+  if (revertedFromTurn === null || revertedFromTurn === undefined) return boundaryMessageID
+  return messages.find((message) => {
+    const turn = acpTurnOf(message)
+    return turn !== null && turn >= revertedFromTurn
+  })?.id
+}

@@ -32,7 +32,13 @@
  *   tests can prove normal-session traffic is not stolen or disturbed.
  * - ONEOFF_FIX_NEW_BANNERS: update[] emitted for the new session BEFORE the
  *   session/new response resolves (exercises the creation-window claim).
- * - ONEOFF_FIX_NEW_DELAY_MS: delay before the session/new response resolves.
+ * - ONEOFF_FIX_LATE_BANNERS: update[] emitted for the new session AFTER the
+ *   session/new response resolves (scheduled via setTimeout 0, like
+ *   pi-acp's post-new Skills/Extensions banner): exercises the
+ *   collector's pre-turn gate — claimed, never collected.
+ * - ONEOFF_FIX_STARTUP_META: string echoed as `_meta.piAcp.startupInfo` on
+ *   the session/new response (like pi-acp), so tests can prove the client
+ *   strips a banner that raced past every gate into the turn text.
  * - ONEOFF_FIX_CONFIG_DELAY_MS: delay before each set_config response.
  * - ONEOFF_FIX_DELETE_DELAY_MS / ONEOFF_FIX_CLOSE_DELAY_MS: delay before
  *   the delete/close response (a huge value simulates a stuck cleanup).
@@ -97,6 +103,8 @@ const RECORD_PROMPTS = process.env.ONEOFF_FIX_RECORD_PROMPTS !== undefined
   && process.env.ONEOFF_FIX_RECORD_PROMPTS !== '';
 const NOTIFY_OTHER = readJson(process.env.ONEOFF_FIX_NOTIFY_OTHER, null);
 const NEW_BANNERS = readJson(process.env.ONEOFF_FIX_NEW_BANNERS, []);
+const LATE_BANNERS = readJson(process.env.ONEOFF_FIX_LATE_BANNERS, []);
+const STARTUP_META = process.env.ONEOFF_FIX_STARTUP_META ?? null;
 const NEW_DELAY_MS = Number(process.env.ONEOFF_FIX_NEW_DELAY_MS ?? 0);
 const CONFIG_DELAY_MS = Number(process.env.ONEOFF_FIX_CONFIG_DELAY_MS ?? 0);
 const DELETE_DELAY_MS = Number(process.env.ONEOFF_FIX_DELETE_DELAY_MS ?? 0);
@@ -133,7 +141,23 @@ const agent = new AgentSideConnection((client) => ({
       await client.sessionUpdate({ sessionId, update });
     }
     if (NEW_DELAY_MS > 0) await sleep(NEW_DELAY_MS);
-    return { sessionId, configOptions: CONFIG_OPTIONS ?? undefined };
+    // …and AFTER it resolves (pi-acp posts its Skills/Extensions banner
+    // via setTimeout 0): the collector exists by the time these land,
+    // but the turn gate must still refuse to collect them.
+    if (LATE_BANNERS.length > 0) {
+      setTimeout(() => {
+        (async () => {
+          for (const update of LATE_BANNERS) {
+            await client.sessionUpdate({ sessionId, update });
+          }
+        })().catch(() => {});
+      }, 0);
+    }
+    return {
+      sessionId,
+      configOptions: CONFIG_OPTIONS ?? undefined,
+      ...(STARTUP_META ? { _meta: { piAcp: { startupInfo: STARTUP_META } } } : {}),
+    };
   },
   loadSession: async () => ({ configOptions: CONFIG_OPTIONS ?? undefined }),
   listSessions: async (params) => ({ sessions: [], ...(params ? {} : {}) }),

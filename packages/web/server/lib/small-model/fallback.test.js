@@ -166,8 +166,8 @@ const runHandler = async (handler, req) => {
   return { status, payload };
 };
 
-describe('ACP one-off fallback', () => {
-  it('leaves an OpenCode success byte-identical while the fallback is set', async () => {
+describe('ACP one-off routing', () => {
+  it('leaves an OpenCode success byte-identical while the provider is set', async () => {
     const { calls, provider } = stubProvider();
     setAcpOneOffFallback(provider);
 
@@ -184,23 +184,25 @@ describe('ACP one-off fallback', () => {
     expect(getAcpOneOffFallback()).toBe(provider);
   });
 
-  it('falls back on the no-client 404 and forwards sessionKey to resolveBackend', async () => {
-    configureOpenCodeRuntimeProviders(null);
+  it('routes ACP-first when the caller names an ACP session, without touching OpenCode', async () => {
     const { calls, provider } = stubProvider();
     setAcpOneOffFallback(provider);
 
     const result = await generateSmallModelText({
-      prompt: '  hello fallback  ',
+      prompt: '  hello acp  ',
       system: 'be terse',
       maxOutputTokens: 100,
-      sessionKey: 'ses_1',
+      directory: '/proj',
+      sessionKey: 'ses_acp-omp_rnative-1',
     });
 
-    expect(calls.resolveBackend).toEqual([{ sessionKey: 'ses_1' }]);
+    // OpenCode has a usable model here — the ACP selection still wins, and
+    // no generation request leaves for OpenCode.
+    expect(calls.resolveBackend).toEqual([{ sessionKey: 'ses_acp-omp_rnative-1' }]);
     expect(calls.generate).toEqual([{
       backendId: 'acp-backend',
       instruction: 'be terse',
-      input: 'hello fallback',
+      input: 'hello acp',
       maxChars: 400,
     }]);
     expect(result).toEqual({
@@ -211,18 +213,16 @@ describe('ACP one-off fallback', () => {
     });
     expect('providerID' in result).toBe(false);
     expect('modelID' in result).toBe(false);
+    expect(lastGenerate()).toBeUndefined();
   });
 
-  it('falls back on the no-model 404 without a sessionKey and defaults the budget', async () => {
-    state.models = [MODEL({ id: 'claude-sonnet-5', modelID: 'claude-sonnet-5', family: 'claude-sonnet' })];
-    state.defaultModel = null;
+  it('routes ACP-first on an explicit backendId with default budget', async () => {
     const { calls, provider } = stubProvider();
     setAcpOneOffFallback(provider);
 
-    const result = await generateSmallModelText({ prompt: 'hi', directory: '/proj' });
+    const result = await generateSmallModelText({ prompt: 'hi', directory: '/proj', backendId: 'omp' });
 
-    // No family match, no default model: the OpenCode path reports no model.
-    expect(calls.resolveBackend).toEqual([{}]);
+    expect(calls.resolveBackend).toEqual([{ backendId: 'omp' }]);
     expect(calls.generate[0]).toMatchObject({
       backendId: 'acp-backend',
       instruction: 'Reply with exactly what is requested and nothing else.',
@@ -230,9 +230,36 @@ describe('ACP one-off fallback', () => {
       maxChars: 2000,
     });
     expect(result).toMatchObject({ text: 'fallback text', source: 'acp-oneoff', backendId: 'acp-backend' });
+    expect(lastGenerate()).toBeUndefined();
   });
 
-  it('keeps the historical no-model 404 when the fallback is unset', async () => {
+  it('keeps OpenCode-only unavailability for non-ACP callers even while set', async () => {
+    configureOpenCodeRuntimeProviders(null);
+    const { calls, provider } = stubProvider();
+    setAcpOneOffFallback(provider);
+
+    // No sessionKey/backendId: historical 404, no ACP attempt.
+    const failure = await generateSmallModelText({ prompt: 'hi' }).catch((error) => error);
+    expect(failure).toMatchObject({
+      message: 'No small model available — OpenCode is not reachable',
+      statusCode: 404,
+    });
+    expect(calls.resolveBackend).toHaveLength(0);
+    expect(calls.generate).toHaveLength(0);
+  });
+
+  it('treats a non-ACP sessionKey as an OpenCode caller', async () => {
+    const { calls, provider } = stubProvider();
+    setAcpOneOffFallback(provider);
+
+    const result = await generateSmallModelText({ prompt: 'hi', directory: '/proj', sessionKey: 'ses_12345' });
+
+    expect(result.source).toBe('default');
+    expect(calls.resolveBackend).toHaveLength(0);
+    expect(calls.generate).toHaveLength(0);
+  });
+
+  it('keeps the historical no-model 404 when the provider is unset', async () => {
     state.models = [MODEL({ id: 'claude-sonnet-5', modelID: 'claude-sonnet-5', family: 'claude-sonnet' })];
     state.defaultModel = null;
 
@@ -244,7 +271,7 @@ describe('ACP one-off fallback', () => {
     });
   });
 
-  it('does not fall back on the exhausted-catalog 503', async () => {
+  it('does not consult ACP on the exhausted-catalog 503', async () => {
     const { calls, provider } = stubProvider();
     setAcpOneOffFallback(provider);
     const unavailable = { _tag: 'InvalidRequestError', message: 'Model unavailable: zai-coding-plan/glm-5.3-flash' };
@@ -264,7 +291,7 @@ describe('ACP one-off fallback', () => {
     expect(calls.generate).toHaveLength(0);
   });
 
-  it('does not fall back on an oversized-input 413', async () => {
+  it('does not consult ACP on an oversized-input 413', async () => {
     const { calls, provider } = stubProvider();
     setAcpOneOffFallback(provider);
 
@@ -280,27 +307,26 @@ describe('ACP one-off fallback', () => {
   });
 
   it('surfaces provider failures as-is', async () => {
-    configureOpenCodeRuntimeProviders(null);
     const failure = Object.assign(new Error('backend exploded'), { code: 'ACP_BACKEND_UNAVAILABLE' });
     const { provider } = stubProvider({ generate: async () => { throw failure; } });
     setAcpOneOffFallback(provider);
 
-    await expect(generateSmallModelText({ prompt: 'hi' })).rejects.toBe(failure);
+    await expect(generateSmallModelText({ prompt: 'hi', backendId: 'omp' })).rejects.toBe(failure);
   });
 
-  it('ignores a non-string sessionKey for resolveBackend', async () => {
-    configureOpenCodeRuntimeProviders(null);
+  it('ignores a non-string sessionKey for backend selection', async () => {
     const { calls, provider } = stubProvider();
     setAcpOneOffFallback(provider);
 
-    await generateSmallModelText({ prompt: 'hi', sessionKey: 42 });
+    await generateSmallModelText({ prompt: 'hi', directory: '/proj', sessionKey: 42 });
 
-    expect(calls.resolveBackend).toEqual([{}]);
+    expect(calls.resolveBackend).toHaveLength(0);
+    expect(calls.generate).toHaveLength(0);
   });
 });
 
-describe('ACP fallback routes', () => {
-  it('passes sessionKey through POST /api/small-model/generate', async () => {
+describe('ACP routing routes', () => {
+  it('passes sessionKey and backendId through POST /api/small-model/generate', async () => {
     const seen = [];
     const handlers = mountRoutes({
       generateSmallModelText: async (options) => {
@@ -311,15 +337,16 @@ describe('ACP fallback routes', () => {
 
     const { status, payload } = await runHandler(
       handlers['POST /api/small-model/generate'],
-      { body: { prompt: 'hi', sessionKey: 'ses_9' } },
+      { body: { prompt: 'hi', sessionKey: 'ses_acp-omp_rnative-1', backendId: 'omp' } },
     );
 
     expect(status).toBe(200);
     expect(payload.text).toBe('ok');
-    expect(seen[0].sessionKey).toBe('ses_9');
+    expect(seen[0].sessionKey).toBe('ses_acp-omp_rnative-1');
+    expect(seen[0].backendId).toBe('omp');
   });
 
-  it('ignores a non-string sessionKey on POST /api/small-model/generate', async () => {
+  it('ignores non-string sessionKey/backendId on POST /api/small-model/generate', async () => {
     const seen = [];
     const handlers = mountRoutes({
       generateSmallModelText: async (options) => {
@@ -328,31 +355,56 @@ describe('ACP fallback routes', () => {
       },
     });
 
-    await runHandler(handlers['POST /api/small-model/generate'], { body: { prompt: 'hi', sessionKey: 42 } });
+    await runHandler(handlers['POST /api/small-model/generate'], { body: { prompt: 'hi', sessionKey: 42, backendId: 7 } });
 
     expect('sessionKey' in seen[0]).toBe(false);
+    expect('backendId' in seen[0]).toBe(false);
   });
 
-  it('reports available with a synthetic model when OpenCode is null and the fallback is set', async () => {
-    const { provider } = stubProvider();
+  it('reports ACP availability from the selected backend, not provider presence', async () => {
+    const { calls, provider } = stubProvider({ backendId: 'omp' });
     setAcpOneOffFallback(provider);
     const handlers = mountRoutes({
-      describeSmallModel: async () => null,
+      describeSmallModel: async () => { throw new Error('must not consult OpenCode for ACP-scoped availability'); },
       listAuthenticatedProviders: async () => ['anthropic'],
       getAcpOneOffFallback,
     });
 
-    const { status, payload } = await runHandler(handlers['GET /api/small-model'], { query: {} });
+    const { status, payload } = await runHandler(
+      handlers['GET /api/small-model'],
+      { query: { sessionKey: 'ses_acp-omp_rnative-1' } },
+    );
 
     expect(status).toBe(200);
     expect(payload).toEqual({
       available: true,
-      model: { source: 'acp-oneoff' },
+      model: { source: 'acp-oneoff', backendId: 'omp' },
       authenticatedProviders: ['anthropic'],
     });
+    expect(calls.resolveBackend).toEqual([{ sessionKey: 'ses_acp-omp_rnative-1' }]);
   });
 
-  it('reports unavailable when OpenCode is null and the fallback is unset', async () => {
+  it('reports unavailable when the selected backend cannot resolve', async () => {
+    const { provider } = stubProvider();
+    const failing = {
+      ...provider,
+      resolveBackend: async () => { throw Object.assign(new Error('nope'), { code: 'ACP_BACKEND_UNKNOWN' }); },
+    };
+    setAcpOneOffFallback(failing);
+    const handlers = mountRoutes({
+      describeSmallModel: async () => { throw new Error('must not consult OpenCode for ACP-scoped availability'); },
+      listAuthenticatedProviders: async () => [],
+      getAcpOneOffFallback,
+    });
+
+    const { payload } = await runHandler(handlers['GET /api/small-model'], { query: { backendId: 'omp' } });
+
+    expect(payload).toEqual({ available: false, model: null, authenticatedProviders: [] });
+  });
+
+  it('reports OpenCode-only unavailability for non-ACP callers while set', async () => {
+    const { provider } = stubProvider();
+    setAcpOneOffFallback(provider);
     const handlers = mountRoutes({
       describeSmallModel: async () => null,
       listAuthenticatedProviders: async () => [],
@@ -364,7 +416,7 @@ describe('ACP fallback routes', () => {
     expect(payload).toEqual({ available: false, model: null, authenticatedProviders: [] });
   });
 
-  it('leaves an OpenCode resolution untouched while the fallback is set', async () => {
+  it('leaves an OpenCode resolution untouched while the provider is set', async () => {
     const { provider } = stubProvider();
     setAcpOneOffFallback(provider);
     const resolved = { providerID: 'anthropic', modelID: 'claude-haiku-4-5', source: 'default' };
@@ -379,7 +431,7 @@ describe('ACP fallback routes', () => {
     expect(payload).toEqual({ available: true, model: resolved, authenticatedProviders: ['anthropic'] });
   });
 
-  it('keeps describeSmallModel OpenCode-only while the fallback is set', async () => {
+  it('keeps describeSmallModel OpenCode-only while the provider is set', async () => {
     const { provider } = stubProvider();
     setAcpOneOffFallback(provider);
     configureOpenCodeRuntimeProviders(null);

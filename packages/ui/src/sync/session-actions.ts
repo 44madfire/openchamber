@@ -636,6 +636,21 @@ function findSessionDirectoryInChildStores(sessionId: string): string | null {
   return null
 }
 
+/**
+ * The session row when a child store already holds it, without creating
+ * stores: capability guards run before store resolution so an unknown
+ * backend refuses without throwing `ensureChild` errors first.
+ */
+function findLiveSessionInChildStores(sessionId: string): Session | null {
+  const stores = _childStores
+  if (!stores || !sessionId) return null
+  for (const store of stores.children.values()) {
+    const found = store.getState().session.find((session) => session.id === sessionId)
+    if (found) return found
+  }
+  return null
+}
+
 /** Directory of the instance that owns `sessionId`, for a reply request. */
 function getSessionReplyDirectory(sessionId?: string): string | undefined {
   const directory = sessionId
@@ -2683,7 +2698,10 @@ export async function revertAcpToMessage(sessionId: string, messageId: string): 
   if (revertDidFork(sessionId, response)) {
     openForkedSession(store, response.session, directory)
   } else {
-    mirrorSessionIntoLiveStores(response.session, directory)
+    // The session record may never have entered this directory's child store
+    // (ACP rows arrive through the per-directory merge), so update-in-place
+    // helpers that skip absent ids would drop the revert boundary silently.
+    upsertSessionIntoStore(store, response.session)
   }
   if (skipped.length > 0) {
     // Static import would pull the whole component graph into this action
@@ -2715,6 +2733,18 @@ export async function refetchSessionMessages(sessionId: string): Promise<void> {
     const materialized = materializeSessionSnapshots(state, sessionId, records)
     return { message: materialized.message, part: materialized.part }
   })
+}
+
+/** Replace the session row in place, inserting it (id-ordered) when absent. */
+function upsertSessionIntoStore(store: DirectoryStoreApi, session: Session) {
+  const sessions = [...store.getState().session]
+  const searchResult = Binary.search(sessions, session.id, (s) => s.id)
+  if (searchResult.found) {
+    sessions[searchResult.index] = mergeSessionDirectoryMetadata(session, sessions[searchResult.index])
+  } else {
+    sessions.splice(searchResult.index, 0, session)
+  }
+  store.setState({ session: sessions })
 }
 
 /** Insert the fork into the child store so the sidebar updates immediately, then switch to it. */
@@ -2767,8 +2797,17 @@ const isTurnBoundary = (message: Message): boolean =>
  * rewrite.
  */
 export async function forkAfterMessage(sessionId: string, messageId: string): Promise<Session | null> {
-  if (isAcpUnsupported(sessionId, "fork")) throw new AcpUnsupportedError("session.fork", sessionId)
   const expectedRuntimeKey = getRuntimeKey()
+  if (isAcpSessionId(sessionId)) {
+    // Fail fast before store resolution: an unknown capability (no record
+    // held) refuses without SDK calls, and the lookup must not throw
+    // `ensureChild` errors first.
+    if (isAcpUnsupported(sessionId, "fork", findLiveSessionInChildStores(sessionId))) {
+      throw new AcpUnsupportedError("session.fork", sessionId)
+    }
+    const { store, directory } = dirStoreForSession(sessionId)
+    return forkAcpSession(sessionId, store, directory, expectedRuntimeKey)
+  }
   const { store, directory } = dirStoreForSession(sessionId)
   const messages = store.getState().message[sessionId] ?? []
   const index = messages.findIndex((message) => message.id === messageId)
@@ -2786,6 +2825,25 @@ export async function forkAfterMessage(sessionId: string, messageId: string): Pr
   return forkedSession
 }
 
+/**
+ * ACP whole-transcript fork: the agent copies the full conversation (T6 has
+ * no fork-at-message, so the cut message is ignored) and the UI navigates to
+ * the warm fork. The gate above already refused backends without the
+ * advertised fork capability.
+ */
+async function forkAcpSession(
+  sessionId: string,
+  store: DirectoryStoreApi,
+  directory: string | undefined,
+  expectedRuntimeKey: string,
+): Promise<Session | null> {
+  const forkedSession = await opencodeClient.forkSession(sessionId, { directory })
+  if (isStaleRuntime(expectedRuntimeKey)) return null
+  const forkDirectory = resolveSessionOwnedDirectory(forkedSession) ?? directory
+  openForkedSession(store, forkedSession, forkDirectory)
+  await inheritForkMetadata(sessionId, forkedSession, forkDirectory, expectedRuntimeKey)
+  return forkedSession
+}
 /**
  * Whether the boundary at `index` opened a turn rather than arriving inside one.
  * OpenCode steers subagent reports, compactions and prompts typed during a run
@@ -2858,8 +2916,18 @@ export async function forkFromLastCompletedTurn(sessionId: string): Promise<Sess
  * 4. Switch to the new session and stage its composer replay
  */
 export async function forkFromMessage(sessionId: string, messageId: string): Promise<void> {
-  if (isAcpUnsupported(sessionId, "fork")) throw new AcpUnsupportedError("session.fork", sessionId)
   const expectedRuntimeKey = getRuntimeKey()
+  // Fail fast before store resolution (see forkAfterMessage).
+  if (isAcpSessionId(sessionId)) {
+    if (isAcpUnsupported(sessionId, "fork", findLiveSessionInChildStores(sessionId))) {
+      throw new AcpUnsupportedError("session.fork", sessionId)
+    }
+    // ACP forks copy the whole transcript (T6): nothing is cut, so no prompt
+    // text is restored to the fork's composer — it already holds the answer.
+    const { store, directory } = dirStoreForSession(sessionId)
+    await forkAcpSession(sessionId, store, directory, expectedRuntimeKey)
+    return
+  }
   const { store, directory } = dirStoreForSession(sessionId)
   const state = store.getState()
 

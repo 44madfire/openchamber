@@ -22,6 +22,25 @@ describe("isAcpUnsupported", () => {
     expect(isAcpUnsupported(ACP_ID, "diff")).toBe(false)
     expect(isAcpUnsupported(ACP_ID, "fork")).toBe(true)
     expect(isAcpUnsupported(ACP_ID, "fork", { metadata: { acp: { backendId: "omp" } } })).toBe(true)
-    expect(isAcpUnsupported(ACP_ID, "fork", { metadata: { acp: { backendId: "omp", capabilities: { fork: true } } } })).toBe(false)
+    // The real projected shape: the full initialize capabilities object with
+    // fork under sessionCapabilities as a capability object.
+    expect(isAcpUnsupported(ACP_ID, "fork", { metadata: { acp: { backendId: "omp", capabilities: { sessionCapabilities: { fork: {} } } } } })).toBe(false)
+    expect(isAcpUnsupported(ACP_ID, "fork", { metadata: { acp: { backendId: "omp", capabilities: { sessionCapabilities: {} } } } })).toBe(true)
+    expect(isAcpUnsupported(ACP_ID, "fork", { metadata: { acp: { backendId: "omp", capabilities: { sessionCapabilities: { fork: false } } } } })).toBe(true)
+    expect(isAcpUnsupported(ACP_ID, "fork", { metadata: { acp: { backendId: "omp", capabilities: { sessionCapabilities: { fork: null } } } } })).toBe(true)
+    // A root-level fork boolean is not the wire shape and must not enable fork.
+    expect(isAcpUnsupported(ACP_ID, "fork", { metadata: { acp: { backendId: "omp", capabilities: { fork: true } } } })).toBe(true)
+  })
+
+  test("the UI reads the fork flag the projector actually emits", async () => {
+    const { createSessionProjector } = await import("../../../../web/server/lib/acp/core/projector.js")
+    const projector = createSessionProjector({ key: ACP_ID, backendId: "omp", directory: "/repo" })
+    projector.seed(
+      { modes: [{ id: "default" }], configOptions: [] },
+      { sessionCapabilities: { fork: {} } },
+    )
+    const session = projector.session()
+    expect(isAcpUnsupported(ACP_ID, "fork", session as unknown as Parameters<typeof isAcpUnsupported>[2])).toBe(false)
+    expect(isAcpUnsupported(ACP_ID, "fork")).toBe(true)
   })
 })
